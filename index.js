@@ -7,11 +7,11 @@ const axios = require('axios'); // npm install axios
 // === IMPORTAR A IA ===
 const WhatsAppAI = require('./whatsapp_ai');
 
-// === CONFIGURAÇÃO GOOGLE SHEETS - BOT RETALHO (USANDO MESMO SCRIPT, PLANILHA DIFERENTE) ===
+// === CONFIGURAÇÃO GOOGLE SHEETS - BOT RETALHO (SCRIPT PRÓPRIO) ===
 const GOOGLE_SHEETS_CONFIG = {
-    scriptUrl: process.env.GOOGLE_SHEETS_SCRIPT_URL_ATACADO || 'https://script.google.com/macros/s/AKfycbzdvM-IrH4a6gS53WZ0J-AGXY0duHfgv15DyxdqUm1BLEm3Z15T67qgstu6yPTedgOSCA/exec',
-    planilhaUrl: 'https://docs.google.com/spreadsheets/d/[NOVA_PLANILHA_RETALHO_ID]/edit',
-    planilhaId: '[NOVA_PLANILHA_RETALHO_ID]',
+    scriptUrl: process.env.GOOGLE_SHEETS_SCRIPT_URL_RETALHO || 'https://script.google.com/macros/s/[NOVO_SCRIPT_ID_RETALHO]/exec',
+    planilhaUrl: 'https://docs.google.com/spreadsheets/d/1vIv1Y0Hiu6NHEG37ubbFoa_vfbEe6sAb9I4JH-P38BQ/edit',
+    planilhaId: '1vIv1Y0Hiu6NHEG37ubbFoa_vfbEe6sAb9I4JH-P38BQ',
     timeout: 30000,
     retryAttempts: 3,
     retryDelay: 2000
@@ -336,20 +336,21 @@ async function tentarComRetry(funcao, maxTentativas = 3, delay = 2000) {
     }
 }
 async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoNome, autorMensagem) {
+    // Formato igual ao Bot Atacado: transacao já concatenada
+    const transacaoFormatada = `${referencia}|${valor}|${numero}`;
+    
     const dados = {
-        referencia: referencia,
-        valor: parseInt(valor),
-        numero: numero,
-        grupo_id: grupoId, // ID único do grupo
-        grupo_nome: grupoNome, // Nome para exibição
-        autor: autorMensagem,
-        timestamp: new Date().toISOString(),
-        processado: false,
-        tasker_id: Date.now() + Math.random().toString(36).substr(2, 9)
+        transacao: transacaoFormatada,  // Formato concatenado igual ao Bot Atacado
+        grupo_id: grupoId,
+        sender: 'WhatsApp-Bot',  // Identificar origem
+        message: `Dados enviados pelo Bot: ${transacaoFormatada}`,
+        timestamp: new Date().toISOString()
     };
     
     try {
         console.log(`📊 Enviando para Google Sheets [${grupoNome}]: ${referencia}|${valor}|${numero}`);
+        console.log(`🔍 Dados enviados:`, JSON.stringify(dados, null, 2));
+        console.log(`🔗 URL destino:`, GOOGLE_SHEETS_CONFIG.scriptUrl);
         
        const response = await axios.post(GOOGLE_SHEETS_CONFIG.scriptUrl, dados, {
     timeout: GOOGLE_SHEETS_CONFIG.timeout,
@@ -363,11 +364,17 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
     }
 });
         
-        if (response.data && response.data.success) {
-            console.log(`✅ Google Sheets: Dados enviados! Row: ${response.data.row} | Grupo: ${grupoNome}`);
-            return { sucesso: true, row: response.data.row };
+        // Google Apps Script retorna texto simples: "Sucesso! REF|MEGAS|NUM [PENDENTE]"
+        const responseText = response.data || '';
+        console.log(`📥 Resposta Google Sheets: ${responseText}`);
+        
+        if (responseText.includes('Sucesso!')) {
+            console.log(`✅ Google Sheets: Dados enviados! | Grupo: ${grupoNome}`);
+            return { sucesso: true, row: 'N/A' };
+        } else if (responseText.includes('Erro:')) {
+            throw new Error(responseText);
         } else {
-            throw new Error(response.data?.error || 'Resposta inválida');
+            throw new Error(`Resposta inesperada: ${responseText}`);
         }
         
     } catch (error) {
