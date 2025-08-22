@@ -127,16 +127,12 @@ NÚMERO: 871112049
 NOME: NATACHA ALICE`
     },
 
-    '120363152151047451@g.us': {
-        nome: 'Phull Megas',
+    '120363402160265624@g.us': {
+        nome: 'Treinamento IA',
         tabela: `MEGA PROMO  VODACOM 
  ━━━━━━━━━━━━━━━
 📅 PACOTES DIÁRIOS 📅 24h 
 
-✅ 600MB.  ➔ 10MT 🛜
-✅ 900MB.  ➔ 15MT 🛜
-✅1024MB.      17MT 🛜
-✅ 1050MB.      18MT 🛜
 
 ✅ 1G + 200MB ➔ 20MT 📶
 ✅ 2G + 400MB ➔ 40MT 📶
@@ -144,15 +140,7 @@ NOME: NATACHA ALICE`
 ✅ 4G + 800MB  💳 80MT 
 ✅ 5G +1000MB 💳 100MT 
 ✅ 10G +240MB 💳 180MT 
-━━━━━━━━━━━━━━ 
 
-PLANO SEMANAL(7 DIAS)
-
-97MT————— 3.4GB
-147MT—————5.2GB
-196MT—————-7.1GB
-296MT————-10.7GB
-396MT —— 14.3GB*
  *_________________* 
 💎 PACOTES MENSAIS 💎
    
@@ -161,17 +149,7 @@ PLANO SEMANAL(7 DIAS)
 📲 15G  ➔ 385MT 💳
 📲 20G  ➔ 480MT 💳
 ━━━━━━━━━━━━━━━
-📌 NOTAS IMPORTANTES:
-⚠ Nos pacotes semanais e mensais não deve ter txuna!
-🔹 Faço megas a partir de 10 MT para cima!
 
-💫  TURBO COMANDOS ✨
-
-📍 Use o comando ilimitado para ver a tabela de pacotes ilimitados
-
-☎ Use o comando saldo para ver a tabela de saldo
-
-💳 Use o comando pagamento para ver as formas de pagamento.
 
 🚀 Oferecemos sempre o melhor!*
 
@@ -1274,6 +1252,7 @@ process.on('SIGINT', async () => {
     console.log(ia.getStatus());
     process.exit(0);
 });
+
 
 
 
