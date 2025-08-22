@@ -15,6 +15,25 @@ class WhatsAppAI {
     console.log('🧠 IA WhatsApp inicializada com legendas melhoradas e histórico expandido');
   }
 
+  // === CALCULAR MEGAS POR VALOR ===
+  calcularMegasPorValor(valor, tabelaTexto) {
+    console.log(`   🧮 Calculando megas para ${valor}MT...`);
+    
+    const precos = this.extrairPrecosTabela(tabelaTexto);
+    const valorNumerico = parseFloat(valor);
+    
+    // Procurar correspondência exata
+    const pacoteExato = precos.find(p => p.preco === valorNumerico);
+    if (pacoteExato) {
+      console.log(`   ✅ Correspondência exata: ${valorNumerico}MT = ${pacoteExato.descricao} (${pacoteExato.quantidade}MB)`);
+      return pacoteExato.quantidade; // Retorna em MB
+    }
+    
+    // Se não encontrar correspondência exata, retornar o valor original
+    console.log(`   ⚠️ Sem correspondência exata para ${valorNumerico}MT, mantendo valor`);
+    return valor;
+  }
+
   // === EXTRAIR PREÇOS DA TABELA ===
   extrairPrecosTabela(tabelaTexto) {
     console.log(`   📋 Extraindo preços da tabela...`);
@@ -789,13 +808,17 @@ class WhatsAppAI {
       
       // Processamento normal (sem divisão automática)
       if (numeros.length === 1) {
-        const resultado = `${comprovante.referencia}|${comprovante.valor}|${numeros[0]}`;
-        console.log(`   ✅ PEDIDO COMPLETO IMEDIATO: ${resultado}`);
+        // Calcular megas baseado no valor e tabela do grupo
+        const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
+        const resultado = `${comprovante.referencia}|${megas}|${numeros[0]}`;
+        console.log(`   ✅ PEDIDO COMPLETO IMEDIATO: ${resultado} (${comprovante.valor}MT → ${megas}MB)`);
         return { 
           sucesso: true, 
           dadosCompletos: resultado,
           tipo: 'numero_processado',
-          numero: numeros[0]
+          numero: numeros[0],
+          valorPago: comprovante.valor,
+          megas: megas
         };
       } else {
         // Múltiplos números - dividir valor igualmente
@@ -846,11 +869,15 @@ class WhatsAppAI {
       
       await this.processarComprovante(comprovante, remetente, timestamp);
       
+      // Calcular megas para mostrar na mensagem
+      const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
+      
       return { 
         sucesso: true, 
         tipo: 'comprovante_recebido',
         referencia: comprovante.referencia,
         valor: comprovante.valor,
+        megas: megas,
         mensagem: 'Comprovante recebido! Agora envie o número que vai receber os megas.'
       };
     }
@@ -968,14 +995,18 @@ Se não conseguires ler a imagem ou extrair os dados:
             
             // Processamento normal (sem divisão automática)
             if (numeros.length === 1) {
-              const resultado = `${comprovante.referencia}|${comprovante.valor}|${numeros[0]}`;
-              console.log(`   ✅ PEDIDO COMPLETO IMEDIATO (IMAGEM + LEGENDA): ${resultado}`);
+              // Calcular megas baseado no valor e tabela do grupo
+              const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
+              const resultado = `${comprovante.referencia}|${megas}|${numeros[0]}`;
+              console.log(`   ✅ PEDIDO COMPLETO IMEDIATO (IMAGEM + LEGENDA): ${resultado} (${comprovante.valor}MT → ${megas}MB)`);
               return { 
                 sucesso: true, 
                 dadosCompletos: resultado,
                 tipo: 'numero_processado',
                 numero: numeros[0],
-                fonte: 'imagem_com_legenda'
+                fonte: 'imagem_com_legenda',
+                valorPago: comprovante.valor,
+                megas: megas
               };
             } else {
               // Múltiplos números - dividir valor igualmente
@@ -1006,11 +1037,15 @@ Se não conseguires ler a imagem ou extrair os dados:
         // Sem números na legenda - processar comprovante normalmente
         await this.processarComprovante(comprovante, remetente, timestamp);
         
+        // Calcular megas para mostrar na mensagem
+        const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
+        
         return { 
           sucesso: true, 
           tipo: 'comprovante_imagem_recebido',
           referencia: comprovante.referencia,
           valor: comprovante.valor,
+          megas: megas,
           mensagem: 'Comprovante da imagem processado! Agora envie o número que vai receber os megas.'
         };
       } else {
@@ -1064,16 +1099,20 @@ Se não conseguires ler a imagem ou extrair os dados:
       }
       
       if (numeros.length === 1) {
-        const resultado = `${comprovante.referencia}|${comprovante.valor}|${numeros[0]}`;
+        // Calcular megas baseado no valor e tabela do grupo
+        const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
+        const resultado = `${comprovante.referencia}|${megas}|${numeros[0]}`;
         delete this.comprovantesEmAberto[remetente];
         
-        console.log(`   ✅ PEDIDO COMPLETO: ${resultado}`);
+        console.log(`   ✅ PEDIDO COMPLETO: ${resultado} (${comprovante.valor}MT → ${megas}MB)`);
         return { 
           sucesso: true, 
           dadosCompletos: resultado,
           tipo: 'numero_processado',
           numero: numeros[0],
-          origem: 'comprovante_em_aberto'
+          origem: 'comprovante_em_aberto',
+          valorPago: comprovante.valor,
+          megas: megas
         };
         
       } else {
@@ -1329,14 +1368,18 @@ Se não conseguires extrair, responde:
           console.log(`   ✅ Comprovante encontrado: ${comprovante.referencia} - ${comprovante.valor}MT (${tempoDecorrido} min atrás)`);
           
           if (numeros.length === 1) {
-            const resultado = `${comprovante.referencia}|${comprovante.valor}|${numeros[0]}`;
-            console.log(`   ✅ ENCONTRADO NO HISTÓRICO: ${resultado}`);
+            // Calcular megas baseado no valor e tabela do grupo
+            const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
+            const resultado = `${comprovante.referencia}|${megas}|${numeros[0]}`;
+            console.log(`   ✅ ENCONTRADO NO HISTÓRICO: ${resultado} (${comprovante.valor}MT → ${megas}MB)`);
             return { 
               sucesso: true, 
               dadosCompletos: resultado,
               tipo: 'numero_processado',
               numero: numeros[0],
-              tempoDecorrido: tempoDecorrido
+              tempoDecorrido: tempoDecorrido,
+              valorPago: comprovante.valor,
+              megas: megas
             };
           } else {
             const valorPorNumero = (valorTotal / numeros.length).toFixed(2);
