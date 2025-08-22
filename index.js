@@ -9,7 +9,7 @@ const WhatsAppAI = require('./whatsapp_ai');
 
 // === CONFIGURAÇÃO GOOGLE SHEETS - BOT RETALHO (SCRIPT PRÓPRIO) ===
 const GOOGLE_SHEETS_CONFIG = {
-    scriptUrl: process.env.GOOGLE_SHEETS_SCRIPT_URL_RETALHO || 'https://script.google.com/macros/s/AKfycbyMilUC5bYKGXV95LR4MmyaRHzMf6WCmXeuztpN0tDpQ9_2qkgCxMipSVqYK_Q6twZG/exec',
+    scriptUrl: process.env.GOOGLE_SHEETS_SCRIPT_URL_RETALHO || 'https://script.google.com/macros/s/[NOVO_SCRIPT_ID_RETALHO]/exec',
     planilhaUrl: 'https://docs.google.com/spreadsheets/d/1vIv1Y0Hiu6NHEG37ubbFoa_vfbEe6sAb9I4JH-P38BQ/edit',
     planilhaId: '1vIv1Y0Hiu6NHEG37ubbFoa_vfbEe6sAb9I4JH-P38BQ',
     timeout: 30000,
@@ -1274,7 +1274,6 @@ process.on('SIGINT', async () => {
     console.log(ia.getStatus());
     process.exit(0);
 });
-
 
 
 
