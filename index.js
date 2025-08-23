@@ -291,7 +291,72 @@ Temos muito mais serviço…
 - *JOSE TOMÁS*
 
 📩 Envie o seu comprovantivo no grupo, juntamente com o número que vai receber os dados.`
-},
+},'258840161370-1471468657@g.us': {
+        nome: 'Megas VIP',
+        tabela: `🚨📢MEGABYTES DA VODACOM📢🚨
+
+📦PACOTE DIÁRIO📦
+
+🛜512MB = 10MT
+🛜1024MB = 18MT
+🛜2048MB = 36MT
+🛜3072MB = 54MT
+🛜4096MB = 72MT
+🛜5120MB = 90MT
+🛜10240MB = 180MT
+🛜20480MB = 360MT
+
+  
+PACOTE SEMANAL🛒📦
+⚠Não deve ter txuna crédito⚠
+
+
+🛜2.9GB = 85MT
+🛜3.4GB = 95MT
+🛜5.2GB = 145MT
+🛜7.1GB = 195MT 
+🛜10.7GB = 295MT
+🛜14.3GB = 395MT
+
+
+
+📦PACOTE MENSAL📦
+⚠Não deve ter txuna crédito⚠
+
+📊2.8GB = 95MT
+📊3.8GB = 125MT
+📊4.8GB = 145MT
+📊5.8GB = 165MT
+📊6.8GB = 195MT
+📊7.8GB = 215MT
+📊10.8GB = 285MT
+📊12.8GB = 345MT
+📊20.8GB = 565MT
+
+
+FORMA DE PAGAMENTO:
+💳💸
+M-Pesa: 853529033 📱
+- Ercílio Uanela 
+e-Mola: 865627840 📱
+- Alexandre Uanela 
+
+Adquira já os teus megas com segurança, confiança e rapidez!🚨🔥
+`,
+
+        pagamento: `FORMAS DE PAGAMENTO💰💶
+
+📌 M-PESA: 853529033 
+   Nome: Ercílio Uanela 
+
+📌 E-MOLA: 865627840 
+    Nome: Alexandre Uanela  
+
+📮 _Apos a transferência do valor envie o comprovativo da transação ou a chave da mensagem 📸📂
+
+🚀 O futuro é agora! Vamos? 🔥🛒
+`
+    }
 };
 
 // === FUNÇÃO GOOGLE SHEETS ===
@@ -1252,7 +1317,6 @@ process.on('SIGINT', async () => {
     console.log(ia.getStatus());
     process.exit(0);
 });
-
 
 
 
