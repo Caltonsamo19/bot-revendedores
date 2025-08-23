@@ -291,7 +291,7 @@ Temos muito mais serviço…
 - *JOSE TOMÁS*
 
 📩 Envie o seu comprovantivo no grupo, juntamente com o número que vai receber os dados.`
-},'258840161370-1471468657@g.us': {
+},'120363418801452164@g.us': {
         nome: 'Megas VIP',
         tabela: `🚨📢MEGABYTES DA VODACOM📢🚨
 
@@ -1317,6 +1317,7 @@ process.on('SIGINT', async () => {
     console.log(ia.getStatus());
     process.exit(0);
 });
+
 
 
 
