@@ -22,16 +22,32 @@ class WhatsAppAI {
     const precos = this.extrairPrecosTabela(tabelaTexto);
     const valorNumerico = parseFloat(valor);
     
+    if (precos.length === 0) {
+      console.log(`   ❌ Nenhum preço encontrado na tabela, retornando valor numérico`);
+      return valorNumerico;
+    }
+    
     // Procurar correspondência exata
-    const pacoteExato = precos.find(p => p.preco === valorNumerico);
-    if (pacoteExato) {
+    let pacoteExato = precos.find(p => p.preco === valorNumerico);
+    
+    // Se não encontrar exato, tentar com tolerância de ±1MT
+    if (!pacoteExato) {
+      pacoteExato = precos.find(p => Math.abs(p.preco - valorNumerico) <= 1);
+      if (pacoteExato) {
+        console.log(`   ⚡ Correspondência aproximada: ${valorNumerico}MT ≈ ${pacoteExato.preco}MT = ${pacoteExato.descricao} (${pacoteExato.quantidade}MB)`);
+      }
+    } else {
       console.log(`   ✅ Correspondência exata: ${valorNumerico}MT = ${pacoteExato.descricao} (${pacoteExato.quantidade}MB)`);
+    }
+    
+    if (pacoteExato) {
       return pacoteExato.quantidade; // Retorna em MB
     }
     
-    // Se não encontrar correspondência exata, retornar o valor original
-    console.log(`   ⚠️ Sem correspondência exata para ${valorNumerico}MT, mantendo valor`);
-    return valor;
+    // Se não encontrar correspondência, retornar valor numérico (não string)
+    console.log(`   ⚠️ Sem correspondência para ${valorNumerico}MT, retornando valor numérico`);
+    console.log(`   📋 Preços disponíveis: ${precos.map(p => `${p.preco}MT=${p.descricao}`).join(', ')}`);
+    return valorNumerico;
   }
 
   // === EXTRAIR PREÇOS DA TABELA ===
