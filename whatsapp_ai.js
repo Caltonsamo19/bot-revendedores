@@ -98,12 +98,18 @@ class WhatsAppAI {
           console.log(`     🔍 Padrão ${index}: ${match[0]}`);
           
           // Detectar formato especial reverso (45MT__1741MB)
-          if (index >= 11) { // Padrões reversos
+          if (index >= 12) { // Apenas padrões reversos (índices 12 e 13)
             preco = this.limparValorNumerico(match[1]);
             quantidade = parseFloat(match[2]);
             unidade = 'mb';
             console.log(`     🔄 Formato reverso: ${preco}MT -> ${quantidade}MB`);
-          } else if (index === 7) { // Formato: 450MT - Ilimitado + 11.5GB
+          } else if (index === 7 || index === 8) { // Formatos 🛜 (MB=MT ou GB=MT)
+            // Para 🛜5120MB = 90MT: quantidade=5120MB, preco=90MT
+            quantidade = parseFloat(match[1]);
+            preco = this.limparValorNumerico(match[2]);
+            unidade = index === 7 ? 'mb' : 'gb';
+            console.log(`     🛜 Formato específico: ${quantidade}${unidade.toUpperCase()} = ${preco}MT`);
+          } else if (index === 10) { // Formato: 450MT - Ilimitado + 11.5GB
             preco = this.limparValorNumerico(match[1]);
             quantidade = parseFloat(match[2]);
             unidade = 'gb';
