@@ -57,7 +57,7 @@ class WhatsAppAI {
         // Formato: 1.7GB - 45,00MT
         /(\d+\.\d+)GB\s*[\-_]*\s*(\d+[,.]\d+)\s*MT/gi,
         // Formato: 𝟭024M𝗕__𝟭𝟴 𝗠𝗧 (caracteres especiais)
-        /[𝟭-𝟵𝟬-𝟵𝟬𝟬-𝟵𝟬𝟬𝟬𝟭-𝟵]+(\d*)M[𝗕B]?[_\s]*([𝟭-𝟵𝟬-𝟵𝟬𝟬-𝟵𝟬𝟬𝟬𝟭-𝟵]+)\s*[𝗠M]?[𝗧T]/gi,
+        /[𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵𝟬]+(\d*)M[𝗕B]?[_\s]*([𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵𝟬]+)\s*[𝗠M]?[𝗧T]/gi,
         // Formato: 🛜512MB = 10MT
         /🛜(\d+)MB\s*=\s*(\d+)MT/gi,
         // Formato: 🛜2.9GB = 85MT
@@ -69,9 +69,9 @@ class WhatsAppAI {
         // Formato genérico: número + unidade + preço
         /(\d+(?:\.\d+)?)\s*(MB|GB|G)\s*[\s\-=_💎➔→+]*\s*(\d+(?:[,.]\d+)?)\s*MT/gi,
         // Formato: 45𝗠𝗧__1741M𝗕 (formato reverso)
-        /(\d+)\s*[𝗠M]?[𝗧T]?[_\s]*[+-]?\s*(\d+)M[𝗕B]/gi,
+        /(\d+)\s*[𝗠𝗧MT]?[_\s]*[+-]?\s*(\d+)M[𝗕B]/gi,
         // Formato: 80𝗠𝗧__2970M𝗕 (formato reverso)
-        /(\d+)\s*[𝗠M]?[𝗧T]?[_\s]*[+-]?\s*(\d+\.?\d*)M[𝗕B]/gi
+        /(\d+)\s*[𝗠𝗧MT]?[_\s]*[+-]?\s*(\d+\.?\d*)M[𝗕B]/gi
       ];
       
       for (const [index, padrao] of padroes.entries()) {
@@ -188,12 +188,12 @@ class WhatsAppAI {
     
     // Remover caracteres especiais de fonte estética (bold/italic unicode)
     let valorStr = valor.toString()
-      .replace(/[𝟎-𝟵]/g, (match) => {
+      .replace(/[𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟵]/g, (match) => {
         // Converter números especiais para normais
         const offset = match.charCodeAt(0) - 0x1D7EC;
         return String.fromCharCode(48 + offset);
       })
-      .replace(/[𝗔-𝗭]/g, (match) => {
+      .replace(/[𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭]/g, (match) => {
         // Converter letras especiais para normais  
         const offset = match.charCodeAt(0) - 0x1D5D4;
         return String.fromCharCode(65 + offset);
