@@ -42,60 +42,116 @@ class WhatsAppAI {
     const linhas = tabelaTexto.split('\n');
     
     for (const linha of linhas) {
-      // Padrões para detectar preços - MELHORADOS
+      // Padrões MELHORADOS para detectar preços - VERSÃO ROBUSTA
       const padroes = [
-        // Formato: 1G. 16MT, 2G. 32MT, etc
-        /(\d+)G[B\.]?\s*[➔→\-]*\s*(\d+)MT/gi,
-        // Formato: 1024MB 16MT, 2048MB 32MT, etc  
-        /(\d+)MB\s*[➔→\-💎]*\s*(\d+)MT/gi,
-        // Formato: 12.8GB 250MT, 22.8GB 430MT, etc
-        /(\d+\.?\d*)GB\s*[➔→\-💎]*\s*(\d+)MT/gi,
-        // Formato: 10GB➜125MT
-        /(\d+)GB➜(\d+)MT/gi,
-        // Formato com emojis: 📱 10GB➜125MT
-        /📱\s*(\d+)GB➜(\d+)MT/gi,
-        // Formato: 50💫 45MT (para saldo)
-        /(\d+)💫\s*(\d+)MT/gi,
-        // Novos padrões para maior compatibilidade
-        /(\d+)\s*GB?\s*[-–—]\s*(\d+)\s*MT/gi,
-        /(\d+)\s*MB?\s*[-–—]\s*(\d+)\s*MT/gi
+        // Formato: 1024MB 💎 16MT💵💽
+        /(\d+)MB\s*[💎➔→\-_\s]*\s*(\d+(?:[,.]\d+)?)\s*MT/gi,
+        // Formato: 12.8GB 💎 250MT💵💽
+        /(\d+\.\d+)GB\s*[💎➔→\-_\s]*\s*(\d+(?:[,.]\d+)?)\s*MT/gi,
+        // Formato: 1G + 200MB ➔ 20MT 📶
+        /(\d+)G\s*[+]?\s*\d*MB?\s*[➔→\-]*\s*(\d+)\s*MT/gi,
+        // Formato: 📲 5G ➔ 150MT 💳
+        /📲\s*(\d+)G\s*[➔→\-]*\s*(\d+)\s*MT/gi,
+        // Formato: 1024MB - 17,00 MT
+        /(\d+)MB\s*[\-_]*\s*(\d+[,.]\d+)\s*MT/gi,
+        // Formato: 1.7GB - 45,00MT
+        /(\d+\.\d+)GB\s*[\-_]*\s*(\d+[,.]\d+)\s*MT/gi,
+        // Formato: 𝟭024M𝗕__𝟭𝟴 𝗠𝗧 (caracteres especiais)
+        /[𝟭-𝟵𝟬-𝟵𝟬𝟬-𝟵𝟬𝟬𝟬𝟭-𝟵]+(\d*)M[𝗕B]?[_\s]*([𝟭-𝟵𝟬-𝟵𝟬𝟬-𝟵𝟬𝟬𝟬𝟭-𝟵]+)\s*[𝗠M]?[𝗧T]/gi,
+        // Formato: 🛜512MB = 10MT
+        /🛜(\d+)MB\s*=\s*(\d+)MT/gi,
+        // Formato: 🛜2.9GB = 85MT
+        /🛜(\d+\.\d+)GB\s*=\s*(\d+)MT/gi,
+        // Formato: 📊2.8GB = 95MT
+        /📊(\d+\.\d+)GB\s*=\s*(\d+)MT/gi,
+        // Formato: 450MT - Ilimitado + 11.5GB
+        /(\d+)MT\s*[-=]\s*.*?\+\s*(\d+\.?\d*)GB/gi,
+        // Formato genérico: número + unidade + preço
+        /(\d+(?:\.\d+)?)\s*(MB|GB|G)\s*[\s\-=_💎➔→+]*\s*(\d+(?:[,.]\d+)?)\s*MT/gi,
+        // Formato: 45𝗠𝗧__1741M𝗕 (formato reverso)
+        /(\d+)\s*[𝗠M]?[𝗧T]?[_\s]*[+-]?\s*(\d+)M[𝗕B]/gi,
+        // Formato: 80𝗠𝗧__2970M𝗕 (formato reverso)
+        /(\d+)\s*[𝗠M]?[𝗧T]?[_\s]*[+-]?\s*(\d+\.?\d*)M[𝗕B]/gi
       ];
       
-      for (const padrao of padroes) {
+      for (const [index, padrao] of padroes.entries()) {
         let match;
         while ((match = padrao.exec(linha)) !== null) {
-          const quantidade = parseFloat(match[1]);
-          const preco = parseInt(match[2]);
+          let quantidade, preco, unidade = '';
           
-          // Determinar unidade e converter para MB se necessário
+          console.log(`     🔍 Padrão ${index}: ${match[0]}`);
+          
+          // Detectar formato especial reverso (45MT__1741MB)
+          if (index >= 11) { // Padrões reversos
+            preco = this.limparValorNumerico(match[1]);
+            quantidade = parseFloat(match[2]);
+            unidade = 'mb';
+            console.log(`     🔄 Formato reverso: ${preco}MT -> ${quantidade}MB`);
+          } else if (index === 7) { // Formato: 450MT - Ilimitado + 11.5GB
+            preco = this.limparValorNumerico(match[1]);
+            quantidade = parseFloat(match[2]);
+            unidade = 'gb';
+            console.log(`     📞 Formato ilimitado: ${preco}MT -> ${quantidade}GB`);
+          } else {
+            // Formato normal (1024MB = 18MT)
+            quantidade = parseFloat(match[1]);
+            if (match[3]) { // Tem unidade no meio
+              unidade = match[2].toLowerCase();
+              preco = this.limparValorNumerico(match[3]);
+            } else {
+              preco = this.limparValorNumerico(match[2]);
+            }
+            console.log(`     ℹ️ Formato normal: ${quantidade} ${unidade} -> ${preco}MT`);
+          }
+          
+          // Skip se dados inválidos
+          if (!quantidade || !preco || isNaN(quantidade) || isNaN(preco) || quantidade <= 0 || preco <= 0) {
+            console.log(`     ⚠️ Dados inválidos ignorados: q=${quantidade}, p=${preco}`);
+            continue;
+          }
+          
+          // Determinar unidade e converter para MB
           let quantidadeMB = quantidade;
           let descricao = '';
           
-          if (linha.toLowerCase().includes('gb') || linha.toLowerCase().includes('giga')) {
+          // Detectar unidade da linha ou do match
+          const linhaLower = linha.toLowerCase();
+          const temGB = linhaLower.includes('gb') || linhaLower.includes('giga') || unidade === 'gb' || unidade === 'g';
+          const temMB = linhaLower.includes('mb') || linhaLower.includes('mega') || unidade === 'mb' || unidade === 'm';
+          
+          if (temGB) {
             quantidadeMB = quantidade * 1024;
             descricao = `${quantidade}GB`;
-          } else if (linha.toLowerCase().includes('mb') || linha.toLowerCase().includes('mega')) {
+          } else if (temMB) {
             quantidadeMB = quantidade;
             descricao = `${quantidade}MB`;
           } else if (linha.includes('💫')) {
             descricao = `${quantidade} Saldo`;
             quantidadeMB = 0;
           } else {
-            quantidadeMB = quantidade * 1024;
-            descricao = `${quantidade}GB`;
+            // Heurística: se quantidade > 100, provavelmente é MB, senão GB
+            if (quantidade >= 100) {
+              quantidadeMB = quantidade;
+              descricao = `${quantidade}MB`;
+            } else {
+              quantidadeMB = quantidade * 1024;
+              descricao = `${quantidade}GB`;
+            }
           }
           
           // Determinar tipo de pacote
           let tipo = 'diario';
-          if (linha.toLowerCase().includes('mensal') || linha.toLowerCase().includes('30 dias')) {
+          if (linhaLower.includes('mensal') || linhaLower.includes('30 dias')) {
             tipo = 'mensal';
-          } else if (linha.toLowerCase().includes('semanal') || linha.toLowerCase().includes('7 dias')) {
+          } else if (linhaLower.includes('semanal') || linhaLower.includes('7 dias')) {
             tipo = 'semanal';
-          } else if (linha.toLowerCase().includes('diamante')) {
+          } else if (linhaLower.includes('diamante')) {
             tipo = 'diamante';
           } else if (linha.includes('💫')) {
             tipo = 'saldo';
           }
+          
+          console.log(`     ✅ Processado: ${descricao} = ${preco}MT (${quantidadeMB}MB, ${tipo})`);
           
           precos.push({
             quantidade: quantidadeMB,
@@ -115,7 +171,38 @@ class WhatsAppAI {
     
     console.log(`   ✅ Preços extraídos: ${precosUnicos.length} pacotes encontrados`);
     
+    // Debug: mostrar preços encontrados
+    if (precosUnicos.length > 0) {
+      console.log(`   📋 Preços detectados:`);
+      precosUnicos.forEach((p, i) => {
+        console.log(`     ${i+1}. ${p.descricao} = ${p.preco}MT (${p.tipo})`);
+      });
+    }
+    
     return precosUnicos;
+  }
+
+  // === LIMPAR VALOR NUMÉRICO (NOVA FUNÇÃO) ===
+  limparValorNumerico(valor) {
+    if (!valor) return 0;
+    
+    // Remover caracteres especiais de fonte estética (bold/italic unicode)
+    let valorStr = valor.toString()
+      .replace(/[𝟎-𝟵]/g, (match) => {
+        // Converter números especiais para normais
+        const offset = match.charCodeAt(0) - 0x1D7EC;
+        return String.fromCharCode(48 + offset);
+      })
+      .replace(/[𝗔-𝗭]/g, (match) => {
+        // Converter letras especiais para normais  
+        const offset = match.charCodeAt(0) - 0x1D5D4;
+        return String.fromCharCode(65 + offset);
+      })
+      .replace(/[^\d.,]/g, '') // Manter apenas dígitos, vírgula e ponto
+      .replace(/,/g, '.'); // Converter vírgula para ponto
+    
+    const numero = parseFloat(valorStr);
+    return isNaN(numero) ? 0 : numero;
   }
 
   // === FUNÇÃO MELHORADA PARA EXTRAIR NÚMEROS DE LEGENDAS ===
