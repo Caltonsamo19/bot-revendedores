@@ -96,7 +96,6 @@ const CONFIGURACAO_GRUPOS = {
 - 1024MB  💎 16MT💵💽
 - 2048MB  💎 32MT💵💽
 - 3072MB  💎 48MT💵💽
-- 4096MB  💎 64MT💵💽
 - 5120MB 💎  80MT💵💽
 - 10240MB 💎  160MT💵💽
 
@@ -1318,7 +1317,6 @@ process.on('SIGINT', async () => {
     console.log(ia.getStatus());
     process.exit(0);
 });
-
 
 
 
