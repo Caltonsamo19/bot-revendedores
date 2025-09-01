@@ -69,8 +69,15 @@ const ADMINISTRADORES_GLOBAIS = [
     '258845356399@c.us', 
     '258840326152@c.us', 
     '258852118624@c.us',
-    '23450974470333@lid'  // ID interno do WhatsApp para 852118624
+    '23450974470333@lid',   // ID interno do WhatsApp para 852118624
+    '245075749638206@lid'   // ID interno - admin do grupo de teste
 ];
+
+// Mapeamento de IDs internos (@lid) para números reais (@c.us)
+const MAPEAMENTO_IDS = {
+    '23450974470333@lid': '258852118624@c.us',  // Seu ID
+    '245075749638206@lid': null  // Será identificado automaticamente
+};
 
 // === CONFIGURAÇÃO DE MODERAÇÃO ===
 const MODERACAO_CONFIG = {
@@ -651,13 +658,40 @@ function getConfiguracaoGrupo(chatId) {
     return CONFIGURACAO_GRUPOS[chatId] || null;
 }
 
+// Função para resolver ID interno (@lid) para número real (@c.us)
+function resolverIdReal(participantId, adminsEncontrados) {
+    // Se já é @c.us, retorna como está
+    if (participantId.endsWith('@c.us')) {
+        return participantId;
+    }
+    
+    // Se tem mapeamento conhecido, usa ele
+    if (MAPEAMENTO_IDS[participantId]) {
+        return MAPEAMENTO_IDS[participantId];
+    }
+    
+    // Se é @lid, tenta encontrar correspondência nos admins
+    if (participantId.endsWith('@lid')) {
+        // Para agora, retorna o próprio ID para permitir comparação direta
+        return participantId;
+    }
+    
+    return participantId;
+}
+
 async function isAdminGrupo(chatId, participantId) {
     try {
         console.log(`🔍 Verificando admin: chatId=${chatId}, participantId=${participantId}`);
         
         if (adminCache[chatId] && adminCache[chatId].timestamp > Date.now() - 300000) {
-            console.log(`📋 Usando cache: admins do grupo = ${JSON.stringify(adminCache[chatId].admins)}`);
-            return adminCache[chatId].admins.includes(participantId);
+            const admins = adminCache[chatId].admins;
+            console.log(`📋 Usando cache: admins do grupo = ${JSON.stringify(admins)}`);
+            
+            // Verificar tanto ID direto quanto ID resolvido
+            const idResolvido = resolverIdReal(participantId, admins);
+            const isAdmin = admins.includes(participantId) || admins.includes(idResolvido);
+            console.log(`✅ Cache - ${participantId} (resolvido: ${idResolvido}) é admin? ${isAdmin}`);
+            return isAdmin;
         }
 
         console.log(`🔄 Cache expirado/inexistente, buscando admins do grupo...`);
@@ -667,15 +701,21 @@ async function isAdminGrupo(chatId, participantId) {
         
         console.log(`👥 Participantes do grupo: ${participants.length}`);
         console.log(`👑 Admins encontrados: ${JSON.stringify(admins)}`);
-        console.log(`🔍 Verificando se ${participantId} está em ${JSON.stringify(admins)}`);
+        
+        // Criar mapeamento automático se possível
+        if (participantId.endsWith('@lid') && !MAPEAMENTO_IDS[participantId]) {
+            console.log(`🔄 Tentando mapear ID automaticamente: ${participantId}`);
+        }
         
         adminCache[chatId] = {
             admins: admins,
             timestamp: Date.now()
         };
 
-        const isAdmin = admins.includes(participantId);
-        console.log(`✅ Resultado: ${participantId} é admin? ${isAdmin}`);
+        // Verificar tanto ID direto quanto ID resolvido
+        const idResolvido = resolverIdReal(participantId, admins);
+        const isAdmin = admins.includes(participantId) || admins.includes(idResolvido);
+        console.log(`✅ Resultado: ${participantId} (resolvido: ${idResolvido}) é admin? ${isAdmin}`);
         return isAdmin;
     } catch (error) {
         console.error('❌ Erro ao verificar admin do grupo:', error);
