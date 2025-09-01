@@ -653,20 +653,30 @@ function getConfiguracaoGrupo(chatId) {
 
 async function isAdminGrupo(chatId, participantId) {
     try {
+        console.log(`🔍 Verificando admin: chatId=${chatId}, participantId=${participantId}`);
+        
         if (adminCache[chatId] && adminCache[chatId].timestamp > Date.now() - 300000) {
+            console.log(`📋 Usando cache: admins do grupo = ${JSON.stringify(adminCache[chatId].admins)}`);
             return adminCache[chatId].admins.includes(participantId);
         }
 
+        console.log(`🔄 Cache expirado/inexistente, buscando admins do grupo...`);
         const chat = await client.getChatById(chatId);
         const participants = await chat.participants;
         const admins = participants.filter(p => p.isAdmin || p.isSuperAdmin).map(p => p.id._serialized);
+        
+        console.log(`👥 Participantes do grupo: ${participants.length}`);
+        console.log(`👑 Admins encontrados: ${JSON.stringify(admins)}`);
+        console.log(`🔍 Verificando se ${participantId} está em ${JSON.stringify(admins)}`);
         
         adminCache[chatId] = {
             admins: admins,
             timestamp: Date.now()
         };
 
-        return admins.includes(participantId);
+        const isAdmin = admins.includes(participantId);
+        console.log(`✅ Resultado: ${participantId} é admin? ${isAdmin}`);
+        return isAdmin;
     } catch (error) {
         console.error('❌ Erro ao verificar admin do grupo:', error);
         return false;
