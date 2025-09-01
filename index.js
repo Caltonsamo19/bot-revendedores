@@ -987,6 +987,12 @@ client.on('message', async (message) => {
         const autorMensagem = message.author || message.from;
         let isAdminDoGrupo = false;
         
+        console.log(`🔍 Debug detalhado:`);
+        console.log(`   📱 message.from: ${message.from}`);
+        console.log(`   👤 message.author: ${message.author}`);
+        console.log(`   🆔 autorMensagem: ${autorMensagem}`);
+        console.log(`   👥 ADMINISTRADORES_GLOBAIS: ${JSON.stringify(ADMINISTRADORES_GLOBAIS)}`);
+        
         // Só verificar admin do grupo se for mensagem de grupo
         if (message.from.endsWith('@g.us')) {
             isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
