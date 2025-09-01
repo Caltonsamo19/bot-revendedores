@@ -68,7 +68,8 @@ const ADMINISTRADORES_GLOBAIS = [
     '258871112049@c.us',
     '258845356399@c.us', 
     '258840326152@c.us', 
-    '258852118624@c.us'
+    '258852118624@c.us',
+    '23450974470333@lid'  // ID interno do WhatsApp para 852118624
 ];
 
 // === CONFIGURAÇÃO DE MODERAÇÃO ===
@@ -987,20 +988,12 @@ client.on('message', async (message) => {
         const autorMensagem = message.author || message.from;
         let isAdminDoGrupo = false;
         
-        console.log(`🔍 Debug detalhado:`);
-        console.log(`   📱 message.from: ${message.from}`);
-        console.log(`   👤 message.author: ${message.author}`);
-        console.log(`   🆔 autorMensagem: ${autorMensagem}`);
-        console.log(`   👥 ADMINISTRADORES_GLOBAIS: ${JSON.stringify(ADMINISTRADORES_GLOBAIS)}`);
-        
         // Só verificar admin do grupo se for mensagem de grupo
         if (message.from.endsWith('@g.us')) {
             isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
-            console.log(`🔍 Debug: isAdminDoGrupo = ${isAdminDoGrupo} para ${autorMensagem} no grupo ${message.from}`);
         }
         
         const isAdminQualquer = isAdmin || isAdminDoGrupo;
-        console.log(`🔍 Debug: isAdminQualquer = ${isAdminQualquer} (isAdmin: ${isAdmin}, isAdminDoGrupo: ${isAdminDoGrupo})`);
         
         if (isAdminQualquer) {
             const comando = message.body.toLowerCase().trim();
