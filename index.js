@@ -58,6 +58,10 @@ let adminCache = {};
 // Cache para evitar logs repetidos de grupos
 let gruposLogados = new Set();
 
+// === COMANDOS CUSTOMIZADOS ===
+let comandosCustomizados = {};
+const ARQUIVO_COMANDOS = 'comandos_customizados.json';
+
 // Configuração de administradores GLOBAIS
 const ADMINISTRADORES_GLOBAIS = [
     '258874100607@c.us',
@@ -518,6 +522,80 @@ function obterDadosTaskerHoje() {
     });
 }
 
+// === COMANDOS CUSTOMIZADOS - FUNÇÕES ===
+
+async function carregarComandosCustomizados() {
+    try {
+        const data = await fs.readFile(ARQUIVO_COMANDOS, 'utf8');
+        comandosCustomizados = JSON.parse(data);
+        console.log(`📝 Comandos customizados carregados: ${Object.keys(comandosCustomizados).length} grupos`);
+    } catch (error) {
+        comandosCustomizados = {};
+        console.log('📝 Arquivo de comandos não existe, criando estrutura vazia');
+    }
+}
+
+async function salvarComandosCustomizados() {
+    try {
+        await fs.writeFile(ARQUIVO_COMANDOS, JSON.stringify(comandosCustomizados, null, 2));
+        console.log('✅ Comandos customizados salvos');
+    } catch (error) {
+        console.error('❌ Erro ao salvar comandos:', error);
+    }
+}
+
+function parsearComandoCustomizado(texto) {
+    // Regex para capturar: .addcomando Nome_do_comando(resposta)
+    const regex = /^\.addcomando\s+(\w+)\s*\((.+)\)$/s;
+    const match = texto.match(regex);
+    
+    if (match) {
+        return {
+            nome: match[1].toLowerCase(),
+            resposta: match[2].trim()
+        };
+    }
+    return null;
+}
+
+async function adicionarComandoCustomizado(chatId, nomeComando, resposta, autorId) {
+    if (!comandosCustomizados[chatId]) {
+        comandosCustomizados[chatId] = {};
+    }
+    
+    comandosCustomizados[chatId][nomeComando] = {
+        resposta: resposta,
+        criadoPor: autorId,
+        criadoEm: new Date().toISOString()
+    };
+    
+    await salvarComandosCustomizados();
+    console.log(`✅ Comando '${nomeComando}' adicionado ao grupo ${chatId}`);
+}
+
+async function removerComandoCustomizado(chatId, nomeComando) {
+    if (comandosCustomizados[chatId] && comandosCustomizados[chatId][nomeComando]) {
+        delete comandosCustomizados[chatId][nomeComando];
+        
+        // Se não há mais comandos no grupo, remove a entrada do grupo
+        if (Object.keys(comandosCustomizados[chatId]).length === 0) {
+            delete comandosCustomizados[chatId];
+        }
+        
+        await salvarComandosCustomizados();
+        console.log(`🗑️ Comando '${nomeComando}' removido do grupo ${chatId}`);
+        return true;
+    }
+    return false;
+}
+
+function executarComandoCustomizado(chatId, comando) {
+    if (comandosCustomizados[chatId] && comandosCustomizados[chatId][comando]) {
+        return comandosCustomizados[chatId][comando].resposta;
+    }
+    return null;
+}
+
 // === FUNÇÕES AUXILIARES ===
 
 function detectarPerguntaPorNumero(mensagem) {
@@ -816,7 +894,7 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual');
+    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando');
 });
 
 client.on('group-join', async (notification) => {
@@ -927,6 +1005,84 @@ client.on('message', async (message) => {
                     await message.reply(`✅ *Google Sheets funcionando!*\n\n📊 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}\n📝 Row: ${resultado.row}\n🎉 Dados enviados com sucesso!`);
                 } else {
                     await message.reply(`❌ *Google Sheets com problema!*\n\n📊 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}\n⚠️ Erro: ${resultado.erro}\n\n🔧 *Verifique:*\n• Script publicado corretamente\n• Permissões do Google Sheets\n• Internet funcionando`);
+                }
+                return;
+            }
+
+            // === COMANDO PARA ADICIONAR COMANDOS CUSTOMIZADOS ===
+            if (message.body.startsWith('.addcomando ')) {
+                const comandoParsado = parsearComandoCustomizado(message.body);
+                
+                if (!comandoParsado) {
+                    await message.reply(`❌ *Sintaxe incorreta!*\n\n✅ *Sintaxe correta:*\n\`.addcomando NomeComando(Sua resposta aqui)\`\n\n📝 *Exemplo:*\n\`.addcomando horario(Funcionamos de 8h às 18h)\`\n\n⚠️ *Importante:*\n• Nome sem espaços\n• Resposta entre parênteses\n• Pode usar quebras de linha`);
+                    return;
+                }
+                
+                try {
+                    await adicionarComandoCustomizado(
+                        message.from,
+                        comandoParsado.nome,
+                        comandoParsado.resposta,
+                        message.author || message.from
+                    );
+                    
+                    await message.reply(`✅ *Comando criado com sucesso!*\n\n🔧 **Comando:** \`${comandoParsado.nome}\`\n📝 **Resposta:** ${comandoParsado.resposta.substring(0, 100)}${comandoParsado.resposta.length > 100 ? '...' : ''}\n\n💡 **Para usar:** Digite apenas \`${comandoParsado.nome}\``);
+                    console.log(`✅ Admin ${message.author || message.from} criou comando '${comandoParsado.nome}' no grupo ${message.from}`);
+                } catch (error) {
+                    await message.reply(`❌ **Erro ao criar comando**\n\nTente novamente ou contacte o desenvolvedor.`);
+                    console.error('❌ Erro ao adicionar comando customizado:', error);
+                }
+                return;
+            }
+
+            // === COMANDO PARA LISTAR COMANDOS CUSTOMIZADOS ===
+            if (comando === '.comandos') {
+                const grupoId = message.from;
+                const comandosGrupo = comandosCustomizados[grupoId];
+                
+                if (!comandosGrupo || Object.keys(comandosGrupo).length === 0) {
+                    await message.reply('📋 *Nenhum comando customizado criado ainda*\n\n💡 **Para criar:** `.addcomando nome(resposta)`');
+                    return;
+                }
+                
+                let listaComandos = '📋 *COMANDOS CUSTOMIZADOS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+                
+                Object.keys(comandosGrupo).forEach(nome => {
+                    const cmd = comandosGrupo[nome];
+                    const preview = cmd.resposta.length > 50 ? 
+                        cmd.resposta.substring(0, 50) + '...' : 
+                        cmd.resposta;
+                    
+                    listaComandos += `🔧 **${nome}**\n📝 ${preview}\n\n`;
+                });
+                
+                listaComandos += `📊 **Total:** ${Object.keys(comandosGrupo).length} comando(s)`;
+                
+                await message.reply(listaComandos);
+                return;
+            }
+
+            // === COMANDO PARA REMOVER COMANDOS CUSTOMIZADOS ===
+            if (message.body.startsWith('.delcomando ')) {
+                const nomeComando = message.body.replace('.delcomando ', '').trim().toLowerCase();
+                
+                if (!nomeComando) {
+                    await message.reply(`❌ *Nome do comando é obrigatório!*\n\n✅ *Sintaxe:* \`.delcomando nomecomando\`\n\n📝 *Para ver comandos:* \`.comandos\``);
+                    return;
+                }
+                
+                try {
+                    const removido = await removerComandoCustomizado(message.from, nomeComando);
+                    
+                    if (removido) {
+                        await message.reply(`✅ *Comando removido!*\n\n🗑️ **Comando:** \`${nomeComando}\`\n\n📝 **Para ver restantes:** \`.comandos\``);
+                        console.log(`✅ Admin ${message.author || message.from} removeu comando '${nomeComando}' do grupo ${message.from}`);
+                    } else {
+                        await message.reply(`❌ *Comando não encontrado!*\n\n🔍 **Comando:** \`${nomeComando}\`\n📝 **Ver comandos:** \`.comandos\``);
+                    }
+                } catch (error) {
+                    await message.reply(`❌ **Erro ao remover comando**\n\nTente novamente ou contacte o desenvolvedor.`);
+                    console.error('❌ Erro ao remover comando customizado:', error);
                 }
                 return;
             }
@@ -1207,6 +1363,16 @@ client.on('message', async (message) => {
             return;
         }
 
+        // === VERIFICAR COMANDOS CUSTOMIZADOS ===
+        const textoMensagem = message.body.trim().toLowerCase();
+        const respostaComando = executarComandoCustomizado(message.from, textoMensagem);
+        
+        if (respostaComando) {
+            await message.reply(respostaComando);
+            console.log(`🎯 Comando customizado '${textoMensagem}' executado no grupo ${message.from}`);
+            return;
+        }
+
         // === PROCESSAMENTO COM IA (LÓGICA SIMPLES IGUAL AO BOT ATACADO) ===
         const remetente = message.author || message.from;
         const resultadoIA = await ia.processarMensagemBot(message.body, remetente, 'texto', configGrupo);
@@ -1272,7 +1438,10 @@ client.on('disconnected', (reason) => {
 });
 
 // === INICIALIZAÇÃO ===
-client.initialize();
+(async function inicializar() {
+    await carregarComandosCustomizados();
+    client.initialize();
+})();
 
 // Salvar histórico a cada 5 minutos
 setInterval(salvarHistorico, 5 * 60 * 1000);
