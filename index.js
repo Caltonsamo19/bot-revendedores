@@ -727,6 +727,19 @@ async function isAdminGrupo(chatId, participantId) {
             console.log(`✅ Adicionado ${participantId} como ADMIN_DIRETO no mapeamento!`);
         }
         
+        // MAPEAMENTO DIRETO POR NÚMERO: Se o participantId for @lid e houver admin @c.us com mesmo número
+        if (participantId.endsWith('@lid')) {
+            const numeroBase = participantId.split('@')[0];
+            const adminPorNumero = admins.find(admin => {
+                return admin.id._serialized.split('@')[0] === numeroBase;
+            });
+            
+            if (adminPorNumero && !mapeamentoLidToCus[participantId]) {
+                mapeamentoLidToCus[participantId] = adminPorNumero.id._serialized;
+                console.log(`🎯 MAPEAMENTO DIRETO: ${participantId} -> ${adminPorNumero.id._serialized}`);
+            }
+        }
+        
         console.log(`🗺️ Mapeamento criado:`, mapeamentoLidToCus);
         
         // Salvar cache com mapeamento
@@ -742,18 +755,57 @@ async function isAdminGrupo(chatId, participantId) {
             try {
                 // Tentar obter informações do contato diretamente
                 const contact = await client.getContactById(participantId);
-                console.log(`📞 Info do contato: nome=${contact.name}, pushname=${contact.pushname}, isUser=${contact.isUser}`);
-                
-                // Comparar com admins por número base (removendo formatos)
-                const numeroBase = participantId.split('@')[0];
-                const adminEncontrado = admins.find(admin => {
-                    const numeroAdmin = admin.id._serialized.split('@')[0];
-                    return numeroAdmin === numeroBase;
+                console.log(`📞 Info do contato:`, {
+                    id: contact.id._serialized,
+                    number: contact.number,
+                    pushname: contact.pushname,
+                    name: contact.name,
+                    isUser: contact.isUser
                 });
                 
-                if (adminEncontrado) {
-                    mapeamentoLidToCus[participantId] = adminEncontrado.id._serialized;
-                    console.log(`✅ Mapeado por número: ${participantId} -> ${adminEncontrado.id._serialized}`);
+                // ESTRATÉGIA 1: Comparar por número real do contato
+                if (contact.number) {
+                    console.log(`🔍 Procurando admin com número real: ${contact.number}`);
+                    
+                    const adminPorNumeroReal = admins.find(admin => {
+                        const numeroAdmin = admin.id._serialized.split('@')[0];
+                        // Remover código de país e comparar
+                        const numeroLimpoAdmin = numeroAdmin.replace(/^258/, '');
+                        const numeroLimpoContato = contact.number.replace(/^258/, '').replace(/^/, '');
+                        
+                        console.log(`   🔍 Comparando "${numeroLimpoContato}" com admin "${numeroLimpoAdmin}"`);
+                        return numeroLimpoAdmin === numeroLimpoContato || 
+                               numeroAdmin === contact.number ||
+                               numeroAdmin.endsWith(contact.number) ||
+                               contact.number.endsWith(numeroLimpoAdmin);
+                    });
+                    
+                    if (adminPorNumeroReal) {
+                        mapeamentoLidToCus[participantId] = adminPorNumeroReal.id._serialized;
+                        console.log(`✅ SUCESSO! Mapeado por número real: ${participantId} -> ${adminPorNumeroReal.id._serialized}`);
+                    } else {
+                        console.log(`❌ Nenhum admin encontrado com número real ${contact.number}`);
+                    }
+                }
+                
+                // ESTRATÉGIA 2: Comparar com admins por número base do ID (fallback)
+                if (!mapeamentoLidToCus[participantId]) {
+                    const numeroBase = participantId.split('@')[0];
+                    console.log(`🔍 Fallback - Procurando admin com número base: ${numeroBase}`);
+                    
+                    const adminEncontrado = admins.find(admin => {
+                        const numeroAdmin = admin.id._serialized.split('@')[0];
+                        console.log(`   🔍 Comparando ${numeroBase} com admin ${numeroAdmin}`);
+                        return numeroAdmin === numeroBase;
+                    });
+                    
+                    if (adminEncontrado) {
+                        mapeamentoLidToCus[participantId] = adminEncontrado.id._serialized;
+                        console.log(`✅ SUCESSO! Mapeado por número base: ${participantId} -> ${adminEncontrado.id._serialized}`);
+                    } else {
+                        console.log(`❌ Nenhum admin encontrado com número ${numeroBase}`);
+                        console.log(`📋 Admins disponíveis: ${admins.map(a => a.id._serialized.split('@')[0]).join(', ')}`);
+                    }
                 }
                 
             } catch (err) {
@@ -1212,6 +1264,27 @@ client.on('message', async (message) => {
         const isPrivado = !message.from.endsWith('@g.us');
         const autorMensagem = message.author || message.from;
         const isAdmin = isAdministrador(autorMensagem);
+        
+        // DEBUG DETALHADO DA MENSAGEM
+        if (message.body.startsWith('.addcomando') || message.body.startsWith('.comandos') || message.body.startsWith('.delcomando')) {
+            console.log(`🔍 DEBUG MENSAGEM ADMIN:`);
+            console.log(`   📱 message.from: ${message.from}`);
+            console.log(`   👤 message.author: ${message.author}`);
+            console.log(`   🆔 autorMensagem: ${autorMensagem}`);
+            
+            try {
+                const contact = await message.getContact();
+                console.log(`   📞 Contact info:`, {
+                    id: contact.id._serialized,
+                    number: contact.number,
+                    pushname: contact.pushname,
+                    name: contact.name,
+                    isMyContact: contact.isMyContact
+                });
+            } catch (err) {
+                console.log(`   ⚠️ Erro ao obter contato: ${err.message}`);
+            }
+        }
         
         console.log(`🔍 Debug: Verificando admin para ${autorMensagem}, resultado: ${isAdmin}`);
 
