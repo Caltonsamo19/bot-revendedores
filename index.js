@@ -684,11 +684,11 @@ async function isAdminGrupo(chatId, participantId) {
         console.log(`🔍 Verificando admin: chatId=${chatId}, participantId=${participantId}`);
         
         if (adminCache[chatId] && adminCache[chatId].timestamp > Date.now() - 300000) {
-            const { admins, todosParticipantes } = adminCache[chatId];
-            console.log(`📋 Usando cache: admins do grupo = ${JSON.stringify(admins)}`);
+            const { admins, mapeamentoLidToCus } = adminCache[chatId];
+            console.log(`📋 Usando cache...`);
             
-            // Verificar se o participantId corresponde a algum admin
-            const isAdmin = verificarSeEhAdmin(participantId, admins, todosParticipantes);
+            // Usar mapeamento para verificar se é admin
+            const isAdmin = verificarAdminComMapeamento(participantId, admins, mapeamentoLidToCus);
             console.log(`✅ Cache - ${participantId} é admin? ${isAdmin}`);
             return isAdmin;
         }
@@ -697,29 +697,92 @@ async function isAdminGrupo(chatId, participantId) {
         const chat = await client.getChatById(chatId);
         const participants = await chat.participants;
         const admins = participants.filter(p => p.isAdmin || p.isSuperAdmin);
-        const todosParticipantes = participants;
         
         console.log(`👥 Participantes do grupo: ${participants.length}`);
-        console.log(`👑 Admins encontrados (${admins.length}):`, admins.map(a => ({ 
-            id: a.id._serialized, 
-            pushname: a.pushname || 'N/A' 
-        })));
+        console.log(`👑 Admins (@c.us): ${admins.map(a => a.id._serialized).join(', ')}`);
+        console.log(`🔍 Todos participantes (@lid): ${participants.map(p => p.id._serialized).filter(id => id.endsWith('@lid')).join(', ')}`);
         
-        // Salvar cache com mais informações
+        // CRIAR MAPEAMENTO AUTOMÁTICO
+        const mapeamentoLidToCus = criarMapeamentoAutomatico(participants, admins);
+        console.log(`🗺️ Mapeamento criado:`, mapeamentoLidToCus);
+        
+        // Salvar cache com mapeamento
         adminCache[chatId] = {
             admins: admins,
-            todosParticipantes: todosParticipantes,
+            mapeamentoLidToCus: mapeamentoLidToCus,
             timestamp: Date.now()
         };
 
-        // Verificar se o participantId corresponde a algum admin
-        const isAdmin = verificarSeEhAdmin(participantId, admins, todosParticipantes);
+        // Verificar se é admin usando mapeamento
+        const isAdmin = verificarAdminComMapeamento(participantId, admins, mapeamentoLidToCus);
         console.log(`✅ Resultado: ${participantId} é admin? ${isAdmin}`);
         return isAdmin;
     } catch (error) {
         console.error('❌ Erro ao verificar admin do grupo:', error);
         return false;
     }
+}
+
+// Criar mapeamento automático entre IDs @lid e @c.us
+function criarMapeamentoAutomatico(participants, admins) {
+    const mapeamento = {};
+    
+    // Para cada participante @lid, tentar encontrar correspondência com admin @c.us
+    const participantesLid = participants.filter(p => p.id._serialized.endsWith('@lid'));
+    const adminsIds = admins.map(a => a.id._serialized);
+    
+    console.log(`🔍 Tentando mapear ${participantesLid.length} IDs @lid para ${adminsIds.length} admins @c.us...`);
+    
+    participantesLid.forEach(participante => {
+        const lidId = participante.id._serialized;
+        
+        // Estratégia 1: Verificar se o próprio participante @lid tem flag de admin
+        if (participante.isAdmin || participante.isSuperAdmin) {
+            // Esse @lid É um admin! Mapear para si mesmo ou encontrar o @c.us correspondente
+            console.log(`✅ ${lidId} tem flag de admin direto!`);
+            mapeamento[lidId] = 'ADMIN_DIRETO'; // Marcador especial
+            return;
+        }
+        
+        // Estratégia 2: Matching por nome (se disponível)
+        if (participante.pushname) {
+            const adminCorrespondente = admins.find(admin => 
+                admin.pushname && admin.pushname === participante.pushname
+            );
+            if (adminCorrespondente) {
+                mapeamento[lidId] = adminCorrespondente.id._serialized;
+                console.log(`🎯 Mapeado por nome: ${lidId} -> ${adminCorrespondente.id._serialized}`);
+                return;
+            }
+        }
+    });
+    
+    return mapeamento;
+}
+
+// Verificar se é admin usando o mapeamento
+function verificarAdminComMapeamento(participantId, admins, mapeamento) {
+    const adminsIds = admins.map(a => a.id._serialized);
+    
+    // 1. Verificação direta (caso seja @c.us)
+    if (adminsIds.includes(participantId)) {
+        console.log(`✅ ${participantId} é admin direto (@c.us)`);
+        return true;
+    }
+    
+    // 2. Verificação via mapeamento (caso seja @lid)
+    if (mapeamento[participantId]) {
+        if (mapeamento[participantId] === 'ADMIN_DIRETO') {
+            console.log(`✅ ${participantId} é admin direto (@lid com flag)`);
+            return true;
+        } else if (adminsIds.includes(mapeamento[participantId])) {
+            console.log(`✅ ${participantId} mapeado para admin ${mapeamento[participantId]}`);
+            return true;
+        }
+    }
+    
+    console.log(`❌ ${participantId} não é admin`);
+    return false;
 }
 
 // Função para verificar se um ID corresponde a um admin
