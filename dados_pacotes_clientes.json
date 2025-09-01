@@ -1,0 +1,32 @@
+{
+  "852118624_CGF13CGHF": {
+    "numero": "852118624",
+    "referenciaOriginal": "CGF13CGHF",
+    "grupoId": "120363402160265624@g.us",
+    "tipoPacote": "30",
+    "diasTotal": 30,
+    "diasRestantes": 29,
+    "dataInicio": "2025-09-01T21:44:54.917Z",
+    "dataExpiracao": "2025-10-01T21:44:54.917Z",
+    "horaEnvioOriginal": "2025-09-01T21:44:54.917Z",
+    "proximaRenovacao": "2025-09-02T19:44:54.917Z",
+    "renovacoes": 0,
+    "status": "ativo",
+    "ultimaRenovacao": "2025-09-01T21:44:54.917Z"
+  },
+  "852118624_CGF13CGHFJ": {
+    "numero": "852118624",
+    "referenciaOriginal": "CGF13CGHFJ",
+    "grupoId": "120363402160265624@g.us",
+    "tipoPacote": "5",
+    "diasTotal": 5,
+    "diasRestantes": 4,
+    "dataInicio": "2025-09-01T22:04:47.054Z",
+    "dataExpiracao": "2025-09-06T22:04:47.054Z",
+    "horaEnvioOriginal": "2025-09-01T22:04:47.054Z",
+    "proximaRenovacao": "2025-09-02T20:04:47.054Z",
+    "renovacoes": 0,
+    "status": "ativo",
+    "ultimaRenovacao": "2025-09-01T22:04:47.054Z"
+  }
+}
