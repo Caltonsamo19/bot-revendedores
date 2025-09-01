@@ -983,7 +983,12 @@ client.on('message', async (message) => {
         const isAdmin = isAdministrador(message.from);
 
         // === COMANDOS ADMINISTRATIVOS ===
-        if (isAdmin) {
+        // Verificar se é admin global OU admin do grupo
+        const autorMensagem = message.author || message.from;
+        const isAdminGrupo = await isAdminGrupo(message.from, autorMensagem);
+        const isAdminQualquer = isAdmin || isAdminGrupo;
+        
+        if (isAdminQualquer) {
             const comando = message.body.toLowerCase().trim();
 
             if (comando === '.ia') {
@@ -1271,12 +1276,32 @@ client.on('message', async (message) => {
 
         // === MODERAÇÃO ===
         if (message.type === 'chat') {
-            const analise = contemConteudoSuspeito(message.body);
-            
-            if (analise.suspeito) {
-                console.log(`🚨 Conteúdo suspeito detectado`);
-                await aplicarModeracao(message, "Link detectado");
-                return;
+            // Verificar se é um comando administrativo antes da moderação
+            const isComandoAdmin = message.body.startsWith('.') && (
+                message.body.startsWith('.addcomando ') ||
+                message.body.startsWith('.delcomando ') ||
+                message.body.startsWith('.comandos') ||
+                message.body.startsWith('.ia') ||
+                message.body.startsWith('.stats') ||
+                message.body.startsWith('.sheets') ||
+                message.body.startsWith('.test_') ||
+                message.body.startsWith('.grupos') ||
+                message.body.startsWith('.clear_')
+            );
+
+            // Verificar se é admin executando comando
+            const autorMensagem = message.author || message.from;
+            const isAdminExecutando = await isAdminGrupo(message.from, autorMensagem) || isAdministrador(autorMensagem);
+
+            // Pular moderação para comandos administrativos executados por admins
+            if (!isComandoAdmin || !isAdminExecutando) {
+                const analise = contemConteudoSuspeito(message.body);
+                
+                if (analise.suspeito) {
+                    console.log(`🚨 Conteúdo suspeito detectado`);
+                    await aplicarModeracao(message, "Link detectado");
+                    return;
+                }
             }
         }
 
