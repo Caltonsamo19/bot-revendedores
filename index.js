@@ -985,8 +985,16 @@ client.on('message', async (message) => {
         // === COMANDOS ADMINISTRATIVOS ===
         // Verificar se é admin global OU admin do grupo
         const autorMensagem = message.author || message.from;
-        const isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
+        let isAdminDoGrupo = false;
+        
+        // Só verificar admin do grupo se for mensagem de grupo
+        if (message.from.endsWith('@g.us')) {
+            isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
+            console.log(`🔍 Debug: isAdminDoGrupo = ${isAdminDoGrupo} para ${autorMensagem} no grupo ${message.from}`);
+        }
+        
         const isAdminQualquer = isAdmin || isAdminDoGrupo;
+        console.log(`🔍 Debug: isAdminQualquer = ${isAdminQualquer} (isAdmin: ${isAdmin}, isAdminDoGrupo: ${isAdminDoGrupo})`);
         
         if (isAdminQualquer) {
             const comando = message.body.toLowerCase().trim();
