@@ -985,8 +985,8 @@ client.on('message', async (message) => {
         // === COMANDOS ADMINISTRATIVOS ===
         // Verificar se é admin global OU admin do grupo
         const autorMensagem = message.author || message.from;
-        const isAdminGrupo = await isAdminGrupo(message.from, autorMensagem);
-        const isAdminQualquer = isAdmin || isAdminGrupo;
+        const isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
+        const isAdminQualquer = isAdmin || isAdminDoGrupo;
         
         if (isAdminQualquer) {
             const comando = message.body.toLowerCase().trim();
@@ -1290,8 +1290,8 @@ client.on('message', async (message) => {
             );
 
             // Verificar se é admin executando comando
-            const autorMensagem = message.author || message.from;
-            const isAdminExecutando = await isAdminGrupo(message.from, autorMensagem) || isAdministrador(autorMensagem);
+            const autorModeracaoMsg = message.author || message.from;
+            const isAdminExecutando = await isAdminGrupo(message.from, autorModeracaoMsg) || isAdministrador(autorModeracaoMsg);
 
             // Pular moderação para comandos administrativos executados por admins
             if (!isComandoAdmin || !isAdminExecutando) {
