@@ -993,9 +993,11 @@ client.on('message', async (message) => {
         // Só verificar admin do grupo se for mensagem de grupo
         if (message.from.endsWith('@g.us')) {
             isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
+            console.log(`🔍 Debug admin grupo: ${autorMensagem} é admin do grupo? ${isAdminDoGrupo}`);
         }
         
         const isAdminQualquer = isAdmin || isAdminDoGrupo;
+        console.log(`🔍 Debug final: isAdminQualquer = ${isAdminQualquer} (global: ${isAdmin}, grupo: ${isAdminDoGrupo})`);
         
         if (isAdminQualquer) {
             const comando = message.body.toLowerCase().trim();
