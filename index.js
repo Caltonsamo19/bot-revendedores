@@ -742,8 +742,16 @@ function verificarSeEhAdmin(participantId, admins, todosParticipantes) {
         if (participante) {
             console.log(`📱 Participante @lid encontrado:`, {
                 id: participante.id._serialized,
-                pushname: participante.pushname || 'N/A'
+                pushname: participante.pushname || 'N/A',
+                isAdmin: participante.isAdmin || false,
+                isSuperAdmin: participante.isSuperAdmin || false
             });
+            
+            // VERIFICAÇÃO DIRETA: Se o próprio participante @lid tem flag de admin
+            if (participante.isAdmin || participante.isSuperAdmin) {
+                console.log(`✅ O próprio participante @lid TEM flag de admin!`);
+                return true;
+            }
             
             // Verificar se existe admin com mesmo pushname ou número base
             const adminCorrespondente = admins.find(admin => {
@@ -759,6 +767,8 @@ function verificarSeEhAdmin(participantId, admins, todosParticipantes) {
                 console.log(`✅ Encontrado admin correspondente por pushname: ${adminCorrespondente.id._serialized}`);
                 return true;
             }
+        } else {
+            console.log(`❌ Participante @lid ${participantId} não encontrado na lista de participantes`);
         }
     }
     
