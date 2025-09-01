@@ -1,4 +1,5 @@
 const { OpenAI } = require("openai");
+const vision = require('@google-cloud/vision');
 
 class WhatsAppAI {
   constructor(apiKey) {
@@ -7,12 +8,356 @@ class WhatsAppAI {
     this.historicoMensagens = [];
     this.maxHistorico = 200; // AUMENTADO: 200 mensagens para melhor histórico
     
+    // Configurar Google Vision
+    this.googleVisionEnabled = process.env.GOOGLE_VISION_ENABLED === 'true';
+    this.googleVisionTimeout = parseInt(process.env.GOOGLE_VISION_TIMEOUT) || 10000;
+    
+    if (this.googleVisionEnabled) {
+      try {
+        // Tentar inicializar Google Vision
+        if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+          // Usando arquivo de credenciais
+          this.visionClient = new vision.ImageAnnotatorClient();
+          console.log('🔍 Google Vision inicializado com arquivo de credenciais');
+        } else if (process.env.GOOGLE_VISION_API_KEY) {
+          // Usando API Key
+          this.visionClient = new vision.ImageAnnotatorClient({
+            apiKey: process.env.GOOGLE_VISION_API_KEY
+          });
+          console.log('🔍 Google Vision inicializado com API Key');
+        } else {
+          console.log('⚠️ Google Vision desabilitado: credenciais não encontradas');
+          this.googleVisionEnabled = false;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao inicializar Google Vision:', error.message);
+        this.googleVisionEnabled = false;
+      }
+    }
+    
     // Limpeza automática a cada 10 minutos
     setInterval(() => {
       this.limparComprovantesAntigos();
     }, 10 * 60 * 1000);
     
-    console.log('🧠 IA WhatsApp inicializada com legendas melhoradas e histórico expandido');
+    const visionStatus = this.googleVisionEnabled ? 'Google Vision + GPT-4' : 'GPT-4 Vision';
+    console.log(`🧠 IA WhatsApp inicializada com ${visionStatus} e histórico expandido`);
+  }
+
+  // === RECONSTRUIR REFERÊNCIAS QUEBRADAS ===
+  reconstruirReferenciasQuebradas(texto) {
+    console.log('🔧 Reconstruindo referências quebradas...');
+    
+    // Padrões comuns de referências M-Pesa/E-Mola quebradas
+    const padroes = [
+      // PP250901.1250.B + 64186 = PP250901.1250.B64186
+      {
+        regex: /(PP\d{6}\.\d{4}\.B)\s*\n?\s*(\d{4,6})/gi,
+        reconstruct: (match, p1, p2) => `${p1}${p2}`
+      },
+      // CHMOH4HICK + 2 = CHMOH4HICK2 (caso específico: referência + número isolado)
+      {
+        regex: /(CHMOH4HICK)\s*\n?\s*(\d+)/gi,
+        reconstruct: (match, p1, p2) => `${p1}${p2}`
+      },
+      // Padrão genérico: CÓDIGO + número isolado = CÓDIGONÚMERO
+      {
+        regex: /([A-Z]{8,12}[A-Z])\s*\n?\s*(\d{1,3})(?=\s*\.|\s*\n|\s*$)/gi,
+        reconstruct: (match, p1, p2) => `${p1}${p2}`
+      },
+      // CI6H85P + TN4 = CI6H85PTN4
+      {
+        regex: /([A-Z]\w{5,7}[A-Z])\s*\n?\s*([A-Z0-9]{2,4})/gi,
+        reconstruct: (match, p1, p2) => `${p1}${p2}`
+      },
+      // CGC4GQ1 + 7W84 = CGC4GQ17W84
+      {
+        regex: /([A-Z]{3}\d[A-Z]{2}\d)\s*\n?\s*(\d?[A-Z0-9]{3,4})/gi,
+        reconstruct: (match, p1, p2) => `${p1}${p2}`
+      },
+      // Confirmado + CÓDIGO = CÓDIGO (remover prefixos)
+      {
+        regex: /Confirmado\s*\n?\s*([A-Z0-9]{8,15})/gi,
+        reconstruct: (match, p1) => p1
+      },
+      // ID genérico: XXXXX + XXXXX = XXXXXXXXXX
+      {
+        regex: /([A-Z0-9]{5,8})\s*\n?\s*([A-Z0-9]{3,6})/gi,
+        reconstruct: (match, p1, p2) => {
+          // Só juntar se parecer fazer sentido (não números aleatórios)
+          if (/^[A-Z]/.test(p1) && (p1.length + p2.length >= 8 && p1.length + p2.length <= 15)) {
+            return `${p1}${p2}`;
+          }
+          return match;
+        }
+      }
+    ];
+
+    let textoProcessado = texto;
+    let alteracoes = 0;
+
+    for (const padrao of padroes) {
+      const matches = [...textoProcessado.matchAll(padrao.regex)];
+      for (const match of matches) {
+        const original = match[0];
+        
+        // Chamar função de reconstrução com todos os grupos capturados
+        let reconstruido;
+        if (match.length === 2) {
+          // Apenas um grupo (ex: "Confirmado CODIGO")
+          reconstruido = padrao.reconstruct(match[0], match[1]);
+        } else {
+          // Dois grupos (ex: "CODIGO1 CODIGO2")
+          reconstruido = padrao.reconstruct(match[0], match[1], match[2]);
+        }
+        
+        if (reconstruido !== original && reconstruido !== match[0]) {
+          textoProcessado = textoProcessado.replace(original, reconstruido);
+          console.log(`   🔧 Reconstruído: "${original.replace(/\n/g, '\\n')}" → "${reconstruido}"`);
+          alteracoes++;
+        }
+      }
+    }
+
+    if (alteracoes > 0) {
+      console.log(`✅ ${alteracoes} referência(s) reconstruída(s)`);
+    } else {
+      console.log(`ℹ️ Nenhuma referência quebrada detectada`);
+    }
+
+    return textoProcessado;
+  }
+
+  // === EXTRAIR TEXTO COM GOOGLE VISION ===
+  async extrairTextoGoogleVision(imagemBase64) {
+    if (!this.googleVisionEnabled || !this.visionClient) {
+      throw new Error('Google Vision não está disponível');
+    }
+
+    try {
+      console.log('🔍 Extraindo texto com Google Vision...');
+      
+      // Preparar imagem para Google Vision
+      const imageBuffer = Buffer.from(imagemBase64, 'base64');
+      
+      // Chamar Google Vision API com timeout
+      const [result] = await Promise.race([
+        this.visionClient.textDetection({ image: { content: imageBuffer } }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Google Vision timeout')), this.googleVisionTimeout)
+        )
+      ]);
+
+      if (!result.textAnnotations || result.textAnnotations.length === 0) {
+        console.log('⚠️ Google Vision não encontrou texto na imagem');
+        throw new Error('Nenhum texto encontrado na imagem');
+      }
+
+      // O primeiro item contém todo o texto detectado
+      let textoCompleto = result.textAnnotations[0].description;
+      console.log(`✅ Google Vision extraiu ${textoCompleto.length} caracteres`);
+      console.log(`📝 Texto extraído bruto: ${textoCompleto.substring(0, 200)}...`);
+
+      // PRÉ-PROCESSAMENTO: Tentar reconstruir referências quebradas
+      textoCompleto = this.reconstruirReferenciasQuebradas(textoCompleto);
+      console.log(`🔧 Texto pós-processado: ${textoCompleto.substring(0, 200)}...`);
+
+      return textoCompleto;
+
+    } catch (error) {
+      console.error('❌ Erro no Google Vision:', error.message);
+      throw error;
+    }
+  }
+
+  // === INTERPRETAR COMPROVANTE COM GPT (TEXTO PURO) ===
+  async interpretarComprovanteComGPT(textoExtraido) {
+    console.log('🧠 Interpretando texto extraído com GPT-4...');
+    
+    const prompt = `
+Analisa este texto extraído de um comprovante M-Pesa ou E-Mola de Moçambique:
+
+"${textoExtraido}"
+
+Procura por:
+1. Referência da transação (exemplos: CGC4GQ17W84, PP250712.2035.u31398, etc.)
+2. Valor transferido (em MT - Meticais)
+
+INSTRUÇÕES IMPORTANTES:
+- A REFERÊNCIA pode estar QUEBRADA em múltiplas linhas. Ex: "PP250901.1250.B" + "64186" = "PP250901.1250.B64186"
+- RECONSTRÓI referências que estão separadas por quebras de linha
+- Procura por "ID da transacao", "Confirmado", "Transferiste"
+- Junta códigos que aparecem próximos e parecem ser parte da mesma referência
+- O valor pode estar em formato "100.00MT", "100MT", "100,00MT"
+
+EXEMPLOS DE RECONSTRUÇÃO:
+- Se vês "PP250901.1250.B" e depois "64186", a referência é "PP250901.1250.B64186"
+- Se vês "CI6H85P" e depois "TN4", a referência é "CI6H85PTN4"
+- Se vês "CHMOH4HICK" e depois "2", a referência é "CHMOH4HICK2"
+- Se vês texto como "CODIGO\n2.\nTransferiste", junta "CODIGO2"
+
+Responde APENAS no formato JSON:
+{
+  "referencia": "PP250901.1250.B64186",
+  "valor": "125.00",
+  "encontrado": true
+}
+
+Se não conseguires extrair os dados:
+{"encontrado": false}`;
+
+    try {
+      const resposta = await this.openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: "Você é especialista em analisar comprovantes de pagamento moçambicanos M-Pesa e E-Mola." },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 200
+      });
+
+      console.log(`🔍 Resposta GPT para texto: ${resposta.choices[0].message.content}`);
+      
+      const resultado = this.extrairJSON(resposta.choices[0].message.content);
+      console.log(`✅ JSON extraído do texto:`, resultado);
+      
+      return resultado;
+
+    } catch (error) {
+      console.error('❌ Erro ao interpretar com GPT:', error.message);
+      throw error;
+    }
+  }
+
+  // === PROCESSAR IMAGEM COM MÉTODO HÍBRIDO (NOVA FUNÇÃO PRINCIPAL) ===
+  async processarImagemHibrida(imagemBase64, remetente, timestamp, configGrupo = null, legendaImagem = null) {
+    console.log(`🔄 Método híbrido: Google Vision + GPT-4 para ${remetente}`);
+    
+    try {
+      // ETAPA 1: Tentar extrair texto com Google Vision
+      const textoExtraido = await this.extrairTextoGoogleVision(imagemBase64);
+      
+      // ETAPA 2: Interpretar texto com GPT-4 (mais barato que Vision)
+      const resultadoGPT = await this.interpretarComprovanteComGPT(textoExtraido);
+      
+      if (resultadoGPT.encontrado) {
+        console.log('✅ Método híbrido bem-sucedido!');
+        
+        const comprovante = {
+          referencia: resultadoGPT.referencia,
+          valor: this.limparValor(resultadoGPT.valor),
+          fonte: 'google_vision_gpt',
+          metodo: 'hibrido'
+        };
+        
+        return await this.processarComprovanteExtraido(comprovante, remetente, timestamp, configGrupo, legendaImagem);
+      } else {
+        console.log('⚠️ GPT não conseguiu interpretar o texto extraído');
+        throw new Error('Interpretação GPT falhou');
+      }
+      
+    } catch (error) {
+      console.error('❌ Método híbrido falhou:', error.message);
+      throw error; // Será capturado pelo fallback
+    }
+  }
+
+  // === PROCESSAR COMPROVANTE EXTRAÍDO (LÓGICA COMUM) ===
+  async processarComprovanteExtraido(comprovante, remetente, timestamp, configGrupo = null, legendaImagem = null) {
+    console.log(`✅ Dados extraídos: ${comprovante.referencia} - ${comprovante.valor}MT (${comprovante.metodo})`);
+    
+    // VERIFICAR SE HÁ LEGENDA COM NÚMEROS (VERSÃO MELHORADA)
+    const temLegendaValida = legendaImagem && 
+                            typeof legendaImagem === 'string' && 
+                            legendaImagem.trim().length > 0;
+    
+    if (temLegendaValida) {
+      console.log(`🔍 ANALISANDO LEGENDA DA IMAGEM...`);
+      
+      const { textoComprovante, numeros } = this.separarComprovanteENumeros(legendaImagem, true);
+      
+      if (numeros.length > 0) {
+        console.log(`🎯 IMAGEM + NÚMEROS NA LEGENDA DETECTADOS!`);
+        console.log(`💰 Comprovante da imagem: ${comprovante.referencia} - ${comprovante.valor}MT`);
+        console.log(`📱 Números da legenda: ${numeros.join(', ')}`);
+        
+        // Processar imediatamente como pedido completo
+        if (configGrupo && parseFloat(comprovante.valor) >= 32) {
+          const analiseAutomatica = await this.analisarDivisaoAutomatica(comprovante.valor, configGrupo);
+          if (analiseAutomatica.deveDividir) {
+            const comprovanteComDivisao = {
+              referencia: comprovante.referencia,
+              valor: comprovante.valor,
+              timestamp: timestamp,
+              fonte: comprovante.fonte,
+              tipo: 'divisao_automatica',
+              analiseAutomatica: analiseAutomatica
+            };
+            
+            return await this.processarNumerosComDivisaoAutomatica(numeros, remetente, comprovanteComDivisao);
+          }
+        }
+        
+        // Processamento normal (sem divisão automática)
+        if (numeros.length === 1) {
+          // Calcular megas baseado no valor e tabela do grupo
+          const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
+          const resultado = `${comprovante.referencia}|${megas}|${numeros[0]}`;
+          console.log(`✅ PEDIDO COMPLETO IMEDIATO (${comprovante.metodo}): ${resultado} (${comprovante.valor}MT → ${megas}MB)`);
+          return { 
+            sucesso: true, 
+            dadosCompletos: resultado,
+            tipo: 'numero_processado',
+            numero: numeros[0],
+            fonte: comprovante.fonte,
+            metodo: comprovante.metodo,
+            valorPago: comprovante.valor,
+            megas: megas
+          };
+        } else {
+          // Múltiplos números - dividir valor igualmente
+          const valorTotal = parseFloat(comprovante.valor);
+          const valorPorNumero = (valorTotal / numeros.length).toFixed(2);
+          
+          const resultados = numeros.map(numero => 
+            `${comprovante.referencia}|${valorPorNumero}|${numero}`
+          );
+          
+          console.log(`✅ PEDIDOS MÚLTIPLOS IMEDIATOS (${comprovante.metodo}): ${resultados.join(' + ')}`);
+          return { 
+            sucesso: true, 
+            dadosCompletos: resultados.join('\n'),
+            tipo: 'numeros_multiplos_processados',
+            numeros: numeros,
+            valorCada: valorPorNumero,
+            fonte: comprovante.fonte,
+            metodo: comprovante.metodo
+          };
+        }
+      } else {
+        console.log(`❌ Nenhum número válido encontrado na legenda`);
+      }
+    } else {
+      console.log(`⚠️ Legenda não disponível ou vazia`);
+    }
+    
+    // Sem números na legenda - processar comprovante normalmente
+    await this.processarComprovante(comprovante, remetente, timestamp);
+    
+    // Calcular megas para mostrar na mensagem
+    const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
+    
+    return { 
+      sucesso: true, 
+      tipo: 'comprovante_imagem_recebido',
+      referencia: comprovante.referencia,
+      valor: comprovante.valor,
+      megas: megas,
+      fonte: comprovante.fonte,
+      metodo: comprovante.metodo,
+      mensagem: `Comprovante processado com ${comprovante.metodo}! Agora envie o número que vai receber os megas.`
+    };
   }
 
   // === CALCULAR MEGAS POR VALOR ===
@@ -1000,9 +1345,9 @@ class WhatsAppAI {
     };
   }
 
-  // === PROCESSAR IMAGEM (VERSÃO MELHORADA COM LEGENDAS CORRIGIDAS) ===
+  // === PROCESSAR IMAGEM (HÍBRIDO: GOOGLE VISION + GPT-4 COM FALLBACK) ===
   async processarImagem(imagemBase64, remetente, timestamp, configGrupo = null, legendaImagem = null) {
-    console.log(`   📸 Processando imagem de ${remetente}`);
+    console.log(`📸 Processando imagem de ${remetente}`);
     
     // Validação melhorada da legenda
     const temLegendaValida = legendaImagem && 
@@ -1010,10 +1355,31 @@ class WhatsAppAI {
                             legendaImagem.trim().length > 0;
     
     if (temLegendaValida) {
-      console.log(`   📝 Legenda detectada: "${legendaImagem.trim()}"`);
+      console.log(`📝 Legenda detectada: "${legendaImagem.trim()}"`);
     } else {
-      console.log(`   📝 Sem legenda válida`);
+      console.log(`📝 Sem legenda válida`);
     }
+
+    // PRIORIDADE 1: Tentar método híbrido (Google Vision + GPT-4)
+    if (this.googleVisionEnabled) {
+      try {
+        console.log('🚀 Tentando método híbrido (Google Vision + GPT-4)...');
+        return await this.processarImagemHibrida(imagemBase64, remetente, timestamp, configGrupo, legendaImagem);
+      } catch (error) {
+        console.log(`⚠️ Método híbrido falhou: ${error.message}`);
+        console.log('🔄 Tentando fallback com GPT-4 Vision...');
+      }
+    } else {
+      console.log('⚠️ Google Vision desabilitado, usando GPT-4 Vision diretamente');
+    }
+
+    // FALLBACK: GPT-4 Vision (método original preservado 100%)
+    return await this.processarImagemGPTVision(imagemBase64, remetente, timestamp, configGrupo, legendaImagem);
+  }
+
+  // === PROCESSAR IMAGEM COM GPT-4 VISION (MÉTODO ORIGINAL PRESERVADO) ===
+  async processarImagemGPTVision(imagemBase64, remetente, timestamp, configGrupo = null, legendaImagem = null) {
+    console.log(`🧠 Usando GPT-4 Vision como ${this.googleVisionEnabled ? 'fallback' : 'método principal'}`);
     
     const prompt = `
 Analisa esta imagem de comprovante de pagamento M-Pesa ou E-Mola de Moçambique.
@@ -1060,105 +1426,24 @@ Se não conseguires ler a imagem ou extrair os dados:
         max_tokens: 300
       });
 
-      console.log(`   🔍 Resposta da IA para imagem: ${resposta.choices[0].message.content}`);
+      console.log(`🔍 Resposta GPT-4 Vision: ${resposta.choices[0].message.content}`);
       
       const resultado = this.extrairJSON(resposta.choices[0].message.content);
-      console.log(`   ✅ JSON extraído da imagem:`, resultado);
+      console.log(`✅ JSON extraído (GPT-4 Vision):`, resultado);
       
       if (resultado.encontrado) {
         const comprovante = {
           referencia: resultado.referencia,
           valor: this.limparValor(resultado.valor),
-          fonte: 'imagem'
+          fonte: 'gpt4_vision',
+          metodo: 'gpt4_vision'
         };
         
-        console.log(`   ✅ Dados extraídos da imagem: ${comprovante.referencia} - ${comprovante.valor}MT`);
+        console.log(`✅ Dados extraídos (GPT-4 Vision): ${comprovante.referencia} - ${comprovante.valor}MT`);
         
-        // VERIFICAR SE HÁ LEGENDA COM NÚMEROS (VERSÃO MELHORADA)
-        if (temLegendaValida) {
-          console.log(`   🔍 ANALISANDO LEGENDA DA IMAGEM...`);
-          
-          const { textoComprovante, numeros } = this.separarComprovanteENumeros(legendaImagem, true);
-          
-          if (numeros.length > 0) {
-            console.log(`   🎯 IMAGEM + NÚMEROS NA LEGENDA DETECTADOS!`);
-            console.log(`   💰 Comprovante da imagem: ${comprovante.referencia} - ${comprovante.valor}MT`);
-            console.log(`   📱 Números da legenda: ${numeros.join(', ')}`);
-            
-            // Processar imediatamente como pedido completo
-            if (configGrupo && parseFloat(comprovante.valor) >= 32) {
-              const analiseAutomatica = await this.analisarDivisaoAutomatica(comprovante.valor, configGrupo);
-              if (analiseAutomatica.deveDividir) {
-                const comprovanteComDivisao = {
-                  referencia: comprovante.referencia,
-                  valor: comprovante.valor,
-                  timestamp: timestamp,
-                  fonte: comprovante.fonte,
-                  tipo: 'divisao_automatica',
-                  analiseAutomatica: analiseAutomatica
-                };
-                
-                return await this.processarNumerosComDivisaoAutomatica(numeros, remetente, comprovanteComDivisao);
-              }
-            }
-            
-            // Processamento normal (sem divisão automática)
-            if (numeros.length === 1) {
-              // Calcular megas baseado no valor e tabela do grupo
-              const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
-              const resultado = `${comprovante.referencia}|${megas}|${numeros[0]}`;
-              console.log(`   ✅ PEDIDO COMPLETO IMEDIATO (IMAGEM + LEGENDA): ${resultado} (${comprovante.valor}MT → ${megas}MB)`);
-              return { 
-                sucesso: true, 
-                dadosCompletos: resultado,
-                tipo: 'numero_processado',
-                numero: numeros[0],
-                fonte: 'imagem_com_legenda',
-                valorPago: comprovante.valor,
-                megas: megas
-              };
-            } else {
-              // Múltiplos números - dividir valor igualmente
-              const valorTotal = parseFloat(comprovante.valor);
-              const valorPorNumero = (valorTotal / numeros.length).toFixed(2);
-              
-              const resultados = numeros.map(numero => 
-                `${comprovante.referencia}|${valorPorNumero}|${numero}`
-              );
-              
-              console.log(`   ✅ PEDIDOS MÚLTIPLOS IMEDIATOS (IMAGEM + LEGENDA): ${resultados.join(' + ')}`);
-              return { 
-                sucesso: true, 
-                dadosCompletos: resultados.join('\n'),
-                tipo: 'numeros_multiplos_processados',
-                numeros: numeros,
-                valorCada: valorPorNumero,
-                fonte: 'imagem_com_legenda'
-              };
-            }
-          } else {
-            console.log(`   ❌ Nenhum número válido encontrado na legenda`);
-          }
-        } else {
-          console.log(`   ⚠️ Legenda não disponível ou vazia`);
-        }
-        
-        // Sem números na legenda - processar comprovante normalmente
-        await this.processarComprovante(comprovante, remetente, timestamp);
-        
-        // Calcular megas para mostrar na mensagem
-        const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
-        
-        return { 
-          sucesso: true, 
-          tipo: 'comprovante_imagem_recebido',
-          referencia: comprovante.referencia,
-          valor: comprovante.valor,
-          megas: megas,
-          mensagem: 'Comprovante da imagem processado! Agora envie o número que vai receber os megas.'
-        };
+        return await this.processarComprovanteExtraido(comprovante, remetente, timestamp, configGrupo, legendaImagem);
       } else {
-        console.log(`   ❌ IA não conseguiu extrair dados da imagem`);
+        console.log(`❌ GPT-4 Vision não conseguiu extrair dados da imagem`);
         return {
           sucesso: false,
           tipo: 'imagem_nao_reconhecida',
@@ -1167,7 +1452,7 @@ Se não conseguires ler a imagem ou extrair os dados:
       }
       
     } catch (error) {
-      console.error('❌ Erro ao processar imagem:', error);
+      console.error('❌ Erro no GPT-4 Vision:', error);
       return {
         sucesso: false,
         tipo: 'erro_processamento_imagem',
@@ -1591,23 +1876,40 @@ Se não conseguires extrair, responde:
     };
   }
 
-  // === FUNÇÃO PARA COMANDOS ADMIN (ATUALIZADA) ===
+  // === FUNÇÃO PARA COMANDOS ADMIN (ATUALIZADA COM GOOGLE VISION) ===
   getStatusDetalhado() {
-    let status = `🧠 *STATUS DA IA MELHORADA v3.0*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+    let status = `🧠 *STATUS DA IA MELHORADA v4.0*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     
     status += `💾 Mensagens no histórico: ${this.historicoMensagens.length}\n`;
     status += `⏳ Comprovantes em aberto: ${Object.keys(this.comprovantesEmAberto).length}\n\n`;
+    
+    // Status do Google Vision
+    status += `🔍 *SISTEMA DE PROCESSAMENTO DE IMAGENS:*\n`;
+    if (this.googleVisionEnabled) {
+      status += `✅ Google Vision: ATIVO\n`;
+      status += `🔄 Fallback: GPT-4 Vision\n`;
+      status += `⚡ Método híbrido: Google Vision OCR + GPT-4 interpretação\n`;
+      status += `⏱️ Timeout: ${this.googleVisionTimeout}ms\n\n`;
+    } else {
+      status += `❌ Google Vision: DESABILITADO\n`;
+      status += `🧠 Usando: GPT-4 Vision apenas\n\n`;
+    }
     
     if (Object.keys(this.comprovantesEmAberto).length > 0) {
       status += `📋 *Comprovantes aguardando número:*\n`;
       Object.entries(this.comprovantesEmAberto).forEach(([remetente, comp]) => {
         const tempo = Math.floor((Date.now() - comp.timestamp) / 60000);
         const tipo = comp.tipo === 'divisao_automatica' ? ' 🧮' : '';
-        status += `• ${remetente.replace('@c.us', '')}: ${comp.referencia} - ${comp.valor}MT${tipo} (${tempo}min)\n`;
+        const metodo = comp.metodo ? ` [${comp.metodo}]` : '';
+        status += `• ${remetente.replace('@c.us', '')}: ${comp.referencia} - ${comp.valor}MT${tipo}${metodo} (${tempo}min)\n`;
       });
     }
     
-    status += `\n🔧 *MELHORIAS APLICADAS v3.0:*\n`;
+    status += `\n🔧 *MELHORIAS APLICADAS v4.0:*\n`;
+    status += `🆕 Google Vision OCR integrado!\n`;
+    status += `🆕 Método híbrido para maior precisão!\n`;
+    status += `🆕 Fallback automático para GPT-4 Vision!\n`;
+    status += `🆕 Sistema redundante de processamento!\n`;
     status += `✅ Detecção de legendas CORRIGIDA!\n`;
     status += `✅ Validação de dados melhorada!\n`;
     status += `✅ Logs mais detalhados!\n`;

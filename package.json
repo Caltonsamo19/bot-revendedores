@@ -7,10 +7,11 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@google-cloud/vision": "^4.3.3",
     "axios": "^1.6.0",
     "dotenv": "^16.3.1",
     "openai": "^4.20.0",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "github:BenyFilho/whatsapp-web.js#fix_event_ready"
+    "whatsapp-web.js": "github:BenyFilho/whatsapp-web.js#fix_event_ready_again"
   }
 }

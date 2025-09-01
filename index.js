@@ -7,6 +7,12 @@ const axios = require('axios'); // npm install axios
 // === IMPORTAR A IA ===
 const WhatsAppAI = require('./whatsapp_ai');
 
+// === IMPORTAR SISTEMA DE PACOTES ===
+const SistemaPacotes = require('./sistema_pacotes');
+
+// === IMPORTAR SISTEMA DE COMPRAS ===
+const SistemaCompras = require('./sistema_compras');
+
 // === CONFIGURAÇÃO GOOGLE SHEETS - BOT RETALHO (SCRIPT PRÓPRIO) ===
 const GOOGLE_SHEETS_CONFIG = {
     scriptUrl: process.env.GOOGLE_SHEETS_SCRIPT_URL_RETALHO || 'https://script.google.com/macros/s/AKfycbyMilUC5bYKGXV95LR4MmyaRHzMf6WCmXeuztpN0tDpQ9_2qkgCxMipSVqYK_Q6twZG/exec',
@@ -26,13 +32,31 @@ const client = new Client({
     }),
     puppeteer: {
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--disable-gpu',
+            '--disable-extensions',
+            '--no-default-browser-check',
+            '--disable-default-apps',
+            '--disable-translate',
+            '--disable-sync'
+        ],
+        executablePath: undefined, // Use default Chrome
+        timeout: 0, // Remove timeout
+        ignoreDefaultArgs: ['--disable-extensions']
     }
 });
 
 // === INICIALIZAR A IA ===
 require('dotenv').config();
 const ia = new WhatsAppAI(process.env.OPENAI_API_KEY);
+
+// === SISTEMA DE PACOTES (será inicializado após WhatsApp conectar) ===
+let sistemaPacotes = null;
+let sistemaCompras = null;
 
 // Configuração para encaminhamento
 const ENCAMINHAMENTO_CONFIG = {
@@ -47,6 +71,154 @@ let processandoFila = false;
 
 // === VARIÁVEIS PARA DADOS ===
 let dadosParaTasker = [];
+
+// === SISTEMA DE REFERÊNCIAS E BÔNUS ===
+let codigosReferencia = {}; // codigo -> dados do dono
+let referenciasClientes = {}; // cliente -> dados da referencia
+let bonusSaldos = {}; // cliente -> saldo e historico
+let pedidosSaque = {}; // referencia -> dados do pedido
+
+// Arquivos de persistência
+const ARQUIVO_REFERENCIAS = './dados_referencias.json';
+const ARQUIVO_BONUS = './dados_bonus.json';
+const ARQUIVO_CODIGOS = './dados_codigos.json';
+const ARQUIVO_SAQUES = './dados_saques.json';
+
+// === FUNÇÕES DO SISTEMA DE REFERÊNCIA ===
+
+// Carregar dados persistentes
+async function carregarDadosReferencia() {
+    try {
+        // Carregar códigos
+        try {
+            const dados = await fs.readFile(ARQUIVO_CODIGOS, 'utf8');
+            codigosReferencia = JSON.parse(dados);
+            console.log(`📋 ${Object.keys(codigosReferencia).length} códigos de referência carregados`);
+        } catch (e) {
+            codigosReferencia = {};
+        }
+
+        // Carregar referências  
+        try {
+            const dados = await fs.readFile(ARQUIVO_REFERENCIAS, 'utf8');
+            referenciasClientes = JSON.parse(dados);
+            console.log(`👥 ${Object.keys(referenciasClientes).length} referências de clientes carregadas`);
+        } catch (e) {
+            referenciasClientes = {};
+        }
+
+        // Carregar bônus
+        try {
+            const dados = await fs.readFile(ARQUIVO_BONUS, 'utf8');
+            bonusSaldos = JSON.parse(dados);
+            console.log(`💰 ${Object.keys(bonusSaldos).length} saldos de bônus carregados`);
+        } catch (e) {
+            bonusSaldos = {};
+        }
+
+        // Carregar saques
+        try {
+            const dados = await fs.readFile(ARQUIVO_SAQUES, 'utf8');
+            pedidosSaque = JSON.parse(dados);
+            console.log(`🏦 ${Object.keys(pedidosSaque).length} pedidos de saque carregados`);
+        } catch (e) {
+            pedidosSaque = {};
+        }
+
+    } catch (error) {
+        console.error('❌ Erro ao carregar dados de referência:', error);
+    }
+}
+
+// Salvar dados persistentes
+async function salvarDadosReferencia() {
+    try {
+        await Promise.all([
+            fs.writeFile(ARQUIVO_CODIGOS, JSON.stringify(codigosReferencia, null, 2)),
+            fs.writeFile(ARQUIVO_REFERENCIAS, JSON.stringify(referenciasClientes, null, 2)),
+            fs.writeFile(ARQUIVO_BONUS, JSON.stringify(bonusSaldos, null, 2)),
+            fs.writeFile(ARQUIVO_SAQUES, JSON.stringify(pedidosSaque, null, 2))
+        ]);
+    } catch (error) {
+        console.error('❌ Erro ao salvar dados de referência:', error);
+    }
+}
+
+// Gerar código único
+function gerarCodigoReferencia(remetente) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let codigo;
+    do {
+        codigo = '';
+        for (let i = 0; i < 6; i++) {
+            codigo += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+    } while (codigosReferencia[codigo]);
+    
+    return codigo;
+}
+
+// Processar bônus de compra
+async function processarBonusCompra(remetenteCompra, valorCompra) {
+    console.log(`🎁 Verificando bônus para compra de ${remetenteCompra}`);
+    
+    // Verificar se cliente tem referência
+    const referencia = referenciasClientes[remetenteCompra];
+    if (!referencia) {
+        console.log(`   ❌ Cliente não tem referência registrada`);
+        return false;
+    }
+
+    // Verificar se ainda pode ganhar bônus (máximo 5 compras)
+    if (referencia.comprasRealizadas >= 5) {
+        console.log(`   ⚠️ Cliente já fez 5 compras, sem mais bônus`);
+        return false;
+    }
+
+    // Atualizar contador de compras
+    referencia.comprasRealizadas++;
+    
+    // Creditar bônus ao convidador
+    const convidador = referencia.convidadoPor;
+    if (!bonusSaldos[convidador]) {
+        bonusSaldos[convidador] = {
+            saldo: 0,
+            detalhesReferencias: {},
+            historicoSaques: [],
+            totalReferencias: 0
+        };
+    }
+
+    // Adicionar 200MB ao saldo
+    const bonusAtual = 200;
+    bonusSaldos[convidador].saldo += bonusAtual;
+    
+    // Atualizar detalhes da referência
+    if (!bonusSaldos[convidador].detalhesReferencias[remetenteCompra]) {
+        bonusSaldos[convidador].detalhesReferencias[remetenteCompra] = {
+            compras: 0,
+            bonusGanho: 0,
+            codigo: referencia.codigo,
+            ativo: true
+        };
+    }
+    
+    bonusSaldos[convidador].detalhesReferencias[remetenteCompra].compras = referencia.comprasRealizadas;
+    bonusSaldos[convidador].detalhesReferencias[remetenteCompra].bonusGanho += bonusAtual;
+
+    // Salvar dados
+    await salvarDadosReferencia();
+    
+    console.log(`   ✅ Bônus creditado: ${bonusAtual}MB para ${convidador} (compra ${referencia.comprasRealizadas}/5)`);
+    
+    return {
+        convidador: convidador,
+        bonusGanho: bonusAtual,
+        compraAtual: referencia.comprasRealizadas,
+        totalCompras: 5,
+        novoSaldo: bonusSaldos[convidador].saldo
+    };
+}
 
 // Base de dados de compradores
 let historicoCompradores = {};
@@ -482,6 +654,11 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
         dadosParaTasker[dadosParaTasker.length - 1].metodo = 'google_sheets';
         dadosParaTasker[dadosParaTasker.length - 1].row = resultado.row;
         console.log(`✅ [${grupoNome}] Enviado para Google Sheets! Row: ${resultado.row}`);
+        
+        // === REGISTRAR COMPRA PENDENTE NO SISTEMA DE COMPRAS ===
+        if (sistemaCompras) {
+            await sistemaCompras.registrarCompraPendente(referencia, numero, valor);
+        }
     } else {
         // Fallback para WhatsApp se Google Sheets falhar
         console.log(`🔄 [${grupoNome}] Google Sheets falhou, usando WhatsApp backup...`);
@@ -544,6 +721,41 @@ function obterDadosTaskerHoje() {
         const dataItem = new Date(item.timestamp).toDateString();
         return dataItem === hoje;
     });
+}
+
+// === FUNÇÕES PARA TASKER - SISTEMA DE PACOTES ===
+function obterDadosPacotesTasker() {
+    if (!sistemaPacotes) return [];
+    
+    const clientes = Object.values(sistemaPacotes.clientesAtivos);
+    return clientes.map(cliente => ({
+        numero: cliente.numero,
+        referenciaOriginal: cliente.referenciaOriginal,
+        tipoPacote: cliente.tipoPacote,
+        diasRestantes: cliente.diasRestantes,
+        proximaRenovacao: cliente.proximaRenovacao,
+        status: cliente.status,
+        grupoId: cliente.grupoId
+    }));
+}
+
+function obterRenovacoesPendentesTasker() {
+    if (!sistemaPacotes) return [];
+    
+    const agora = new Date();
+    const proximas6h = new Date(agora.getTime() + (6 * 60 * 60 * 1000));
+    
+    const clientes = Object.values(sistemaPacotes.clientesAtivos);
+    return clientes.filter(cliente => {
+        const proximaRenovacao = new Date(cliente.proximaRenovacao);
+        return proximaRenovacao <= proximas6h && cliente.diasRestantes > 0;
+    }).map(cliente => ({
+        numero: cliente.numero,
+        referenciaOriginal: cliente.referenciaOriginal,
+        tipoPacote: cliente.tipoPacote,
+        proximaRenovacao: cliente.proximaRenovacao,
+        diasRestantes: cliente.diasRestantes
+    }));
 }
 
 // === COMANDOS CUSTOMIZADOS - FUNÇÕES ===
@@ -1173,8 +1385,20 @@ async function processarFila() {
 // === EVENTOS DO BOT ===
 
 client.on('qr', (qr) => {
-    console.log('📱 Escaneie o QR Code:');
+    console.log('📱 QR Code gerado - Escaneie o QR Code:');
     qrcode.generate(qr, { small: true });
+});
+
+client.on('authenticated', () => {
+    console.log('🔐 Cliente autenticado com sucesso!');
+});
+
+client.on('auth_failure', (msg) => {
+    console.error('❌ Falha na autenticação:', msg);
+});
+
+client.on('loading_screen', (percent, message) => {
+    console.log('⏳ Carregando WhatsApp...', percent + '%', message);
 });
 
 client.on('ready', async () => {
@@ -1184,6 +1408,21 @@ client.on('ready', async () => {
     console.log(`🔗 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}`);
     console.log('🤖 Bot Retalho - Lógica simples igual ao Bot Atacado!');
     
+    // === INICIALIZAR SISTEMA DE PACOTES APÓS WhatsApp CONECTAR ===
+    if (process.env.SISTEMA_PACOTES_ENABLED === 'true') {
+        sistemaPacotes = new SistemaPacotes();
+        console.log('📦 Sistema de Pacotes Automáticos ATIVADO');
+    } else {
+        console.log('📦 Sistema de Pacotes Automáticos DESABILITADO (.env)');
+    }
+    
+    // === INICIALIZAR SISTEMA DE COMPRAS ===
+    sistemaCompras = new SistemaCompras();
+    console.log('🛒 Sistema de Registro de Compras ATIVADO');
+    
+    // Carregar dados de referência
+    await carregarDadosReferencia();
+    
     await carregarHistorico();
     
     console.log('\n🤖 Monitorando grupos:');
@@ -1192,7 +1431,7 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando');
+    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision');
 });
 
 client.on('group-join', async (notification) => {
@@ -1329,6 +1568,167 @@ client.on('message', async (message) => {
                 return;
             }
 
+            if (comando === '.bonus_stats') {
+                let stats = `🎁 *ESTATÍSTICAS DO SISTEMA DE REFERÊNCIAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                
+                // Estatísticas gerais
+                const totalCodigos = Object.keys(codigosReferencia).length;
+                const totalReferencias = Object.keys(referenciasClientes).length;
+                const totalUsuariosComBonus = Object.keys(bonusSaldos).length;
+                const totalSaques = Object.keys(pedidosSaque).length;
+                
+                stats += `📊 **RESUMO GERAL:**\n`;
+                stats += `   • Códigos gerados: ${totalCodigos}\n`;
+                stats += `   • Referências ativas: ${totalReferencias}\n`;
+                stats += `   • Usuários com bônus: ${totalUsuariosComBonus}\n`;
+                stats += `   • Saques solicitados: ${totalSaques}\n\n`;
+                
+                // Top convidadores
+                const topConvidadores = Object.values(bonusSaldos)
+                    .map(dados => ({
+                        saldo: dados.saldo,
+                        referencias: Object.keys(dados.detalhesReferencias || {}).length,
+                        dados: dados
+                    }))
+                    .sort((a, b) => b.saldo - a.saldo)
+                    .slice(0, 5);
+                
+                if (topConvidadores.length > 0) {
+                    stats += `🏆 **TOP 5 CONVIDADORES:**\n`;
+                    topConvidadores.forEach((item, index) => {
+                        const saldoGB = (item.saldo / 1024).toFixed(2);
+                        stats += `   ${index + 1}. ${item.saldo}MB (${saldoGB}GB) - ${item.referencias} referências\n`;
+                    });
+                    stats += `\n`;
+                }
+                
+                // Estatísticas de compras
+                let totalComprasBonus = 0;
+                let totalBonusDistribuido = 0;
+                
+                Object.values(bonusSaldos).forEach(saldo => {
+                    if (saldo.detalhesReferencias) {
+                        Object.values(saldo.detalhesReferencias).forEach(ref => {
+                            totalComprasBonus += ref.compras || 0;
+                            totalBonusDistribuido += ref.bonusGanho || 0;
+                        });
+                    }
+                });
+                
+                stats += `💰 **BÔNUS DISTRIBUÍDOS:**\n`;
+                stats += `   • Total de compras que geraram bônus: ${totalComprasBonus}\n`;
+                stats += `   • Total de MB distribuídos: ${totalBonusDistribuido}MB\n`;
+                stats += `   • Equivalente em GB: ${(totalBonusDistribuido / 1024).toFixed(2)}GB\n\n`;
+                
+                // Saques pendentes
+                const saquesPendentes = Object.values(pedidosSaque).filter(p => p.status === 'pendente');
+                if (saquesPendentes.length > 0) {
+                    stats += `⏳ **SAQUES PENDENTES:** ${saquesPendentes.length}\n`;
+                    const totalPendente = saquesPendentes.reduce((sum, p) => sum + p.quantidade, 0);
+                    stats += `   • Valor total: ${totalPendente}MB (${(totalPendente/1024).toFixed(2)}GB)\n\n`;
+                }
+                
+                stats += `📈 **SISTEMA DE REFERÊNCIAS ATIVO E FUNCIONANDO!**`;
+                
+                await message.reply(stats);
+                return;
+            }
+
+            // === COMANDOS DO SISTEMA DE PACOTES ===
+            if (sistemaPacotes) {
+                
+                // .pacote DIAS REF NUMERO - Criar pacote
+                if (comando.startsWith('.pacote ')) {
+                    const partes = message.body.trim().split(' ');
+                    
+                    if (partes.length < 4) {
+                        await message.reply(`❌ *USO INCORRETO*\n\n✅ **Formato correto:**\n*.pacote DIAS REF NUMERO*\n\n📝 **Exemplos:**\n• *.pacote 3 ABC123 845123456*\n• *.pacote 30 XYZ789 847654321*\n\n📦 **Tipos disponíveis:**\n• 3 - Pacote de 3 dias (300MB)\n• 5 - Pacote de 5 dias (500MB)\n• 15 - Pacote de 15 dias (1.5GB)\n• 30 - Pacote de 30 dias (3GB)`);
+                        return;
+                    }
+                    
+                    const [, diasPacote, referencia, numero] = partes;
+                    const grupoId = message.from;
+                    
+                    console.log(`📦 COMANDO PACOTE: Dias=${diasPacote}, Ref=${referencia}, Numero=${numero}`);
+                    
+                    const resultado = await sistemaPacotes.processarComprovante(referencia, numero, grupoId, diasPacote);
+                    
+                    if (resultado.sucesso) {
+                        await message.reply(resultado.mensagem);
+                    } else {
+                        await message.reply(`❌ **ERRO AO CRIAR PACOTE**\n\n⚠️ ${resultado.erro}\n\n💡 **Verificar:**\n• Dias válidos (3, 5, 15, 30)\n• Referência não está duplicada`);
+                    }
+                    return;
+                }
+                
+                // .pacotes_ativos - Listar clientes com pacotes ativos
+                if (comando === '.pacotes_ativos') {
+                    const lista = sistemaPacotes.listarClientesAtivos();
+                    await message.reply(lista);
+                    return;
+                }
+                
+                // .pacotes_stats - Estatísticas do sistema de pacotes
+                if (comando === '.pacotes_stats') {
+                    const stats = sistemaPacotes.obterEstatisticas();
+                    await message.reply(stats);
+                    return;
+                }
+                
+                // .cancelar_pacote NUMERO REF - Cancelar pacote
+                if (comando.startsWith('.cancelar_pacote ')) {
+                    const partes = message.body.trim().split(' ');
+                    
+                    if (partes.length < 3) {
+                        await message.reply(`❌ *USO INCORRETO*\n\n✅ **Formato correto:**\n*.cancelar_pacote NUMERO REFERENCIA*\n\n📝 **Exemplo:**\n• *.cancelar_pacote 845123456 ABC123*`);
+                        return;
+                    }
+                    
+                    const [, numero, referencia] = partes;
+                    const resultado = sistemaPacotes.cancelarPacote(numero, referencia);
+                    await message.reply(resultado);
+                    return;
+                }
+
+                // .validade NUMERO - Verificar validade do pacote (comando para CLIENTES)
+                if (comando.startsWith('.validade ')) {
+                    const partes = message.body.trim().split(' ');
+                    
+                    if (partes.length < 2) {
+                        await message.reply(`❌ *USO INCORRETO*\n\n✅ **Formato correto:**\n*.validade NUMERO*\n\n📝 **Exemplo:**\n• *.validade 845123456*\n\n💡 Digite seu número para verificar a validade do seu pacote de 100MB diários.`);
+                        return;
+                    }
+                    
+                    const numero = partes[1];
+                    const resultado = sistemaPacotes.verificarValidadePacote(numero);
+                    
+                    await message.reply(resultado);
+                    return;
+                }
+                
+                // .sistema_pacotes - Status do sistema
+                if (comando === '.sistema_pacotes') {
+                    const status = sistemaPacotes.getStatus();
+                    let resposta = `📦 *STATUS DO SISTEMA DE PACOTES*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                    resposta += `🟢 **Status:** ${status.ativo ? 'ATIVO' : 'INATIVO'}\n`;
+                    resposta += `👥 **Clientes ativos:** ${status.clientesAtivos}\n`;
+                    resposta += `⏱️ **Verificação:** ${status.intervalVerificacao/60000} min\n`;
+                    resposta += `📦 **Tipos disponíveis:** ${status.tiposPacotes.join(', ')}\n`;
+                    resposta += `📊 **Histórico:** ${status.historicoSize} registros\n\n`;
+                    resposta += `🔧 **Comandos Administrativos:**\n`;
+                    resposta += `• *.pacote DIAS REF NUMERO* - Criar pacote\n`;
+                    resposta += `• *.pacotes_ativos* - Listar ativos\n`;
+                    resposta += `• *.pacotes_stats* - Estatísticas\n`;
+                    resposta += `• *.cancelar_pacote NUMERO REF* - Cancelar\n\n`;
+                    resposta += `👤 **Comando para Clientes:**\n`;
+                    resposta += `• *.validade NUMERO* - Verificar validade do pacote\n\n`;
+                    resposta += `⚡ *Sistema funcionando automaticamente!*`;
+                    
+                    await message.reply(resposta);
+                    return;
+                }
+            }
+
             // === COMANDOS GOOGLE SHEETS ===
             if (comando === '.test_sheets') {
                 console.log(`🧪 Testando Google Sheets...`);
@@ -1340,6 +1740,41 @@ client.on('message', async (message) => {
                 } else {
                     await message.reply(`❌ *Google Sheets com problema!*\n\n📊 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}\n⚠️ Erro: ${resultado.erro}\n\n🔧 *Verifique:*\n• Script publicado corretamente\n• Permissões do Google Sheets\n• Internet funcionando`);
                 }
+                return;
+            }
+
+            if (comando === '.test_vision') {
+                const visionStatus = ia.googleVisionEnabled;
+                let resposta = `🔍 *TESTE GOOGLE VISION*\n⚠ NB: Válido apenas para Vodacom━━━━━━━━\n\n`;
+                
+                if (visionStatus) {
+                    resposta += `✅ **Google Vision: ATIVO**\n`;
+                    resposta += `🔧 **Configuração:**\n`;
+                    resposta += `   • Timeout: ${ia.googleVisionTimeout}ms\n`;
+                    resposta += `   • Fallback: GPT-4 Vision\n\n`;
+                    resposta += `📝 **Para testar:**\n`;
+                    resposta += `1. Envie uma imagem de comprovante\n`;
+                    resposta += `2. Verifique nos logs qual método foi usado\n`;
+                    resposta += `3. Google Vision será tentado primeiro\n`;
+                    resposta += `4. GPT-4 Vision como fallback\n\n`;
+                    resposta += `📊 **Vantagens do método híbrido:**\n`;
+                    resposta += `   ✅ Maior precisão OCR\n`;
+                    resposta += `   ✅ Menor custo\n`;
+                    resposta += `   ✅ Mais rápido\n`;
+                    resposta += `   ✅ Sistema redundante`;
+                } else {
+                    resposta += `❌ **Google Vision: DESABILITADO**\n\n`;
+                    resposta += `🔧 **Para ativar:**\n`;
+                    resposta += `1. Configure GOOGLE_APPLICATION_CREDENTIALS no .env\n`;
+                    resposta += `2. Ou configure GOOGLE_VISION_API_KEY\n`;
+                    resposta += `3. Defina GOOGLE_VISION_ENABLED=true\n\n`;
+                    resposta += `🧠 **Atualmente usando:**\n`;
+                    resposta += `   • GPT-4 Vision apenas\n`;
+                    resposta += `   • Funciona normalmente\n`;
+                    resposta += `   • Sem redundância`;
+                }
+                
+                await message.reply(resposta);
                 return;
             }
 
@@ -1506,6 +1941,152 @@ client.on('message', async (message) => {
                 return;
             }
 
+            // === COMANDOS TASKER - SISTEMA DE PACOTES ===
+            
+            if (comando === '.pacotes_tasker') {
+                const dadosPacotes = obterDadosPacotesTasker();
+                
+                if (dadosPacotes.length === 0) {
+                    await message.reply(`📦 *DADOS TASKER - PACOTES*\n\n❌ Nenhum cliente com pacote ativo para o Tasker.`);
+                    return;
+                }
+                
+                let resposta = `📦 *DADOS TASKER - PACOTES* (${dadosPacotes.length})\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                
+                dadosPacotes.forEach((cliente, index) => {
+                    const proximaRenovacao = new Date(cliente.proximaRenovacao);
+                    resposta += `${index + 1}. **${cliente.numero}**\n`;
+                    resposta += `   📋 Ref: ${cliente.referenciaOriginal}\n`;
+                    resposta += `   📦 Tipo: ${cliente.tipoPacote}\n`;
+                    resposta += `   📅 Dias restantes: ${cliente.diasRestantes}\n`;
+                    resposta += `   ⏰ Próxima: ${proximaRenovacao.toLocaleString('pt-BR')}\n\n`;
+                });
+                
+                resposta += `💡 *O Tasker pode acessar estes dados via função do bot para processar renovações automaticamente.*`;
+                
+                await message.reply(resposta);
+                return;
+            }
+            
+            if (comando === '.renovacoes_tasker') {
+                const renovacoesPendentes = obterRenovacoesPendentesTasker();
+                
+                if (renovacoesPendentes.length === 0) {
+                    await message.reply(`🔄 *RENOVAÇÕES TASKER*\n\n✅ Nenhuma renovação pendente nas próximas 6 horas.`);
+                    return;
+                }
+                
+                let resposta = `🔄 *RENOVAÇÕES TASKER* (${renovacoesPendentes.length})\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                
+                renovacoesPendentes.forEach((cliente, index) => {
+                    const proximaRenovacao = new Date(cliente.proximaRenovacao);
+                    
+                    resposta += `${index + 1}. **${cliente.numero}**\n`;
+                    resposta += `   📋 Ref: ${cliente.referenciaOriginal}\n`;
+                    resposta += `   📦 Tipo: ${cliente.tipoPacote}\n`;
+                    resposta += `   📅 Dias restantes: ${cliente.diasRestantes}\n`;
+                    resposta += `   ⏰ Próxima renovação: ${proximaRenovacao.toLocaleString('pt-BR')}\n\n`;
+                });
+                
+                resposta += `💡 *Horários já calculados com 2h de antecipação em relação ao dia anterior.*`;
+                
+                await message.reply(resposta);
+                return;
+            }
+
+            // === COMANDOS DO SISTEMA DE COMPRAS ===
+            
+            if (comando === '.compras_stats') {
+                if (!sistemaCompras) {
+                    await message.reply('❌ Sistema de compras não está ativo!');
+                    return;
+                }
+                
+                const estatisticas = await sistemaCompras.obterEstatisticas();
+                
+                let resposta = `🛒 *ESTATÍSTICAS DE COMPRAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                resposta += `📊 Total de compradores: ${estatisticas.totalCompradores}\n`;
+                resposta += `📅 Compradores hoje: ${estatisticas.compradoresHoje}\n`;
+                resposta += `⏳ Compras pendentes: ${estatisticas.comprasPendentes}\n`;
+                resposta += `💾 Total de megas hoje: ${estatisticas.totalMegasHoje >= 1024 ? (estatisticas.totalMegasHoje/1024).toFixed(1) + ' GB' : estatisticas.totalMegasHoje + ' MB'}\n\n`;
+                
+                if (estatisticas.ranking.length > 0) {
+                    resposta += `🏆 *TOP 5 RANKING HOJE:*\n`;
+                    estatisticas.ranking.slice(0, 5).forEach((cliente, index) => {
+                        const megasFormatados = cliente.megasHoje >= 1024 ? `${(cliente.megasHoje/1024).toFixed(1)} GB` : `${cliente.megasHoje} MB`;
+                        resposta += `${index + 1}º ${cliente.numero} - ${megasFormatados} (${cliente.comprasHoje}x)\n`;
+                    });
+                }
+                
+                await message.reply(resposta);
+                return;
+            }
+            
+            if (comando === '.ranking') {
+                if (!sistemaCompras) {
+                    await message.reply('❌ Sistema de compras não está ativo!');
+                    return;
+                }
+                
+                const estatisticas = await sistemaCompras.obterEstatisticas();
+                
+                if (estatisticas.ranking.length === 0) {
+                    await message.reply('🏆 *RANKING DIÁRIO*\n\n❌ Nenhuma compra registrada hoje.');
+                    return;
+                }
+                
+                let resposta = `🏆 *RANKING DIÁRIO DE COMPRAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                
+                estatisticas.ranking.forEach((cliente, index) => {
+                    const megasFormatados = cliente.megasHoje >= 1024 ? `${(cliente.megasHoje/1024).toFixed(1)} GB` : `${cliente.megasHoje} MB`;
+                    const emoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
+                    resposta += `${emoji} **${index + 1}º lugar**\n`;
+                    resposta += `   📱 ${cliente.numero}\n`;
+                    resposta += `   📊 ${megasFormatados} (${cliente.comprasHoje} compras)\n\n`;
+                });
+                
+                resposta += `📅 *Ranking atualizado automaticamente a cada compra confirmada!*`;
+                
+                await message.reply(resposta);
+                return;
+            }
+            
+            if (comando.startsWith('.comprador ')) {
+                if (!sistemaCompras) {
+                    await message.reply('❌ Sistema de compras não está ativo!');
+                    return;
+                }
+                
+                const numero = comando.replace('.comprador ', '').trim();
+                
+                if (!/^\d{9}$/.test(numero)) {
+                    await message.reply('❌ Use: *.comprador 849123456*');
+                    return;
+                }
+                
+                const cliente = sistemaCompras.historicoCompradores[numero];
+                
+                if (!cliente) {
+                    await message.reply(`❌ Cliente *${numero}* não encontrado no sistema de compras.`);
+                    return;
+                }
+                
+                const posicao = await sistemaCompras.obterPosicaoCliente(numero);
+                const megasHojeFormatados = cliente.megasHoje >= 1024 ? `${(cliente.megasHoje/1024).toFixed(1)} GB` : `${cliente.megasHoje} MB`;
+                const megasTotalFormatados = cliente.megasTotal >= 1024 ? `${(cliente.megasTotal/1024).toFixed(1)} GB` : `${cliente.megasTotal} MB`;
+                
+                let resposta = `👤 *PERFIL DO COMPRADOR*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                resposta += `📱 **Número:** ${numero}\n`;
+                resposta += `🏆 **Posição hoje:** ${posicao.posicao}º lugar\n`;
+                resposta += `📊 **Hoje:** ${megasHojeFormatados} (${cliente.comprasHoje} compras)\n`;
+                resposta += `💎 **Total geral:** ${megasTotalFormatados} (${cliente.totalCompras} compras)\n`;
+                resposta += `📅 **Primeira compra:** ${new Date(cliente.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
+                resposta += `⏰ **Última compra:** ${new Date(cliente.ultimaCompra).toLocaleDateString('pt-BR')}\n`;
+                
+                await message.reply(resposta);
+                return;
+            }
+
             // === NOVOS COMANDOS PARA DETECÇÃO DE GRUPOS ===
             if (comando === '.grupos') {
                 try {
@@ -1559,6 +2140,252 @@ client.on('message', async (message) => {
                     `📊 Status: ${status}\n\n` +
                     `${configGrupo ? `🏢 Nome: ${configGrupo.nome}` : '🔧 Precisa ser configurado'}\n\n` +
                     `📝 Verifique o console para detalhes completos`
+                );
+                return;
+            }
+        }
+
+        // === COMANDOS DE REFERÊNCIA E BÔNUS (TODOS USUÁRIOS) ===
+        if (message.type === 'chat' && message.body.startsWith('.')) {
+            const comando = message.body.toLowerCase().trim();
+            const remetente = message.author || message.from;
+
+            // .meucodigo - Gerar/ver código de referência
+            if (comando === '.meucodigo') {
+                let codigo = null;
+                
+                // Verificar se já tem código
+                for (const [cod, dados] of Object.entries(codigosReferencia)) {
+                    if (dados.dono === remetente) {
+                        codigo = cod;
+                        break;
+                    }
+                }
+                
+                // Se não tem, criar novo
+                if (!codigo) {
+                    codigo = gerarCodigoReferencia(remetente);
+                    codigosReferencia[codigo] = {
+                        dono: remetente,
+                        nome: message._data.notifyName || 'N/A',
+                        criado: new Date().toISOString(),
+                        ativo: true
+                    };
+                    await salvarDadosReferencia();
+                }
+                
+                await message.reply(
+                    `🎁 *SEU CÓDIGO DE REFERÊNCIA*\n\n` +
+                    `📋 Código: *${codigo}*\n\n` +
+                    `🚀 *Como usar:*\n` +
+                    `• Compartilhe este código com amigos\n` +
+                    `• Quando eles fizerem primeira compra, você ganha 200MB\n` +
+                    `• A cada 5 compras deles, acumula 1GB\n` +
+                    `• Acumule 1GB+ para sacar bônus\n\n` +
+                    `💡 *Dica:* Diga aos amigos para usar *.convite ${codigo}* quando entrarem no grupo!`
+                );
+                return;
+            }
+
+            // .convite CODIGO - Registrar referência
+            if (comando.startsWith('.convite ')) {
+                const codigo = comando.split(' ')[1]?.toUpperCase();
+                
+                if (!codigo) {
+                    await message.reply('❌ Use: *.convite CODIGO*\nExemplo: *.convite AB12CD*');
+                    return;
+                }
+                
+                // Verificar se código existe
+                if (!codigosReferencia[codigo]) {
+                    await message.reply(`❌ Código *${codigo}* não encontrado!\n\n💡 Peça para quem te convidou verificar o código com *.meucodigo*`);
+                    return;
+                }
+                
+                // Verificar se já tem referência
+                if (referenciasClientes[remetente]) {
+                    await message.reply(`⚠️ Você já foi convidado por alguém!\n\nNão é possível usar outro código de referência.`);
+                    return;
+                }
+                
+                // Verificar se não está tentando usar próprio código
+                if (codigosReferencia[codigo].dono === remetente) {
+                    await message.reply('❌ Não podes usar teu próprio código de referência! 😅');
+                    return;
+                }
+                
+                // Registrar referência
+                referenciasClientes[remetente] = {
+                    convidadoPor: codigosReferencia[codigo].dono,
+                    codigo: codigo,
+                    dataRegistro: new Date().toISOString(),
+                    comprasRealizadas: 0
+                };
+                
+                await salvarDadosReferencia();
+                
+                const nomeConvidador = codigosReferencia[codigo].nome;
+                
+                await message.reply(
+                    `✅ *CÓDIGO APLICADO COM SUCESSO!*\n\n` +
+                    `🎉 ${nomeConvidador} te convidou - registrado!\n\n` +
+                    `💎 *Benefícios:*\n` +
+                    `• Nas tuas próximas 5 compras, ${nomeConvidador} ganha 200MB cada\n` +
+                    `• Tu recebes teus megas normalmente\n` +
+                    `• Ajudas um amigo a ganhar bônus!\n\n` +
+                    `🚀 *Próximo passo:* Faz tua primeira compra!`
+                );
+                return;
+            }
+
+            // .bonus - Ver saldo de bônus
+            if (comando === '.bonus' || comando === '.saldo') {
+                const saldo = bonusSaldos[remetente];
+                
+                if (!saldo || saldo.saldo === 0) {
+                    await message.reply(
+                        `💰 *TEU SALDO DE BÔNUS*\n\n` +
+                        `🎁 Total acumulado: *0MB*\n` +
+                        `📊 Referências ativas: *0 pessoas*\n\n` +
+                        `🚀 *Como ganhar bônus:*\n` +
+                        `1. Gera teu código com *.meucodigo*\n` +
+                        `2. Convida amigos para o grupo\n` +
+                        `3. Eles usam *.convite TEUCODIGO*\n` +
+                        `4. A cada compra deles, ganhas 200MB\n` +
+                        `5. Com 1GB+ podes sacar com *.sacar*`
+                    );
+                    return;
+                }
+                
+                const saldoGB = (saldo.saldo / 1024).toFixed(2);
+                const podeSacar = saldo.saldo >= 1024;
+                const referenciasAtivas = Object.keys(saldo.detalhesReferencias || {}).length;
+                
+                let detalhes = '';
+                if (saldo.detalhesReferencias) {
+                    Object.entries(saldo.detalhesReferencias).forEach(([cliente, dados]) => {
+                        const nome = dados.nome || 'Cliente';
+                        detalhes += `• ${nome}: ${dados.compras}/5 compras (${dados.bonusGanho}MB ganhos)\n`;
+                    });
+                }
+                
+                await message.reply(
+                    `💰 *TEU SALDO DE BÔNUS*\n\n` +
+                    `🎁 Total acumulado: *${saldo.saldo}MB* (${saldoGB}GB)\n` +
+                    `📊 Referências ativas: *${referenciasAtivas} pessoas*\n` +
+                    `💡 Mínimo para saque: 1GB (1024MB)\n\n` +
+                    `${detalhes ? `👥 *Detalhes das referências:*\n${detalhes}\n` : ''}` +
+                    `${podeSacar ? '🚀 *Pronto para sacar!*\nUse: *.sacar 1GB 845123456*' : '⏳ Incentiva teus convidados a comprar!'}`
+                );
+                return;
+            }
+
+            // .sacar QUANTIDADE NUMERO - Solicitar saque
+            if (comando.startsWith('.sacar ')) {
+                const partes = comando.split(' ');
+                if (partes.length < 3) {
+                    await message.reply(
+                        `❌ *FORMATO INCORRETO*\n\n` +
+                        `✅ Use: *.sacar QUANTIDADE NUMERO*\n\n` +
+                        `📋 *Exemplos:*\n` +
+                        `• *.sacar 1GB 845123456*\n` +
+                        `• *.sacar 2048MB 847654321*\n` +
+                        `• *.sacar 1.5GB 843210987*`
+                    );
+                    return;
+                }
+                
+                const quantidadeStr = partes[1].toUpperCase();
+                const numeroDestino = partes[2];
+                
+                // Validar número
+                if (!/^8[0-9]{8}$/.test(numeroDestino)) {
+                    await message.reply(`❌ Número inválido: *${numeroDestino}*\n\n✅ Use formato: 8XXXXXXXX`);
+                    return;
+                }
+                
+                // Converter quantidade para MB
+                let quantidadeMB = 0;
+                if (quantidadeStr.endsWith('GB')) {
+                    const gb = parseFloat(quantidadeStr.replace('GB', ''));
+                    quantidadeMB = gb * 1024;
+                } else if (quantidadeStr.endsWith('MB')) {
+                    quantidadeMB = parseInt(quantidadeStr.replace('MB', ''));
+                } else {
+                    await message.reply(`❌ Formato inválido: *${quantidadeStr}*\n\n✅ Use: 1GB, 1.5GB, 1024MB, etc.`);
+                    return;
+                }
+                
+                // Verificar saldo
+                const saldo = bonusSaldos[remetente];
+                if (!saldo || saldo.saldo < quantidadeMB) {
+                    const saldoAtual = saldo ? saldo.saldo : 0;
+                    await message.reply(
+                        `❌ *SALDO INSUFICIENTE*\n\n` +
+                        `💰 Teu saldo: ${saldoAtual}MB\n` +
+                        `🎯 Solicitado: ${quantidadeMB}MB\n\n` +
+                        `💡 Precisas de mais ${quantidadeMB - saldoAtual}MB\n` +
+                        `🚀 Convida mais amigos para ganhar bônus!`
+                    );
+                    return;
+                }
+                
+                // Verificar mínimo
+                if (quantidadeMB < 1024) {
+                    await message.reply(`❌ Valor mínimo para saque: *1GB (1024MB)*\n\n🎯 Solicitado: ${quantidadeMB}MB`);
+                    return;
+                }
+                
+                // Gerar referência do pedido
+                const agora = new Date();
+                const referenciaSaque = `SAQ${agora.getFullYear().toString().slice(-2)}${String(agora.getMonth() + 1).padStart(2, '0')}${String(agora.getDate()).padStart(2, '0')}${String(Object.keys(pedidosSaque).length + 1).padStart(3, '0')}`;
+                
+                // Criar pedido
+                const pedido = {
+                    referencia: referenciaSaque,
+                    cliente: remetente,
+                    nomeCliente: message._data.notifyName || 'N/A',
+                    quantidade: quantidadeMB,
+                    numeroDestino: numeroDestino,
+                    dataSolicitacao: agora.toISOString(),
+                    status: 'pendente',
+                    grupo: message.from
+                };
+                
+                // Salvar pedido
+                pedidosSaque[referenciaSaque] = pedido;
+                
+                // Debitar do saldo
+                bonusSaldos[remetente].saldo -= quantidadeMB;
+                bonusSaldos[remetente].historicoSaques = bonusSaldos[remetente].historicoSaques || [];
+                bonusSaldos[remetente].historicoSaques.push({
+                    referencia: referenciaSaque,
+                    quantidade: quantidadeMB,
+                    data: agora.toISOString()
+                });
+                
+                await salvarDadosReferencia();
+                
+                // Enviar para Tasker
+                try {
+                    await enviarParaTasker(referenciaSaque, quantidadeMB, numeroDestino, message.from, `SAQUE_BONUS_${message._data.notifyName || 'Cliente'}`);
+                } catch (error) {
+                    console.error('❌ Erro ao enviar saque para Tasker:', error);
+                }
+                
+                const quantidadeFormatada = quantidadeMB >= 1024 ? `${(quantidadeMB/1024).toFixed(2)}GB` : `${quantidadeMB}MB`;
+                const novoSaldo = bonusSaldos[remetente].saldo;
+                
+                await message.reply(
+                    `✅ *SOLICITAÇÃO DE SAQUE CRIADA*\n\n` +
+                    `👤 Cliente: ${message._data.notifyName || 'N/A'}\n` +
+                    `📱 Número: ${numeroDestino}\n` +
+                    `💎 Quantidade: ${quantidadeFormatada}\n` +
+                    `🔖 Referência: *${referenciaSaque}*\n` +
+                    `⏰ Processamento: até 24h\n\n` +
+                    `💰 *Novo saldo:* ${novoSaldo}MB\n\n` +
+                    `✅ Pedido enviado para processamento!\n` +
+                    `🎉 Obrigado por usar nosso sistema de referências!`
                 );
                 return;
             }
@@ -1640,9 +2467,10 @@ client.on('message', async (message) => {
                 
                 if (resultadoIA.sucesso) {
                     
-                    if (resultadoIA.tipo === 'comprovante_recebido') {
+                    if (resultadoIA.tipo === 'comprovante_recebido' || resultadoIA.tipo === 'comprovante_imagem_recebido') {
+                        const metodoInfo = resultadoIA.metodo ? ` (${resultadoIA.metodo})` : '';
                         await message.reply(
-                            `✅ *Comprovante processado!*\n\n` +
+                            `✅ *Comprovante processado${metodoInfo}!*\n\n` +
                             `💰 Referência: ${resultadoIA.referencia}\n` +
                             `📊 Megas: ${resultadoIA.megas}\n\n` +
                             `📱 *Envie UM número que vai receber ${resultadoIA.megas}!*`
@@ -1654,6 +2482,9 @@ client.on('message', async (message) => {
                         const [referencia, megas, numero] = dadosCompletos.split('|');
                         const nomeContato = message._data.notifyName || 'N/A';
                         const autorMensagem = message.author || 'Desconhecido';
+                        
+                        // PROCESSAR BÔNUS DE REFERÊNCIA
+                        const bonusInfo = await processarBonusCompra(remetente, megas);
                         
                         await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
                         await registrarComprador(message.from, numero, nomeContato, megas);
@@ -1727,6 +2558,38 @@ client.on('message', async (message) => {
             return;
         }
 
+        // === MONITORAMENTO DE CONFIRMAÇÕES DO BOT SECUNDÁRIO ===
+        if (sistemaCompras && message.body.toLowerCase().includes('confirmado')) {
+            // Padrão: "Confirmado REF123. Transferiste 16.00MT..."
+            const regexConfirmacao = /confirmado\s+([A-Za-z0-9]+)/i;
+            const matchConfirmacao = message.body.match(regexConfirmacao);
+            
+            if (matchConfirmacao) {
+                const referenciaConfirmada = matchConfirmacao[1].toUpperCase();
+                console.log(`🛒 CONFIRMAÇÃO: Detectada confirmação para referência ${referenciaConfirmada}`);
+                
+                // Extrair número se disponível na mensagem
+                const regexNumero = /para\s+(\d{9})/i;
+                const matchNumero = message.body.match(regexNumero);
+                const numeroConfirmado = matchNumero ? matchNumero[1] : null;
+                
+                // Processar confirmação
+                const resultadoConfirmacao = await sistemaCompras.processarConfirmacao(referenciaConfirmada, numeroConfirmado);
+                
+                if (resultadoConfirmacao) {
+                    console.log(`✅ COMPRAS: Confirmação processada - ${resultadoConfirmacao.numero} | ${resultadoConfirmacao.megas}MB`);
+                    
+                    // Enviar mensagem de parabenização
+                    if (resultadoConfirmacao.mensagem) {
+                        await message.reply(resultadoConfirmacao.mensagem);
+                    }
+                } else {
+                    console.log(`⚠️ COMPRAS: Confirmação ${referenciaConfirmada} não encontrada ou já processada`);
+                }
+                return;
+            }
+        }
+
         // === PROCESSAMENTO COM IA (LÓGICA SIMPLES IGUAL AO BOT ATACADO) ===
         const remetente = message.author || message.from;
         const resultadoIA = await ia.processarMensagemBot(message.body, remetente, 'texto', configGrupo);
@@ -1738,9 +2601,10 @@ client.on('message', async (message) => {
 
         if (resultadoIA.sucesso) {
             
-            if (resultadoIA.tipo === 'comprovante_recebido') {
+            if (resultadoIA.tipo === 'comprovante_recebido' || resultadoIA.tipo === 'comprovante_imagem_recebido') {
+                const metodoInfo = resultadoIA.metodo ? ` (${resultadoIA.metodo})` : '';
                 await message.reply(
-                    `✅ *Comprovante processado!*\n\n` +
+                    `✅ *Comprovante processado${metodoInfo}!*\n\n` +
                     `💰 Referência: ${resultadoIA.referencia}\n` +
                     `📊 Megas: ${resultadoIA.megas}\n\n` +
                     `📱 *Envie UM número que vai receber ${resultadoIA.megas}!*`
@@ -1752,6 +2616,9 @@ client.on('message', async (message) => {
                 const [referencia, megas, numero] = dadosCompletos.split('|');
                 const nomeContato = message._data.notifyName || 'N/A';
                 const autorMensagem = message.author || 'Desconhecido';
+                
+                // PROCESSAR BÔNUS DE REFERÊNCIA
+                const bonusInfo = await processarBonusCompra(remetente, megas);
                 
                 await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
                 await registrarComprador(message.from, numero, nomeContato, megas);
@@ -1791,10 +2658,31 @@ client.on('disconnected', (reason) => {
     console.log('❌ Bot desconectado:', reason);
 });
 
+// Capturar erros não tratados
+process.on('unhandledRejection', (reason, promise) => {
+    if (reason.message && reason.message.includes('Execution context was destroyed')) {
+        console.log('⚠️ Contexto do Puppeteer reiniciado, continuando...');
+    } else {
+        console.error('❌ Promise rejeitada:', reason);
+    }
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('❌ Erro não capturado:', error.message);
+});
+
 // === INICIALIZAÇÃO ===
 (async function inicializar() {
+    console.log('🚀 Iniciando bot...');
     await carregarComandosCustomizados();
-    client.initialize();
+    console.log('🔧 Comandos carregados, inicializando cliente WhatsApp...');
+    
+    try {
+        client.initialize();
+        console.log('📱 Cliente WhatsApp inicializado, aguardando conexão...');
+    } catch (error) {
+        console.error('❌ Erro ao inicializar cliente:', error);
+    }
 })();
 
 // Salvar histórico a cada 5 minutos
@@ -1807,6 +2695,28 @@ setInterval(() => {
         console.log('🗑️ Dados antigos do Tasker removidos');
     }
 }, 60 * 60 * 1000);
+
+// Salvar dados de pacotes para Tasker a cada 30 minutos
+setInterval(async () => {
+    if (sistemaPacotes) {
+        try {
+            // Dados dos pacotes ativos
+            const dadosPacotes = obterDadosPacotesTasker();
+            await fs.writeFile('tasker_pacotes.json', JSON.stringify(dadosPacotes, null, 2));
+            
+            // Renovações pendentes
+            const renovacoesPendentes = obterRenovacoesPendentesTasker();
+            await fs.writeFile('tasker_renovacoes.json', JSON.stringify(renovacoesPendentes, null, 2));
+            
+            if (dadosPacotes.length > 0 || renovacoesPendentes.length > 0) {
+                console.log(`💾 Dados Tasker salvos: ${dadosPacotes.length} pacotes, ${renovacoesPendentes.length} renovações`);
+            }
+            
+        } catch (error) {
+            console.error('❌ Erro ao salvar dados Tasker:', error);
+        }
+    }
+}, 30 * 60 * 1000); // 30 minutos
 
 // Limpar cache de grupos logados a cada 2 horas
 setInterval(() => {
