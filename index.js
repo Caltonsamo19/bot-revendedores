@@ -133,26 +133,42 @@ NOME: NATACHA ALICE`
 
     '120363402160265624@g.us': {
         nome: 'Treinamento IA',
-        tabela: `MEGA PROMO  VODACOM 
- ━━━━━━━━━━━━━━━
-📅 PACOTES DIÁRIOS 📅 24h 
+        tabela: `PROMOÇÃO DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO 
+📆 PACOTES DIÁRIOS 
 
 
-✅ 1G + 200MB ➔ 20MT 📶
-✅ 2G + 400MB ➔ 40MT 📶
-✅ 3G + 600MB 💳 60MT 
-✅ 4G + 800MB  💳 80MT 
-✅ 5G +1000MB 💳 100MT 
-✅ 10G +240MB 💳 180MT 
+512MB 💎 10MT 💵💽
+850MB 💎 15MT 💵💽
+1024MB 💎 17MT 💵💽
+1200MB 💎 20MT 💵💽
+2048MB 💎 34MT 💵💽
+3072MB 💎 51MT 💵💽
+4096MB 💎 68MT 💵💽
+5120MB 💎 85MT 💵💽
+10240MB 💎 170MT 💵💽
+20480MB 💎 340MT 💵💽 
 
- *_________________* 
-💎 PACOTES MENSAIS 💎
-   
-📲 5G   ➔ 150MT 💳
-📲 10G  ➔ 280MT 💳
-📲 15G  ➔ 385MT 💳
-📲 20G  ➔ 480MT 💳
-━━━━━━━━━━━━━━━
+📅 PACOTES SEMANAIS
+3072 + 700MB 💎 105MT 💵💽
+5120 + 700MB 💎 155MT 💵💽
+10240 + 700MB 💎 300MT 💵💽
+15360 + 700MB 💎 455MT 💵💽
+20480 + 700MB 💎 600MT 💵💽
+
+📅 PACOTES MENSAIS
+⚠ Para ativar estes pacotes, o Txuna Crédito não pode estar ativo
+12.8GB 💎 255MT 💵💽
+22.8GB 💎 435MT 💵💽
+32.8GB 💎 605MT 💵💽
+52.8GB 💎 945MT 💵💽
+102.8GB 💎 1605MT 💵💽
+
+PACOTES DIAMANTE MENSAIS
+Chamadas + SMS ilimitadas + 12GB 💎 460MT 💵
+Chamadas + SMS ilimitadas + 24GB 💎 820MT 💵
+Chamadas + SMS ilimitadas + 50GB 💎 1550MT 💵
+Chamadas + SMS ilimitadas + 100GB 💎 2250MT 💵
+⚠ NB: Válido apenas para Vodacom
 
 
 🚀 Oferecemos sempre o melhor!*
@@ -242,7 +258,7 @@ Temos muito mais serviço…
 ┃     ▪ Envie o comprovativo em forma de mensagem e o número para receber rápido!
 ┃
 ┃┃
-╰━━━━━━━━━━━━━━━━━━━━━  
+╰⚠ NB: Válido apenas para Vodacom━━━━━━  
        🚀 O futuro é agora. Vamos?`
     },
     '120363228868368923@g.us': {
@@ -978,7 +994,7 @@ client.on('message', async (message) => {
             }
 
             if (comando === '.stats') {
-                let stats = `📊 *ESTATÍSTICAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                let stats = `📊 *ESTATÍSTICAS*\n⚠ NB: Válido apenas para Vodacom━━━━━━━━\n\n`;
                 
                 Object.keys(CONFIGURACAO_GRUPOS).forEach(grupoId => {
                     const config = CONFIGURACAO_GRUPOS[grupoId];
@@ -1045,7 +1061,7 @@ client.on('message', async (message) => {
                     return;
                 }
                 
-                let listaComandos = '📋 *COMANDOS CUSTOMIZADOS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+                let listaComandos = '📋 *COMANDOS CUSTOMIZADOS*\n⚠ NB: Válido apenas para Vodacom━━━━━━━━\n\n';
                 
                 Object.keys(comandosGrupo).forEach(nome => {
                     const cmd = comandosGrupo[nome];
@@ -1109,7 +1125,7 @@ client.on('message', async (message) => {
             }
 
             if (comando === '.grupos_status') {
-                let resposta = `📊 *STATUS DOS GRUPOS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                let resposta = `📊 *STATUS DOS GRUPOS*\n⚠ NB: Válido apenas para Vodacom━━━━━━━━\n\n`;
                 
                 for (const [grupoId, config] of Object.entries(CONFIGURACAO_GRUPOS)) {
                     const dadosGrupo = dadosParaTasker.filter(d => d.grupo_id === grupoId);
@@ -1136,7 +1152,7 @@ client.on('message', async (message) => {
                 const sheets = dados.filter(d => d.metodo === 'google_sheets').length;
                 const whatsapp = dados.filter(d => d.metodo === 'whatsapp_backup').length;
                 
-                let resposta = `📊 *GOOGLE SHEETS STATUS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                let resposta = `📊 *GOOGLE SHEETS STATUS*\n⚠ NB: Válido apenas para Vodacom━━━━━━━━\n\n`;
                 resposta += `📈 Total enviado: ${dados.length}\n`;
                 resposta += `📅 Hoje: ${hoje.length}\n`;
                 resposta += `📊 Via Google Sheets: ${sheets}\n`;
@@ -1175,7 +1191,7 @@ client.on('message', async (message) => {
             // === NOVOS COMANDOS PARA DETECÇÃO DE GRUPOS ===
             if (comando === '.grupos') {
                 try {
-                    let resposta = `📋 *GRUPOS DETECTADOS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                    let resposta = `📋 *GRUPOS DETECTADOS*\n⚠ NB: Válido apenas para Vodacom━━━━━━━━\n\n`;
                     
                     const chats = await client.getChats();
                     const grupos = chats.filter(chat => chat.isGroup);
