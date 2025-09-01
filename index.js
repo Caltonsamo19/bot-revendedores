@@ -981,11 +981,13 @@ Bem-vindo(a) ao *${configGrupo.nome}*!
 client.on('message', async (message) => {
     try {
         const isPrivado = !message.from.endsWith('@g.us');
-        const isAdmin = isAdministrador(message.from);
+        const autorMensagem = message.author || message.from;
+        const isAdmin = isAdministrador(autorMensagem);
+        
+        console.log(`🔍 Debug: Verificando admin para ${autorMensagem}, resultado: ${isAdmin}`);
 
         // === COMANDOS ADMINISTRATIVOS ===
         // Verificar se é admin global OU admin do grupo
-        const autorMensagem = message.author || message.from;
         let isAdminDoGrupo = false;
         
         // Só verificar admin do grupo se for mensagem de grupo
