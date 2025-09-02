@@ -338,6 +338,68 @@ class SistemaCompras {
             totalMegasHoje: this.rankingDiario.reduce((sum, item) => sum + item.megasHoje, 0)
         };
     }
+
+    // === COMANDOS ADMINISTRATIVOS ===
+    async obterRankingCompleto() {
+        await this.atualizarRanking();
+        
+        // Retornar todos os compradores ordenados por megas do dia
+        return this.rankingDiario.map(item => ({
+            numero: item.numero,
+            posicao: item.posicao,
+            megasHoje: item.megasHoje,
+            comprasHoje: item.comprasHoje,
+            megasTotal: item.megasTotal
+        }));
+    }
+
+    async obterInativos() {
+        const agora = new Date();
+        const limite = 10 * 24 * 60 * 60 * 1000; // 10 dias em ms
+        const hoje = agora.toDateString();
+        
+        const inativos = [];
+        
+        for (const [numero, dados] of Object.entries(this.historicoCompradores)) {
+            if (dados.totalCompras > 0) {
+                const ultimaCompra = new Date(dados.ultimaCompra);
+                const tempoSemComprar = agora - ultimaCompra;
+                
+                if (tempoSemComprar > limite) {
+                    const diasSemComprar = Math.floor(tempoSemComprar / (24 * 60 * 60 * 1000));
+                    inativos.push({
+                        numero: numero,
+                        ultimaCompra: dados.ultimaCompra,
+                        diasSemComprar: diasSemComprar,
+                        totalCompras: dados.totalCompras,
+                        megasTotal: dados.megasTotal
+                    });
+                }
+            }
+        }
+        
+        // Ordenar por dias sem comprar (mais dias primeiro)
+        return inativos.sort((a, b) => b.diasSemComprar - a.diasSemComprar);
+    }
+
+    async obterSemCompra() {
+        // Para identificar quem nunca comprou, precisamos comparar com uma lista de contatos
+        // Por enquanto, vamos retornar apenas estatísticas dos registrados que têm 0 compras
+        const semCompra = [];
+        
+        for (const [numero, dados] of Object.entries(this.historicoCompradores)) {
+            if (dados.totalCompras === 0) {
+                semCompra.push({
+                    numero: numero,
+                    primeiraCompra: dados.primeiraCompra,
+                    totalCompras: dados.totalCompras,
+                    megasTotal: dados.megasTotal
+                });
+            }
+        }
+        
+        return semCompra;
+    }
 }
 
 module.exports = SistemaCompras;

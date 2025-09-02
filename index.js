@@ -1421,7 +1421,7 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision');
+    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra');
 });
 
 client.on('group-join', async (notification) => {
@@ -1724,6 +1724,160 @@ client.on('message', async (message) => {
                     
                     await message.reply(resposta);
                     return;
+                }
+            }
+
+            // === COMANDOS DO SISTEMA DE COMPRAS ===
+            if (sistemaCompras) {
+                // .ranking - Mostrar ranking completo de compradores
+                if (comando === '.ranking') {
+                    try {
+                        const ranking = await sistemaCompras.obterRankingCompleto();
+                        
+                        if (ranking.length === 0) {
+                            await message.reply(`📊 *RANKING DE COMPRADORES*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n🚫 Nenhum comprador registrado hoje.`);
+                            return;
+                        }
+                        
+                        let mensagem = `📊 *RANKING DE COMPRADORES*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                        
+                        for (let i = 0; i < ranking.length; i++) {
+                            const item = ranking[i];
+                            
+                            // Obter informações do contato
+                            try {
+                                const contact = await client.getContactById(item.numero + '@c.us');
+                                const nome = contact.pushname || contact.name || 'Sem nome';
+                                
+                                const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
+                                const megasFormatados = item.megasHoje >= 1024 ? 
+                                    `${(item.megasHoje/1024).toFixed(1)}GB` : `${item.megasHoje}MB`;
+                                
+                                mensagem += `${posicaoEmoji} @${nome}\n`;
+                                mensagem += `   💾 ${megasFormatados} hoje (${item.comprasHoje}x)\n`;
+                                mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
+                            } catch (error) {
+                                // Se não conseguir obter o contato, usar apenas o número
+                                const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
+                                const megasFormatados = item.megasHoje >= 1024 ? 
+                                    `${(item.megasHoje/1024).toFixed(1)}GB` : `${item.megasHoje}MB`;
+                                
+                                mensagem += `${posicaoEmoji} @${item.numero}\n`;
+                                mensagem += `   💾 ${megasFormatados} hoje (${item.comprasHoje}x)\n`;
+                                mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
+                            }
+                        }
+                        
+                        mensagem += `🏆 *Total de compradores hoje: ${ranking.length}*`;
+                        
+                        await message.reply(mensagem);
+                        return;
+                    } catch (error) {
+                        console.error('❌ Erro ao obter ranking:', error);
+                        await message.reply(`❌ *ERRO*\n\nNão foi possível obter o ranking de compradores.\n\n⚠️ Erro: ${error.message}`);
+                        return;
+                    }
+                }
+                
+                // .inativos - Mostrar compradores inativos (mais de 10 dias sem comprar)
+                if (comando === '.inativos') {
+                    try {
+                        const inativos = await sistemaCompras.obterInativos();
+                        
+                        if (inativos.length === 0) {
+                            await message.reply(`😴 *COMPRADORES INATIVOS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n🎉 Todos os compradores estão ativos!\nNinguém está há mais de 10 dias sem comprar.`);
+                            return;
+                        }
+                        
+                        let mensagem = `😴 *COMPRADORES INATIVOS*\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
+                        mensagem += `⏰ Mais de 10 dias sem comprar\n\n`;
+                        
+                        for (let i = 0; i < Math.min(inativos.length, 20); i++) {
+                            const item = inativos[i];
+                            
+                            // Obter informações do contato
+                            try {
+                                const contact = await client.getContactById(item.numero + '@c.us');
+                                const nome = contact.pushname || contact.name || 'Sem nome';
+                                
+                                const totalFormatado = item.megasTotal >= 1024 ? 
+                                    `${(item.megasTotal/1024).toFixed(1)}GB` : `${item.megasTotal}MB`;
+                                
+                                mensagem += `👤 @${nome}\n`;
+                                mensagem += `   ⏰ ${item.diasSemComprar} dias sem comprar\n`;
+                                mensagem += `   📊 Total: ${item.totalCompras}x compras (${totalFormatado})\n\n`;
+                            } catch (error) {
+                                // Se não conseguir obter o contato, usar apenas o número
+                                const totalFormatado = item.megasTotal >= 1024 ? 
+                                    `${(item.megasTotal/1024).toFixed(1)}GB` : `${item.megasTotal}MB`;
+                                
+                                mensagem += `👤 @${item.numero}\n`;
+                                mensagem += `   ⏰ ${item.diasSemComprar} dias sem comprar\n`;
+                                mensagem += `   📊 Total: ${item.totalCompras}x compras (${totalFormatado})\n\n`;
+                            }
+                        }
+                        
+                        if (inativos.length > 20) {
+                            mensagem += `... e mais ${inativos.length - 20} compradores inativos\n\n`;
+                        }
+                        
+                        mensagem += `😴 *Total de inativos: ${inativos.length}*`;
+                        
+                        await message.reply(mensagem);
+                        return;
+                    } catch (error) {
+                        console.error('❌ Erro ao obter inativos:', error);
+                        await message.reply(`❌ *ERRO*\n\nNão foi possível obter a lista de inativos.\n\n⚠️ Erro: ${error.message}`);
+                        return;
+                    }
+                }
+                
+                // .semcompra - Mostrar usuários que nunca compraram
+                if (comando === '.semcompra') {
+                    try {
+                        const semCompra = await sistemaCompras.obterSemCompra();
+                        
+                        if (semCompra.length === 0) {
+                            await message.reply(`🆕 *USUÁRIOS SEM COMPRAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n✨ Todos os usuários registrados já fizeram pelo menos uma compra!`);
+                            return;
+                        }
+                        
+                        let mensagem = `🆕 *USUÁRIOS SEM COMPRAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
+                        mensagem += `👥 Nunca fizeram compras\n\n`;
+                        
+                        for (let i = 0; i < Math.min(semCompra.length, 30); i++) {
+                            const item = semCompra[i];
+                            
+                            // Obter informações do contato
+                            try {
+                                const contact = await client.getContactById(item.numero + '@c.us');
+                                const nome = contact.pushname || contact.name || 'Sem nome';
+                                
+                                mensagem += `👤 @${nome}\n`;
+                                mensagem += `   📅 Registrado: ${new Date(item.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
+                                mensagem += `   💰 Compras: ${item.totalCompras} (${item.megasTotal}MB)\n\n`;
+                            } catch (error) {
+                                // Se não conseguir obter o contato, usar apenas o número
+                                mensagem += `👤 @${item.numero}\n`;
+                                mensagem += `   📅 Registrado: ${new Date(item.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
+                                mensagem += `   💰 Compras: ${item.totalCompras} (${item.megasTotal}MB)\n\n`;
+                            }
+                        }
+                        
+                        if (semCompra.length > 30) {
+                            mensagem += `... e mais ${semCompra.length - 30} usuários sem compras\n\n`;
+                        }
+                        
+                        mensagem += `🆕 *Total sem compras: ${semCompra.length}*\n\n`;
+                        mensagem += `💡 *Dica:* Considere campanhas de incentivo para estes usuários!`;
+                        
+                        await message.reply(mensagem);
+                        return;
+                    } catch (error) {
+                        console.error('❌ Erro ao obter sem compra:', error);
+                        await message.reply(`❌ *ERRO*\n\nNão foi possível obter a lista de usuários sem compras.\n\n⚠️ Erro: ${error.message}`);
+                        return;
+                    }
                 }
             }
 
@@ -2443,7 +2597,10 @@ client.on('message', async (message) => {
                 message.body.startsWith('.sheets') ||
                 message.body.startsWith('.test_') ||
                 message.body.startsWith('.grupos') ||
-                message.body.startsWith('.clear_')
+                message.body.startsWith('.clear_') ||
+                message.body.startsWith('.ranking') ||
+                message.body.startsWith('.inativos') ||
+                message.body.startsWith('.semcompra')
             );
 
             // Verificar se é admin executando comando
