@@ -2573,19 +2573,19 @@ client.on('message', async (message) => {
         }
 
         // === MONITORAMENTO DE CONFIRMAÇÕES DO BOT SECUNDÁRIO ===
-        if (sistemaCompras && message.body.toLowerCase().includes('confirmado')) {
-            // Padrão: "Confirmado REF123. Transferiste 16.00MT..."
-            const regexConfirmacao = /confirmado\s+([A-Za-z0-9]+)/i;
-            const matchConfirmacao = message.body.match(regexConfirmacao);
+        if (sistemaCompras && message.body.includes('✅ Transação Concluída Com Sucesso')) {
+            // Extrair referência do padrão: "🔖 Referência: CI19H8AEPCX"
+            const regexReferencia = /🔖\s*Referência:\s*([A-Za-z0-9.]+)/i;
+            const matchReferencia = message.body.match(regexReferencia);
             
-            if (matchConfirmacao) {
-                const referenciaConfirmada = matchConfirmacao[1].toUpperCase();
-                console.log(`🛒 CONFIRMAÇÃO: Detectada confirmação para referência ${referenciaConfirmada}`);
-                
-                // Extrair número se disponível na mensagem
-                const regexNumero = /para\s+(\d{9})/i;
-                const matchNumero = message.body.match(regexNumero);
-                const numeroConfirmado = matchNumero ? matchNumero[1] : null;
+            // Extrair número do padrão: "📱 Número: 845425982"
+            const regexNumero = /📱\s*Número:\s*(\d{9})/i;
+            const matchNumero = message.body.match(regexNumero);
+            
+            if (matchReferencia && matchNumero) {
+                const referenciaConfirmada = matchReferencia[1].toUpperCase();
+                const numeroConfirmado = matchNumero[1];
+                console.log(`🛒 CONFIRMAÇÃO BOT: Detectada transação concluída - Ref: ${referenciaConfirmada} | Número: ${numeroConfirmado}`);
                 
                 // Processar confirmação
                 const resultadoConfirmacao = await sistemaCompras.processarConfirmacao(referenciaConfirmada, numeroConfirmado);

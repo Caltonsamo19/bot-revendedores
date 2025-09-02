@@ -1669,19 +1669,32 @@ Se não conseguires ler a imagem ou extrair os dados:
 
   // === ANALISAR COMPROVANTE ===
   async analisarComprovante(mensagem) {
-    const temConfirmado = /^confirmado/i.test(mensagem.trim());
-    const temID = /^id\s/i.test(mensagem.trim());
+    const mensagemLimpa = mensagem.trim();
+    
+    // DISTINGUIR: Mensagens do bot secundário NÃO são comprovativos de pagamento
+    // Elas são confirmações de processamento, mas não comprovativos para novos pedidos
+    if (/^✅\s*Transação Concluída Com Sucesso/i.test(mensagemLimpa) || 
+        /Transferencia Processada Automaticamente Pelo Sistema/i.test(mensagemLimpa)) {
+      console.log('🤖 Detectada confirmação do bot secundário (não é comprovativo de pagamento)');
+      return null; // Não é um comprovativo de pagamento real
+    }
+    
+    const temConfirmado = /^confirmado/i.test(mensagemLimpa);
+    const temID = /^id\s/i.test(mensagemLimpa);
     
     if (!temConfirmado && !temID) {
       return null;
     }
 
     const prompt = `
-Analisa esta mensagem de comprovante de pagamento M-Pesa ou E-Mola:
+Analisa esta mensagem de comprovante de pagamento M-Pesa ou E-Mola de Moçambique:
 
 "${mensagem}"
 
 Extrai a referência da transação e o valor transferido.
+Procura especialmente por padrões como:
+- "Confirmado [REFERENCIA]" 
+- "Transferiste [VALOR]MT"
 
 Responde APENAS no formato JSON:
 {
