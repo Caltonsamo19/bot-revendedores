@@ -644,7 +644,9 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
         
         // === REGISTRAR COMPRA PENDENTE NO SISTEMA DE COMPRAS ===
         if (sistemaCompras) {
-            await sistemaCompras.registrarCompraPendente(referencia, numero, valor);
+            // Extrair apenas o número do autorMensagem (remover @c.us se houver)
+            const numeroRemetente = autorMensagem.replace('@c.us', '');
+            await sistemaCompras.registrarCompraPendente(referencia, numero, valor, numeroRemetente);
         }
     } else {
         // Fallback para WhatsApp se Google Sheets falhar
@@ -2610,9 +2612,10 @@ client.on('message', async (message) => {
             const matchNumero = message.body.match(regexNumero);
             
             if (matchReferencia && matchNumero) {
-                const referenciaConfirmada = matchReferencia[1].toUpperCase();
+                const referenciaConfirmada = matchReferencia[1]; // Manter case original
                 const numeroConfirmado = matchNumero[1];
                 console.log(`🛒 CONFIRMAÇÃO BOT: Detectada transação concluída - Ref: ${referenciaConfirmada} | Número: ${numeroConfirmado}`);
+                console.log(`🔍 CONFIRMAÇÃO BOT: Tipo detectado: ${/emola|e-mola/i.test(message.body) ? 'EMOLA' : /mpesa|m-pesa/i.test(message.body) ? 'MPESA' : 'DESCONHECIDO'}`);
                 
                 // Processar confirmação
                 const resultadoConfirmacao = await sistemaCompras.processarConfirmacao(referenciaConfirmada, numeroConfirmado);
