@@ -898,21 +898,21 @@ async function isAdminGrupo(chatId, participantId) {
         const admins = participants.filter(p => p.isAdmin || p.isSuperAdmin);
         
         console.log(`👥 Participantes do grupo: ${participants.length}`);
-        console.log(`👑 Admins (@c.us): ${admins.map(a => a.id._serialized).join(', ')}`);
+        // console.log(`👑 Admins (@c.us): ${admins.map(a => a.id._serialized).join(', ')}`);
         
         const participantesLid = participants.filter(p => p.id._serialized.endsWith('@lid'));
         const participantesCus = participants.filter(p => p.id._serialized.endsWith('@c.us'));
         
         console.log(`🔍 Participantes @lid: ${participantesLid.map(p => p.id._serialized).join(', ')}`);
         console.log(`🔍 Participantes @c.us: ${participantesCus.map(p => p.id._serialized).join(', ')}`);
-        console.log(`🎯 Procurando por: ${participantId}`);
+        // console.log(`🎯 Procurando por: ${participantId}`);
         
         // ESTRATÉGIA ADICIONAL: Verificar se o participantId específico tem flag de admin
         let adminDireto = false;
         const participanteEspecifico = participants.find(p => p.id._serialized === participantId);
         if (participanteEspecifico) {
             adminDireto = participanteEspecifico.isAdmin || participanteEspecifico.isSuperAdmin;
-            console.log(`🎯 Participante ${participantId} encontrado! isAdmin: ${participanteEspecifico.isAdmin}, isSuperAdmin: ${participanteEspecifico.isSuperAdmin}`);
+            // console.log(`🎯 Participante ${participantId} encontrado! isAdmin: ${participanteEspecifico.isAdmin}, isSuperAdmin: ${participanteEspecifico.isSuperAdmin}`);
         } else {
             console.log(`⚠️ Participante ${participantId} NÃO encontrado na lista de participantes!`);
         }
@@ -935,7 +935,7 @@ async function isAdminGrupo(chatId, participantId) {
             
             if (adminPorNumero && !mapeamentoLidToCus[participantId]) {
                 mapeamentoLidToCus[participantId] = adminPorNumero.id._serialized;
-                console.log(`🎯 MAPEAMENTO DIRETO: ${participantId} -> ${adminPorNumero.id._serialized}`);
+                // console.log(`🎯 MAPEAMENTO DIRETO: ${participantId} -> ${adminPorNumero.id._serialized}`);
             }
         }
         
@@ -1061,7 +1061,7 @@ function criarMapeamentoAutomatico(participants, admins) {
             );
             if (adminCorrespondente) {
                 mapeamento[lidId] = adminCorrespondente.id._serialized;
-                console.log(`🎯 Mapeado por nome: ${lidId} -> ${adminCorrespondente.id._serialized}`);
+                // console.log(`🎯 Mapeado por nome: ${lidId} -> ${adminCorrespondente.id._serialized}`);
                 return;
             } else {
                 console.log(`❌ Nenhum admin encontrado com nome "${participante.pushname}"`);
@@ -2491,6 +2491,33 @@ client.on('message', async (message) => {
                         );
                         return;
                         
+                    } else if (resultadoIA.tipo === 'numero_processado_com_aviso') {
+                        const dadosCompletos = resultadoIA.dadosCompletos;
+                        const [referencia, megas, numero] = dadosCompletos.split('|');
+                        const nomeContato = message._data.notifyName || 'N/A';
+                        const autorMensagem = message.author || 'Desconhecido';
+                        
+                        // PROCESSAR BÔNUS DE REFERÊNCIA
+                        const bonusInfo = await processarBonusCompra(remetente, megas);
+                        
+                        await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+                        await registrarComprador(message.from, numero, nomeContato, megas);
+                        
+                        if (message.from === ENCAMINHAMENTO_CONFIG.grupoOrigem) {
+                            const timestampMensagem = new Date().toLocaleString('pt-BR');
+                            adicionarNaFila(dadosCompletos, autorMensagem, configGrupo.nome, timestampMensagem);
+                        }
+                        
+                        // Enviar mensagem normal + aviso da tabela
+                        await message.reply(
+                            `✅ *Pedido Recebido!*\n\n` +
+                            `💰 Referência: ${referencia}\n` +
+                            `📊 Megas: ${megas} MB\n` +
+                            `📱 Número: ${numero}\n\n` +
+                            `${resultadoIA.avisoTabela}`
+                        );
+                        return;
+                        
                     } else if (resultadoIA.tipo === 'numero_processado') {
                         const dadosCompletos = resultadoIA.dadosCompletos;
                         const [referencia, megas, numero] = dadosCompletos.split('|');
@@ -2573,13 +2600,13 @@ client.on('message', async (message) => {
         }
 
         // === MONITORAMENTO DE CONFIRMAÇÕES DO BOT SECUNDÁRIO ===
-        if (sistemaCompras && message.body.includes('✅ Transação Concluída Com Sucesso')) {
-            // Extrair referência do padrão: "🔖 Referência: CI19H8AEPCX"
-            const regexReferencia = /🔖\s*Referência:\s*([A-Za-z0-9.]+)/i;
+        if (sistemaCompras && message.body.includes('✅') && message.body.includes('Transação Concluída Com Sucesso')) {
+            // Extrair referência do padrão: "🔖 *Referência:* CI22H8QJSDQ"
+            const regexReferencia = /🔖\s*\*?Referência:\*?\s*([A-Za-z0-9._-]+)/i;
             const matchReferencia = message.body.match(regexReferencia);
             
-            // Extrair número do padrão: "📱 Número: 845425982"
-            const regexNumero = /📱\s*Número:\s*(\d{9})/i;
+            // Extrair número do padrão: "📱 *Número:* 842362318"
+            const regexNumero = /📱\s*\*?Número:\*?\s*(\d{9})/i;
             const matchNumero = message.body.match(regexNumero);
             
             if (matchReferencia && matchNumero) {
@@ -2622,6 +2649,33 @@ client.on('message', async (message) => {
                     `💰 Referência: ${resultadoIA.referencia}\n` +
                     `📊 Megas: ${resultadoIA.megas}\n\n` +
                     `📱 *Envie UM número que vai receber ${resultadoIA.megas}!*`
+                );
+                return;
+                
+            } else if (resultadoIA.tipo === 'numero_processado_com_aviso') {
+                const dadosCompletos = resultadoIA.dadosCompletos;
+                const [referencia, megas, numero] = dadosCompletos.split('|');
+                const nomeContato = message._data.notifyName || 'N/A';
+                const autorMensagem = message.author || 'Desconhecido';
+                
+                // PROCESSAR BÔNUS DE REFERÊNCIA
+                const bonusInfo = await processarBonusCompra(remetente, megas);
+                
+                await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+                await registrarComprador(message.from, numero, nomeContato, megas);
+                
+                if (message.from === ENCAMINHAMENTO_CONFIG.grupoOrigem) {
+                    const timestampMensagem = new Date().toLocaleString('pt-BR');
+                    adicionarNaFila(dadosCompletos, autorMensagem, configGrupo.nome, timestampMensagem);
+                }
+                
+                // Enviar mensagem normal + aviso da tabela
+                await message.reply(
+                    `✅ *Pedido Recebido!*\n\n` +
+                    `💰 Referência: ${referencia}\n` +
+                    `📊 Megas: ${megas} MB\n` +
+                    `📱 Número: ${numero}\n\n` +
+                    `${resultadoIA.avisoTabela}`
                 );
                 return;
                 
