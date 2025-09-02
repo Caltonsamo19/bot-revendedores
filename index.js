@@ -1740,13 +1740,15 @@ client.on('message', async (message) => {
                         }
                         
                         let mensagem = `📊 *RANKING DE COMPRADORES*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                        let mentions = [];
                         
                         for (let i = 0; i < ranking.length; i++) {
                             const item = ranking[i];
+                            const contactId = item.numero + '@c.us';
                             
                             // Obter informações do contato
                             try {
-                                const contact = await client.getContactById(item.numero + '@c.us');
+                                const contact = await client.getContactById(contactId);
                                 const nome = contact.pushname || contact.name || 'Sem nome';
                                 
                                 const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
@@ -1756,6 +1758,8 @@ client.on('message', async (message) => {
                                 mensagem += `${posicaoEmoji} @${nome}\n`;
                                 mensagem += `   💾 ${megasFormatados} hoje (${item.comprasHoje}x)\n`;
                                 mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
+                                
+                                mentions.push(contactId);
                             } catch (error) {
                                 // Se não conseguir obter o contato, usar apenas o número
                                 const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
@@ -1765,12 +1769,14 @@ client.on('message', async (message) => {
                                 mensagem += `${posicaoEmoji} @${item.numero}\n`;
                                 mensagem += `   💾 ${megasFormatados} hoje (${item.comprasHoje}x)\n`;
                                 mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
+                                
+                                mentions.push(contactId);
                             }
                         }
                         
                         mensagem += `🏆 *Total de compradores hoje: ${ranking.length}*`;
                         
-                        await message.reply(mensagem);
+                        await client.sendMessage(message.from, mensagem, { mentions: mentions });
                         return;
                     } catch (error) {
                         console.error('❌ Erro ao obter ranking:', error);
@@ -1791,13 +1797,15 @@ client.on('message', async (message) => {
                         
                         let mensagem = `😴 *COMPRADORES INATIVOS*\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
                         mensagem += `⏰ Mais de 10 dias sem comprar\n\n`;
+                        let mentions = [];
                         
                         for (let i = 0; i < Math.min(inativos.length, 20); i++) {
                             const item = inativos[i];
+                            const contactId = item.numero + '@c.us';
                             
                             // Obter informações do contato
                             try {
-                                const contact = await client.getContactById(item.numero + '@c.us');
+                                const contact = await client.getContactById(contactId);
                                 const nome = contact.pushname || contact.name || 'Sem nome';
                                 
                                 const totalFormatado = item.megasTotal >= 1024 ? 
@@ -1806,6 +1814,8 @@ client.on('message', async (message) => {
                                 mensagem += `👤 @${nome}\n`;
                                 mensagem += `   ⏰ ${item.diasSemComprar} dias sem comprar\n`;
                                 mensagem += `   📊 Total: ${item.totalCompras}x compras (${totalFormatado})\n\n`;
+                                
+                                mentions.push(contactId);
                             } catch (error) {
                                 // Se não conseguir obter o contato, usar apenas o número
                                 const totalFormatado = item.megasTotal >= 1024 ? 
@@ -1814,6 +1824,8 @@ client.on('message', async (message) => {
                                 mensagem += `👤 @${item.numero}\n`;
                                 mensagem += `   ⏰ ${item.diasSemComprar} dias sem comprar\n`;
                                 mensagem += `   📊 Total: ${item.totalCompras}x compras (${totalFormatado})\n\n`;
+                                
+                                mentions.push(contactId);
                             }
                         }
                         
@@ -1823,7 +1835,7 @@ client.on('message', async (message) => {
                         
                         mensagem += `😴 *Total de inativos: ${inativos.length}*`;
                         
-                        await message.reply(mensagem);
+                        await client.sendMessage(message.from, mensagem, { mentions: mentions });
                         return;
                     } catch (error) {
                         console.error('❌ Erro ao obter inativos:', error);
@@ -1844,23 +1856,29 @@ client.on('message', async (message) => {
                         
                         let mensagem = `🆕 *USUÁRIOS SEM COMPRAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n`;
                         mensagem += `👥 Nunca fizeram compras\n\n`;
+                        let mentions = [];
                         
                         for (let i = 0; i < Math.min(semCompra.length, 30); i++) {
                             const item = semCompra[i];
+                            const contactId = item.numero + '@c.us';
                             
                             // Obter informações do contato
                             try {
-                                const contact = await client.getContactById(item.numero + '@c.us');
+                                const contact = await client.getContactById(contactId);
                                 const nome = contact.pushname || contact.name || 'Sem nome';
                                 
                                 mensagem += `👤 @${nome}\n`;
                                 mensagem += `   📅 Registrado: ${new Date(item.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
                                 mensagem += `   💰 Compras: ${item.totalCompras} (${item.megasTotal}MB)\n\n`;
+                                
+                                mentions.push(contactId);
                             } catch (error) {
                                 // Se não conseguir obter o contato, usar apenas o número
                                 mensagem += `👤 @${item.numero}\n`;
                                 mensagem += `   📅 Registrado: ${new Date(item.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
                                 mensagem += `   💰 Compras: ${item.totalCompras} (${item.megasTotal}MB)\n\n`;
+                                
+                                mentions.push(contactId);
                             }
                         }
                         
@@ -1871,7 +1889,7 @@ client.on('message', async (message) => {
                         mensagem += `🆕 *Total sem compras: ${semCompra.length}*\n\n`;
                         mensagem += `💡 *Dica:* Considere campanhas de incentivo para estes usuários!`;
                         
-                        await message.reply(mensagem);
+                        await client.sendMessage(message.from, mensagem, { mentions: mentions });
                         return;
                     } catch (error) {
                         console.error('❌ Erro ao obter sem compra:', error);
@@ -2781,9 +2799,26 @@ client.on('message', async (message) => {
                 if (resultadoConfirmacao) {
                     console.log(`✅ COMPRAS: Confirmação processada - ${resultadoConfirmacao.numero} | ${resultadoConfirmacao.megas}MB`);
                     
-                    // Enviar mensagem de parabenização
-                    if (resultadoConfirmacao.mensagem) {
-                        await message.reply(resultadoConfirmacao.mensagem);
+                    // Enviar mensagem de parabenização com menção clicável
+                    if (resultadoConfirmacao.mensagem && resultadoConfirmacao.contactId) {
+                        try {
+                            // Obter nome do contato para substituir o placeholder
+                            const contact = await client.getContactById(resultadoConfirmacao.contactId);
+                            const nome = contact.pushname || contact.name || 'Cliente';
+                            
+                            // Substituir placeholder pelo nome real
+                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${nome}`);
+                            
+                            // Enviar com menção clicável
+                            await client.sendMessage(message.from, mensagemFinal, { 
+                                mentions: [resultadoConfirmacao.contactId] 
+                            });
+                        } catch (error) {
+                            console.error('❌ Erro ao enviar parabenização com menção:', error);
+                            // Fallback: enviar sem menção clicável
+                            const mensagemFallback = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${resultadoConfirmacao.numeroComprador}`);
+                            await message.reply(mensagemFallback);
+                        }
                     }
                 } else {
                     console.log(`⚠️ COMPRAS: Confirmação ${referenciaConfirmada} não encontrada ou já processada`);

@@ -148,7 +148,8 @@ class SistemaCompras {
                 numeroComprador: numeroComprador, // Número de quem fez a compra (para menção)
                 megas: megas,
                 referencia: referencia,
-                mensagem: mensagemParabenizacao
+                mensagem: mensagemParabenizacao ? mensagemParabenizacao.mensagem : null,
+                contactId: mensagemParabenizacao ? mensagemParabenizacao.contactId : null
             };
             
         } catch (error) {
@@ -215,14 +216,14 @@ class SistemaCompras {
             let mensagem = '';
             
             if (posicao.posicao === 1) {
-                // Cliente em 1º lugar
-                mensagem = `🎉 Obrigado, @${numero}, Você está fazendo a sua ${cliente.comprasHoje}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                // Cliente em 1º lugar - usar placeholder para nome
+                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${cliente.comprasHoje}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
                 mensagem += `Você está em 1º lugar no ranking. Continue comprando para se manter no topo e garantir seus bônus de líder! 🏆`;
             } else {
-                // Cliente não está em 1º lugar
+                // Cliente não está em 1º lugar - usar placeholder para nome
                 const liderMegas = lider.megasHoje >= 1024 ? `${(lider.megasHoje/1024).toFixed(1)} GB` : `${lider.megasHoje} MB`;
                 
-                mensagem = `🎉 Obrigado, @${numero}, Você está fazendo a sua ${cliente.comprasHoje}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${cliente.comprasHoje}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
                 mensagem += `Você está em ${posicao.posicao}º lugar no ranking. `;
                 
                 if (cliente.comprasHoje === 1) {
@@ -232,11 +233,17 @@ class SistemaCompras {
                 }
             }
             
-            return mensagem;
+            return {
+                mensagem: mensagem,
+                contactId: numero + '@c.us'
+            };
             
         } catch (error) {
             console.error('❌ COMPRAS: Erro ao gerar mensagem:', error);
-            return `🎉 Obrigado, @${numero}! Compra registrada com sucesso!`;
+            return {
+                mensagem: `🎉 Obrigado, @NOME_PLACEHOLDER! Compra registrada com sucesso!`,
+                contactId: numero + '@c.us'
+            };
         }
     }
 
