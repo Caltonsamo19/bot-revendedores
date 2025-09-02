@@ -646,6 +646,7 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
         if (sistemaCompras) {
             // Extrair apenas o número do autorMensagem (remover @c.us se houver)
             const numeroRemetente = autorMensagem.replace('@c.us', '');
+            console.log(`🔍 DEBUG COMPRA: autorMensagem="${autorMensagem}" | numeroRemetente="${numeroRemetente}" | numero="${numero}"`);
             await sistemaCompras.registrarCompraPendente(referencia, numero, valor, numeroRemetente);
         }
     } else {
