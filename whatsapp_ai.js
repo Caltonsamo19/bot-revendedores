@@ -446,7 +446,7 @@ Se não conseguires extrair os dados:
 
   // === EXTRAIR PREÇOS DA TABELA ===
   extrairPrecosTabela(tabelaTexto) {
-    console.log(`   📋 Extraindo preços da tabela...`);
+    // console.log(`   📋 Extraindo preços da tabela...`);
     
     const precos = [];
     const linhas = tabelaTexto.split('\n');
@@ -489,14 +489,14 @@ Se não conseguires extrair os dados:
         while ((match = padrao.exec(linha)) !== null) {
           let quantidade, preco, unidade = '';
           
-          console.log(`     🔍 Padrão ${index}: ${match[0]}`);
+          // console.log(`     🔍 Padrão ${index}: ${match[0]}`);
           
           // Detectar formato especial reverso (45MT__1741MB)
           if (index >= 12) { // Apenas padrões reversos (índices 12 e 13)
             preco = this.limparValorNumerico(match[1]);
             quantidade = parseFloat(match[2]);
             unidade = 'mb';
-            console.log(`     🔄 Formato reverso: ${preco}MT -> ${quantidade}MB`);
+            // console.log(`     🔄 Formato reverso: ${preco}MT -> ${quantidade}MB`);
           } else if (index === 7 || index === 8) { // Formatos 🛜 (MB=MT ou GB=MT)
             // Para 🛜5120MB = 90MT: quantidade=5120MB, preco=90MT
             quantidade = parseFloat(match[1]);
@@ -517,12 +517,12 @@ Se não conseguires extrair os dados:
             } else {
               preco = this.limparValorNumerico(match[2]);
             }
-            console.log(`     ℹ️ Formato normal: ${quantidade} ${unidade} -> ${preco}MT`);
+            // console.log(`     ℹ️ Formato normal: ${quantidade} ${unidade} -> ${preco}MT`);
           }
           
           // Skip se dados inválidos
           if (!quantidade || !preco || isNaN(quantidade) || isNaN(preco) || quantidade <= 0 || preco <= 0) {
-            console.log(`     ⚠️ Dados inválidos ignorados: q=${quantidade}, p=${preco}`);
+            // console.log(`     ⚠️ Dados inválidos ignorados: q=${quantidade}, p=${preco}`);
             continue;
           }
           
@@ -567,7 +567,7 @@ Se não conseguires extrair os dados:
             tipo = 'saldo';
           }
           
-          console.log(`     ✅ Processado: ${descricao} = ${preco}MT (${quantidadeMB}MB, ${tipo})`);
+          // console.log(`     ✅ Processado: ${descricao} = ${preco}MT (${quantidadeMB}MB, ${tipo})`);
           
           precos.push({
             quantidade: quantidadeMB,
@@ -589,10 +589,10 @@ Se não conseguires extrair os dados:
     
     // Debug: mostrar preços encontrados
     if (precosUnicos.length > 0) {
-      console.log(`   📋 Preços detectados:`);
-      precosUnicos.forEach((p, i) => {
-        console.log(`     ${i+1}. ${p.descricao} = ${p.preco}MT (${p.tipo})`);
-      });
+      // console.log(`   📋 Preços detectados:`);
+      // precosUnicos.forEach((p, i) => {
+      //   console.log(`     ${i+1}. ${p.descricao} = ${p.preco}MT (${p.tipo})`);
+      // });
     }
     
     return precosUnicos;
