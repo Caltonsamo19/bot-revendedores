@@ -274,32 +274,40 @@ const CONFIGURACAO_GRUPOS = {
         nome: 'Data Store - Vodacom',
         tabela: `PROMOÇÃO DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO
 
-🛜🔥 TABELA🔥🛜
+📆 PACOTES DIÁRIOS
+900MB 💎 15MT 💵💽
+1024MB 💎 17MT 💵💽
+1200MB 💎 20MT 💵💽
+2048MB 💎 34MT 💵💽
+3072MB 💎 51MT 💵💽
+4096MB 💎 68MT 💵💽
+5120MB 💎 85MT 💵💽
+10240MB 💎 170MT 💵💽
+20480MB 💎 340MT 💵💽
 
-- DIÁRIOS
-- 1024MB  💎 16MT💵💽
-- 2048MB  💎 32MT💵💽
-- 3072MB  💎 48MT💵💽
-- 5120MB 💎  80MT💵💽
-- 10240MB 💎  160MT💵💽
+📅 PACOTES SEMANAIS
+3072 + 700MB 💎 105MT 💵💽
+5120 + 700MB 💎 155MT 💵💽
+10240 + 700MB 💎 300MT 💵💽
+15360 + 700MB 💎 455MT 💵💽
+20480 + 700MB 💎 600MT 💵💽
 
- MENSAIS
-- 12.8GB 💎 250MT💵💽
-- 22.8GB 💎 430MT💵💽
-- 32.8GB 💎 600MT💵💽
-- 52.8GB 💎 940MT💵💽
-- 102.8GB 💎 1785MT💵💽
+📅 PACOTES MENSAIS
+⚠ Para ativar estes pacotes, o Txuna Crédito não pode estar ativo
+12.8GB 💎 255MT 💵💽
+22.8GB 💎 435MT 💵💽
+32.8GB 💎 605MT 💵💽
+52.8GB 💎 945MT 💵💽
+102.8GB 💎 1605MT 💵💽
 
-DIAMANTE SEMANAL
-- CHAMADAS + SMS ILIMITADAS + 8.5GB 💎 290MT💵 
+PACOTES DIAMANTE MENSAIS
+Chamadas + SMS ilimitadas + 12GB 💎 460MT 💵
+Chamadas + SMS ilimitadas + 24GB 💎 820MT 💵
+Chamadas + SMS ilimitadas + 50GB 💎 1550MT 💵
+Chamadas + SMS ilimitadas + 100GB 💎 2250MT 💵
 
-DIAMANTE MENSAL
-- CHAMADAS + SMS ILIMITADAS + 12GB 💎 460MT💵
-- CHAMADAS + SMS ILIMITADAS + 24GB 💎 820MT💵
-- CHAMADAS + SMS ILIMITADAS + 50GB 💎 1550MT💵
-- CHAMADAS + SMS ILIMITADAS + 100GB 💎 2250MT💵
-
-NB: SO PARA VODACOM⚠⚠⚠`,
+⚠ NB: Válido apenas para Vodacom
+`,
 
         pagamento: `FORMAS DE PAGAMENTO ATUALIZADAS
  
@@ -369,61 +377,40 @@ NOME:   Alice Armando Nhaquila📝
 
     '258840161370-1471468657@g.us': {
         nome: 'Venda Automática 24/7',
-        tabela: `___________________________
-TABEL ACTUALIZADA
+        tabela: `TABELA ATUALIZADA
+TERÇA-FEIRA 02/09/2026 - 06:25:48
+___________________________
 
- ..PACOTE DIÁRIO ( 24H) 
+ PACOTE DIÁRIO ( 24H) 
 1024MB    - 17,00 MT
+1200MB    - 20,00 MT
 2048MB   - 34,00 MT
-3072MB    - 51,00 MT
+2200MB    - 40,00 MT
+3096MB    - 51,00 MT
+4096MB    - 68,00 MT
 5120MB     - 85,00 MT
 6144MB    - 102,00 MT
+7168MB    - 119,00 MT
+8192MB    - 136,00 MT
+9144MB    - 153,00 MT
 10240MB  - 170,00 MT
 
 PACOTE SEMANAL (7 Dias)
-857MB - 30,00MT
+Megabyte Renováveis!
 1.7GB - 45,00MT
-2.9GB - 95,00MT
-3.4GB - 110,00MT
-5.2GB - 160,00MT
+2.9GB - 80,00MT
+3.4GB - 100,00MT
+5.5GB - 150,00MT
+7.8GB - 200,00MT
+11.4GB - 300,00MT 
 
 PACOTE MENSAL(30 dias)
-3GB    - 95,00MT
-5GB     - 180,00MT
+3.1GB    - 100,00MT
+5.1GB     - 180,00MT
 12.8GB    - 250,00MT
 22.8GB   - 400,00MT
 32.8GB   - 550,00MT
-51.2GB   - 950,00MT
-___________________________
-CHAMADAS TODAS REDES + SMS + NET:
-Mensal(30dias):
-450MT - Ilimitado + 11.5GB.
-500MT - Ilimitado + 14.5GB.
-700MT - Ilimitado + 26.5GB.
-1000MT - Ilimitado + 37.5GB.
-1500MT - Ilimitado + 53.5GB
-2150MT - Ilimitado + 102.5GB
-PARA OS PACOTES MENSAIS, NÃO PODE TER TXUNA CRÉDITO.
-___________________________
-Serviços de Streamin
-PLANOS PREMIUM
-
-Netflix 
-AMADOR - 99MT | 7 dias 
-NOOB - 250MT | 30 dias 
-PREMIUM - 549MT | 35 dias 
-ELITE - 1499MT | 40 dias 
-
-SPOTIFY 
-AMADOR - 149MT | 30 dias
-ELITE - 447MT | 3 meses 
-APPLE MUSIC 
-
-AMADOR - 199MT | 30 dias
-ELITE - 597MT | 3 meses 
-
-Temos muito mais serviço…
-`,
+51.2GB   - 950,00MT`,
 
         pagamento: `╭━━━┛ 💸  ＦＯＲＭＡＳ ＤＥ ＰＡＧＡＭＥＮＴＯ: 
 ┃
@@ -1639,6 +1626,14 @@ client.on('message', async (message) => {
                 
                 // .pacote DIAS REF NUMERO - Criar pacote
                 if (comando.startsWith('.pacote ')) {
+                    console.log(`🔧 DEBUG: Comando .pacote detectado!`);
+                    console.log(`🔧 DEBUG: sistemaPacotes = ${sistemaPacotes ? 'INICIALIZADO' : 'NULL'}`);
+                    console.log(`🔧 DEBUG: SISTEMA_PACOTES_ENABLED = ${process.env.SISTEMA_PACOTES_ENABLED}`);
+                    
+                    if (!sistemaPacotes) {
+                        await message.reply(`❌ *SISTEMA DE PACOTES DESABILITADO*\n\nO sistema de pacotes automáticos não está ativo neste servidor.\n\nVerifique as configurações de ambiente.`);
+                        return;
+                    }
                     const partes = message.body.trim().split(' ');
                     
                     if (partes.length < 4) {
@@ -1942,6 +1937,25 @@ client.on('message', async (message) => {
             }
 
             // === COMANDOS TASKER - SISTEMA DE PACOTES ===
+            
+            // DEBUG: Verificar status do sistema de pacotes
+            if (comando === '.debug_pacotes') {
+                let resposta = `🔧 *DEBUG SISTEMA PACOTES*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                resposta += `🔌 SISTEMA_PACOTES_ENABLED: ${process.env.SISTEMA_PACOTES_ENABLED}\n`;
+                resposta += `📦 sistemaPacotes: ${sistemaPacotes ? 'INICIALIZADO' : 'NULL'}\n`;
+                resposta += `👤 isAdminQualquer: ${isAdminQualquer}\n`;
+                resposta += `📝 Comando original: "${message.body}"\n`;
+                resposta += `🆔 Grupo ID: ${message.from}\n`;
+                
+                if (sistemaPacotes) {
+                    resposta += `\n✅ Sistema de Pacotes está ATIVO e funcionando!`;
+                } else {
+                    resposta += `\n❌ Sistema de Pacotes está DESABILITADO ou falhou ao inicializar!`;
+                }
+                
+                await message.reply(resposta);
+                return;
+            }
             
             if (comando === '.pacotes_tasker') {
                 const dadosPacotes = obterDadosPacotesTasker();
