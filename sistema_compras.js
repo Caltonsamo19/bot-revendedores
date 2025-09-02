@@ -69,16 +69,18 @@ class SistemaCompras {
     }
 
     // === REGISTRAR NOVA COMPRA (AGUARDANDO CONFIRMAÇÃO) ===
-    async registrarCompraPendente(referencia, numero, megas) {
+    async registrarCompraPendente(referencia, numero, megas, remetente = null) {
         try {
             console.log(`🛒 COMPRAS: Registrando compra pendente - ${referencia} | ${numero} | ${megas}MB`);
+            console.log(`🔍 DEBUG PENDENTE: remetente recebido = "${remetente}"`);
             
             // Adicionar à lista de pendentes
             this.comprasPendentes[referencia] = {
-                numero: numero,
+                numero: numero, // Número que vai receber os megas
                 megas: parseInt(megas),
                 timestamp: new Date().toISOString(),
-                tentativas: 0
+                tentativas: 0,
+                remetente: remetente // Quem fez a compra (para parabenização)
             };
             
             await this.salvarDados();
@@ -95,36 +97,55 @@ class SistemaCompras {
     async processarConfirmacao(referencia, numeroConfirmado) {
         try {
             console.log(`🛒 COMPRAS: Processando confirmação - ${referencia}`);
+            console.log(`📋 COMPRAS: Pendências atuais:`, Object.keys(this.comprasPendentes));
             
             // Verificar se existe compra pendente
             if (!this.comprasPendentes[referencia]) {
                 console.log(`⚠️ COMPRAS: Confirmação ${referencia} não encontrada nas pendências`);
-                return null;
+                console.log(`📋 COMPRAS: Tentando busca case-insensitive...`);
+                
+                // Tentar busca case-insensitive
+                const referenciaEncontrada = Object.keys(this.comprasPendentes).find(
+                    ref => ref.toUpperCase() === referencia.toUpperCase()
+                );
+                
+                if (!referenciaEncontrada) {
+                    console.log(`❌ COMPRAS: Referência ${referencia} realmente não encontrada`);
+                    return null;
+                }
+                
+                console.log(`✅ COMPRAS: Referência encontrada com diferença de case: ${referenciaEncontrada}`);
+                referencia = referenciaEncontrada; // Usar a referência correta
             }
             
             const compraPendente = this.comprasPendentes[referencia];
-            const numero = compraPendente.numero;
+            const numero = compraPendente.numero; // Número que recebe os megas
             const megas = compraPendente.megas;
+            const remetente = compraPendente.remetente; // Quem fez a compra
             
             // Verificar se o número confere (opcional, para segurança)
             if (numeroConfirmado && numeroConfirmado !== numero) {
                 console.log(`⚠️ COMPRAS: Número da confirmação (${numeroConfirmado}) não confere com pendência (${numero})`);
             }
             
-            // Registrar compra confirmada
-            await this.registrarCompraConfirmada(numero, megas, referencia);
+            // Registrar compra confirmada para o REMETENTE (quem comprou)
+            const numeroComprador = remetente || numero; // Fallback para compatibilidade
+            console.log(`🔍 COMPRAS: Dados para parabenização - Remetente: ${remetente} | Número: ${numero} | Comprador final: ${numeroComprador}`);
+            await this.registrarCompraConfirmada(numeroComprador, megas, referencia);
             
             // Remover das pendentes
             delete this.comprasPendentes[referencia];
             await this.salvarDados();
             
-            // Gerar mensagem de parabenização
-            const mensagemParabenizacao = await this.gerarMensagemParabenizacao(numero, megas);
+            // Gerar mensagem de parabenização para o REMETENTE (quem comprou)
+            const mensagemParabenizacao = await this.gerarMensagemParabenizacao(numeroComprador, megas);
             
             console.log(`✅ COMPRAS: Confirmação processada para ${numero} - ${megas}MB`);
+            console.log(`💬 COMPRAS: Mensagem de parabenização:`, mensagemParabenizacao ? 'GERADA' : 'NÃO GERADA');
             
             return {
-                numero: numero,
+                numero: numero, // Número que recebeu os megas  
+                numeroComprador: numeroComprador, // Número de quem fez a compra (para menção)
                 megas: megas,
                 referencia: referencia,
                 mensagem: mensagemParabenizacao
