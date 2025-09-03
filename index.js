@@ -1749,13 +1749,16 @@ client.on('message', async (message) => {
                             // Obter informações do contato
                             try {
                                 const contact = await client.getContactById(contactId);
-                                const nome = contact.pushname || contact.name || 'Sem nome';
+                                
+                                // Prioridade: nome salvo > nome do perfil > número
+                                const nomeExibicao = contact.name || contact.pushname || item.numero;
+                                const numeroLimpo = contact.id.user; // Número sem @ e sem +
                                 
                                 const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
                                 const megasFormatados = item.megasHoje >= 1024 ? 
                                     `${(item.megasHoje/1024).toFixed(1)}GB` : `${item.megasHoje}MB`;
                                 
-                                mensagem += `${posicaoEmoji} @${nome}\n`;
+                                mensagem += `${posicaoEmoji} @${numeroLimpo}\n`;
                                 mensagem += `   💾 ${megasFormatados} hoje (${item.comprasHoje}x)\n`;
                                 mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
                                 
@@ -1806,12 +1809,15 @@ client.on('message', async (message) => {
                             // Obter informações do contato
                             try {
                                 const contact = await client.getContactById(contactId);
-                                const nome = contact.pushname || contact.name || 'Sem nome';
+                                
+                                // Prioridade: nome salvo > nome do perfil > número
+                                const nomeExibicao = contact.name || contact.pushname || item.numero;
+                                const numeroLimpo = contact.id.user; // Número sem @ e sem +
                                 
                                 const totalFormatado = item.megasTotal >= 1024 ? 
                                     `${(item.megasTotal/1024).toFixed(1)}GB` : `${item.megasTotal}MB`;
                                 
-                                mensagem += `👤 @${nome}\n`;
+                                mensagem += `👤 @${numeroLimpo}\n`;
                                 mensagem += `   ⏰ ${item.diasSemComprar} dias sem comprar\n`;
                                 mensagem += `   📊 Total: ${item.totalCompras}x compras (${totalFormatado})\n\n`;
                                 
@@ -1865,9 +1871,12 @@ client.on('message', async (message) => {
                             // Obter informações do contato
                             try {
                                 const contact = await client.getContactById(contactId);
-                                const nome = contact.pushname || contact.name || 'Sem nome';
                                 
-                                mensagem += `👤 @${nome}\n`;
+                                // Prioridade: nome salvo > nome do perfil > número
+                                const nomeExibicao = contact.name || contact.pushname || item.numero;
+                                const numeroLimpo = contact.id.user; // Número sem @ e sem +
+                                
+                                mensagem += `👤 @${numeroLimpo}\n`;
                                 mensagem += `   📅 Registrado: ${new Date(item.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
                                 mensagem += `   💰 Compras: ${item.totalCompras} (${item.megasTotal}MB)\n\n`;
                                 
@@ -2804,10 +2813,13 @@ client.on('message', async (message) => {
                         try {
                             // Obter nome do contato para substituir o placeholder
                             const contact = await client.getContactById(resultadoConfirmacao.contactId);
-                            const nome = contact.pushname || contact.name || 'Cliente';
                             
-                            // Substituir placeholder pelo nome real
-                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${nome}`);
+                            // Prioridade: nome salvo > pushname (nome do perfil) > name > número
+                            const nomeExibicao = contact.name || contact.pushname || contact.number;
+                            const numeroLimpo = contact.id.user; // Número sem @ e sem +
+                            
+                            // Substituir placeholder pelo número (formato correto para menções clickáveis)
+                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${numeroLimpo}`);
                             
                             // Enviar com menção clicável
                             await client.sendMessage(message.from, mensagemFinal, { 
