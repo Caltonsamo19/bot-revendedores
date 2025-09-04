@@ -11,9 +11,9 @@ class SistemaCompras {
         this.ARQUIVO_RANKING_DIARIO = path.join(__dirname, 'ranking_diario.json');
         
         // Dados em memória
-        this.historicoCompradores = {}; // {numero: {comprasHoje: 0, totalCompras: 0, ultimaCompra: date, megasHoje: 0, megasTotal: 0}}
-        this.comprasPendentes = {}; // {referencia: {numero, megas, timestamp, tentativas}}
-        this.rankingDiario = []; // [{numero, megasHoje, comprasHoje, posicao}]
+        this.historicoCompradores = {}; // {numero: {comprasTotal: 0, ultimaCompra: date, megasTotal: 0, grupos: {grupoId: {compras: 0, megas: 0}}}}
+        this.comprasPendentes = {}; // {referencia: {numero, megas, timestamp, tentativas, grupoId}}
+        this.rankingPorGrupo = {}; // {grupoId: [{numero, megas, compras, posicao}]}
         
         // Carregar dados existentes
         this.carregarDados();
@@ -47,8 +47,7 @@ class SistemaCompras {
             // Limpar compras antigas (mais de 24h)
             await this.limparComprasPendentesAntigas();
             
-            // Resetar dados diários se necessário
-            await this.verificarResetDiario();
+            // Reset automático removido - agora apenas manual via comando admin
 
         } catch (error) {
             console.error('❌ COMPRAS: Erro ao carregar dados:', error);
@@ -69,9 +68,9 @@ class SistemaCompras {
     }
 
     // === REGISTRAR NOVA COMPRA (AGUARDANDO CONFIRMAÇÃO) ===
-    async registrarCompraPendente(referencia, numero, megas, remetente = null) {
+    async registrarCompraPendente(referencia, numero, megas, remetente = null, grupoId = null) {
         try {
-            console.log(`🛒 COMPRAS: Registrando compra pendente - ${referencia} | ${numero} | ${megas}MB`);
+            console.log(`🛒 COMPRAS: Registrando compra pendente - ${referencia} | ${numero} | ${megas}MB | Grupo: ${grupoId}`);
             console.log(`🔍 DEBUG PENDENTE: remetente recebido = "${remetente}"`);
             
             // Adicionar à lista de pendentes
@@ -80,7 +79,8 @@ class SistemaCompras {
                 megas: parseInt(megas),
                 timestamp: new Date().toISOString(),
                 tentativas: 0,
-                remetente: remetente // Quem fez a compra (para parabenização)
+                remetente: remetente, // Quem fez a compra (para parabenização)
+                grupoId: grupoId // ID do grupo onde foi feita a compra
             };
             
             await this.salvarDados();
@@ -159,41 +159,48 @@ class SistemaCompras {
     }
 
     // === REGISTRAR COMPRA CONFIRMADA ===
-    async registrarCompraConfirmada(numero, megas, referencia) {
+    async registrarCompraConfirmada(numero, megas, referencia, grupoId = null) {
         try {
-            const hoje = new Date().toDateString();
+            const hoje = new Date().toISOString();
             
             // Inicializar cliente se não existe
             if (!this.historicoCompradores[numero]) {
                 this.historicoCompradores[numero] = {
-                    comprasHoje: 0,
-                    totalCompras: 0,
-                    megasHoje: 0,
+                    comprasTotal: 0,
                     megasTotal: 0,
                     ultimaCompra: hoje,
-                    primeiraCompra: hoje
+                    primeiraCompra: hoje,
+                    grupos: {} // {grupoId: {compras: 0, megas: 0}}
                 };
             }
             
             const cliente = this.historicoCompradores[numero];
             
-            // Reset diário se necessário
-            if (cliente.ultimaCompra !== hoje) {
-                cliente.comprasHoje = 0;
-                cliente.megasHoje = 0;
+            // Inicializar dados do grupo se não existe
+            if (grupoId && !cliente.grupos[grupoId]) {
+                cliente.grupos[grupoId] = {
+                    compras: 0,
+                    megas: 0
+                };
             }
             
-            // Atualizar contadores
-            cliente.comprasHoje++;
-            cliente.totalCompras++;
-            cliente.megasHoje += megas;
+            // Atualizar contadores gerais
+            cliente.comprasTotal++;
             cliente.megasTotal += megas;
             cliente.ultimaCompra = hoje;
             
-            // Atualizar ranking
-            await this.atualizarRanking();
+            // Atualizar contadores por grupo
+            if (grupoId) {
+                cliente.grupos[grupoId].compras++;
+                cliente.grupos[grupoId].megas += megas;
+            }
             
-            console.log(`📊 COMPRAS: ${numero} - Compra ${cliente.comprasHoje}ª hoje | ${cliente.megasHoje}MB hoje | Total: ${cliente.megasTotal}MB`);
+            // Atualizar ranking do grupo
+            if (grupoId) {
+                await this.atualizarRankingGrupo(grupoId);
+            }
+            
+            console.log(`📊 COMPRAS: ${numero} - Total: ${cliente.comprasTotal} compras | ${cliente.megasTotal}MB | Grupo ${grupoId}: ${grupoId ? cliente.grupos[grupoId].compras : 0} compras`);
             
         } catch (error) {
             console.error('❌ COMPRAS: Erro ao registrar compra confirmada:', error);
@@ -201,36 +208,32 @@ class SistemaCompras {
     }
 
     // === GERAR MENSAGEM DE PARABENIZAÇÃO ===
-    async gerarMensagemParabenizacao(numero, megas) {
+    async gerarMensagemParabenizacao(numero, megas, grupoId = null) {
         try {
             const cliente = this.historicoCompradores[numero];
             if (!cliente) return null;
             
-            const posicao = await this.obterPosicaoCliente(numero);
-            const lider = await this.obterLider();
+            const posicao = await this.obterPosicaoClienteGrupo(numero, grupoId);
+            const lider = await this.obterLiderGrupo(grupoId);
             
             // Converter megas para GB quando necessário
             const megasFormatados = megas >= 1024 ? `${(megas/1024).toFixed(1)} GB` : `${megas} MB`;
-            const totalFormatado = cliente.megasHoje >= 1024 ? `${(cliente.megasHoje/1024).toFixed(1)} GB` : `${cliente.megasHoje} MB`;
+            const comprasGrupo = grupoId && cliente.grupos[grupoId] ? cliente.grupos[grupoId].compras : 0;
+            const megasGrupo = grupoId && cliente.grupos[grupoId] ? cliente.grupos[grupoId].megas : 0;
+            const totalFormatado = megasGrupo >= 1024 ? `${(megasGrupo/1024).toFixed(1)} GB` : `${megasGrupo} MB`;
             
             let mensagem = '';
             
             if (posicao.posicao === 1) {
                 // Cliente em 1º lugar - usar placeholder para nome
-                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${cliente.comprasHoje}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
-                mensagem += `Você está em 1º lugar no ranking. Continue comprando para se manter no topo e garantir seus bônus de líder! 🏆`;
+                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER! Compra ${comprasGrupo}ª neste grupo! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                mensagem += `🏆 Você está em 1º lugar no ranking do grupo! Continue comprando para se manter no topo!`;
             } else {
                 // Cliente não está em 1º lugar - usar placeholder para nome
-                const liderMegas = lider.megasHoje >= 1024 ? `${(lider.megasHoje/1024).toFixed(1)} GB` : `${lider.megasHoje} MB`;
+                const liderMegas = lider.megas >= 1024 ? `${(lider.megas/1024).toFixed(1)} GB` : `${lider.megas} MB`;
                 
-                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${cliente.comprasHoje}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
-                mensagem += `Você está em ${posicao.posicao}º lugar no ranking. `;
-                
-                if (cliente.comprasHoje === 1) {
-                    mensagem += `Está quase lá! Continue comprando para alcançar o topo. O líder já acumulou ${liderMegas}! 🏆`;
-                } else {
-                    mensagem += `Continue comprando para subir e desbloquear bônus especiais. O líder já acumulou ${liderMegas}! 🏆`;
-                }
+                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER! Compra ${comprasGrupo}ª neste grupo! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                mensagem += `🏅 Você está em ${posicao.posicao}º lugar no ranking do grupo. Continue comprando! O líder já acumulou ${liderMegas}!`;
             }
             
             return {
@@ -247,44 +250,58 @@ class SistemaCompras {
         }
     }
 
-    // === ATUALIZAR RANKING DIÁRIO ===
-    async atualizarRanking() {
+    // === ATUALIZAR RANKING POR GRUPO ===
+    async atualizarRankingGrupo(grupoId) {
         try {
-            const hoje = new Date().toDateString();
+            if (!grupoId) return;
             
-            // Criar array de ranking ordenado por megas do dia
-            this.rankingDiario = Object.entries(this.historicoCompradores)
-                .filter(([numero, dados]) => dados.ultimaCompra === hoje && dados.megasHoje > 0)
+            // Criar array de ranking ordenado por megas do grupo
+            const rankingGrupo = Object.entries(this.historicoCompradores)
+                .filter(([numero, dados]) => dados.grupos[grupoId] && dados.grupos[grupoId].megas > 0)
                 .map(([numero, dados]) => ({
                     numero: numero,
-                    megasHoje: dados.megasHoje,
-                    comprasHoje: dados.comprasHoje,
+                    megas: dados.grupos[grupoId].megas,
+                    compras: dados.grupos[grupoId].compras,
                     megasTotal: dados.megasTotal
                 }))
-                .sort((a, b) => b.megasHoje - a.megasHoje)
+                .sort((a, b) => b.megas - a.megas)
                 .map((item, index) => ({
                     ...item,
                     posicao: index + 1
                 }));
             
+            // Salvar ranking do grupo
+            if (!this.rankingPorGrupo[grupoId]) {
+                this.rankingPorGrupo[grupoId] = [];
+            }
+            this.rankingPorGrupo[grupoId] = rankingGrupo;
+            
             await this.salvarDados();
             
+            console.log(`🏆 RANKING: Grupo ${grupoId} atualizado - ${rankingGrupo.length} participantes`);
+            
         } catch (error) {
-            console.error('❌ COMPRAS: Erro ao atualizar ranking:', error);
+            console.error('❌ COMPRAS: Erro ao atualizar ranking do grupo:', error);
         }
     }
 
-    // === OBTER POSIÇÃO DO CLIENTE ===
-    async obterPosicaoCliente(numero) {
-        await this.atualizarRanking();
-        const posicao = this.rankingDiario.find(item => item.numero === numero);
-        return posicao || { posicao: this.rankingDiario.length + 1, megasHoje: 0 };
+    // === OBTER POSIÇÃO DO CLIENTE NO GRUPO ===
+    async obterPosicaoClienteGrupo(numero, grupoId) {
+        if (!grupoId || !this.rankingPorGrupo[grupoId]) {
+            return { posicao: 1, megas: 0 };
+        }
+        
+        const posicao = this.rankingPorGrupo[grupoId].find(item => item.numero === numero);
+        return posicao || { posicao: this.rankingPorGrupo[grupoId].length + 1, megas: 0 };
     }
 
-    // === OBTER LÍDER DO RANKING ===
-    async obterLider() {
-        await this.atualizarRanking();
-        return this.rankingDiario[0] || { numero: '000000000', megasHoje: 0, comprasHoje: 0 };
+    // === OBTER LÍDER DO GRUPO ===
+    async obterLiderGrupo(grupoId) {
+        if (!grupoId || !this.rankingPorGrupo[grupoId] || this.rankingPorGrupo[grupoId].length === 0) {
+            return { numero: '000000000', megas: 0, compras: 0 };
+        }
+        
+        return this.rankingPorGrupo[grupoId][0];
     }
 
     // === LIMPAR COMPRAS PENDENTES ANTIGAS ===
@@ -312,52 +329,133 @@ class SistemaCompras {
         }
     }
 
-    // === VERIFICAR RESET DIÁRIO ===
-    async verificarResetDiario() {
+    // === RESET MANUAL DO RANKING DIÁRIO ===
+    async resetarRankingDiario() {
         try {
-            const hoje = new Date().toDateString();
+            let clientesResetados = 0;
+            const dataReset = new Date().toISOString();
             
-            // Resetar contadores diários se necessário
+            // Resetar contadores diários de todos os clientes
             Object.values(this.historicoCompradores).forEach(cliente => {
-                if (cliente.ultimaCompra !== hoje && cliente.comprasHoje > 0) {
-                    console.log(`🛒 Resetando contador diário para cliente ${cliente.numero}`);
+                if (cliente.comprasHoje > 0 || cliente.megasHoje > 0) {
+                    console.log(`🔄 COMPRAS: Resetando ranking para ${cliente.numero} (${cliente.comprasHoje} compras, ${cliente.megasHoje}MB)`);
                     cliente.comprasHoje = 0;
                     cliente.megasHoje = 0;
+                    clientesResetados++;
                 }
             });
             
+            // Limpar ranking diário
+            this.rankingDiario = [];
+            
+            // Salvar dados
             await this.salvarDados();
             
+            console.log(`✅ COMPRAS: Ranking resetado! ${clientesResetados} clientes afetados em ${dataReset}`);
+            
+            return {
+                success: true,
+                clientesResetados: clientesResetados,
+                dataReset: dataReset,
+                message: `Ranking diário resetado com sucesso! ${clientesResetados} cliente(s) afetado(s).`
+            };
+            
         } catch (error) {
-            console.error('❌ COMPRAS: Erro ao verificar reset diário:', error);
+            console.error('❌ COMPRAS: Erro ao resetar ranking diário:', error);
+            return {
+                success: false,
+                error: error.message,
+                message: `Erro ao resetar ranking: ${error.message}`
+            };
         }
     }
 
-    // === ESTATÍSTICAS ===
-    async obterEstatisticas() {
-        await this.atualizarRanking();
+    // === ESTATÍSTICAS POR GRUPO ===
+    async obterEstatisticasGrupo(grupoId) {
+        if (!grupoId || !this.rankingPorGrupo[grupoId]) {
+            return {
+                totalCompradores: 0,
+                compradoresAtivos: 0,
+                comprasPendentes: 0,
+                ranking: [],
+                totalMegas: 0
+            };
+        }
+        
+        const rankingGrupo = this.rankingPorGrupo[grupoId];
+        const comprasPendentesGrupo = Object.values(this.comprasPendentes).filter(p => p.grupoId === grupoId).length;
         
         return {
-            totalCompradores: Object.keys(this.historicoCompradores).length,
-            compradoresHoje: this.rankingDiario.length,
-            comprasPendentes: Object.keys(this.comprasPendentes).length,
-            ranking: this.rankingDiario.slice(0, 10), // Top 10
-            totalMegasHoje: this.rankingDiario.reduce((sum, item) => sum + item.megasHoje, 0)
+            totalCompradores: Object.values(this.historicoCompradores).filter(c => c.grupos[grupoId]).length,
+            compradoresAtivos: rankingGrupo.length,
+            comprasPendentes: comprasPendentesGrupo,
+            ranking: rankingGrupo.slice(0, 10), // Top 10
+            totalMegas: rankingGrupo.reduce((sum, item) => sum + item.megas, 0)
         };
     }
 
     // === COMANDOS ADMINISTRATIVOS ===
-    async obterRankingCompleto() {
-        await this.atualizarRanking();
+    async obterRankingCompletoGrupo(grupoId) {
+        if (!grupoId || !this.rankingPorGrupo[grupoId]) {
+            return [];
+        }
         
-        // Retornar todos os compradores ordenados por megas do dia
-        return this.rankingDiario.map(item => ({
+        // Retornar todos os compradores ordenados por megas do grupo
+        return this.rankingPorGrupo[grupoId].map(item => ({
             numero: item.numero,
             posicao: item.posicao,
-            megasHoje: item.megasHoje,
-            comprasHoje: item.comprasHoje,
+            megas: item.megas,
+            compras: item.compras,
             megasTotal: item.megasTotal
         }));
+    }
+
+    // === RESET MANUAL DO RANKING POR GRUPO ===
+    async resetarRankingGrupo(grupoId) {
+        try {
+            let clientesResetados = 0;
+            const dataReset = new Date().toISOString();
+            
+            if (!grupoId) {
+                throw new Error('ID do grupo é obrigatório');
+            }
+            
+            // Resetar contadores do grupo específico
+            Object.entries(this.historicoCompradores).forEach(([numero, cliente]) => {
+                if (cliente.grupos[grupoId] && (cliente.grupos[grupoId].compras > 0 || cliente.grupos[grupoId].megas > 0)) {
+                    console.log(`🔄 COMPRAS: Resetando ranking do grupo ${grupoId} para ${numero} (${cliente.grupos[grupoId].compras} compras, ${cliente.grupos[grupoId].megas}MB)`);
+                    cliente.grupos[grupoId].compras = 0;
+                    cliente.grupos[grupoId].megas = 0;
+                    clientesResetados++;
+                }
+            });
+            
+            // Limpar ranking do grupo
+            if (this.rankingPorGrupo[grupoId]) {
+                this.rankingPorGrupo[grupoId] = [];
+            }
+            
+            // Salvar dados
+            await this.salvarDados();
+            
+            console.log(`✅ COMPRAS: Ranking do grupo ${grupoId} resetado! ${clientesResetados} clientes afetados em ${dataReset}`);
+            
+            return {
+                success: true,
+                clientesResetados: clientesResetados,
+                dataReset: dataReset,
+                grupoId: grupoId,
+                message: `Ranking do grupo resetado com sucesso! ${clientesResetados} clientes afetados.`
+            };
+            
+        } catch (error) {
+            console.error('❌ COMPRAS: Erro ao resetar ranking do grupo:', error);
+            return {
+                success: false,
+                error: error.message,
+                message: `Erro ao resetar ranking do grupo: ${error.message}`
+            };
+        }
     }
 
     async obterInativos() {

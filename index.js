@@ -77,14 +77,109 @@ let codigosReferencia = {}; // codigo -> dados do dono
 let referenciasClientes = {}; // cliente -> dados da referencia
 let bonusSaldos = {}; // cliente -> saldo e historico
 let pedidosSaque = {}; // referencia -> dados do pedido
+let membrosEntrada = {}; // {grupoId: {memberId: dataEntrada}}
 
 // Arquivos de persistência
 const ARQUIVO_REFERENCIAS = './dados_referencias.json';
 const ARQUIVO_BONUS = './dados_bonus.json';
 const ARQUIVO_CODIGOS = './dados_codigos.json';
 const ARQUIVO_SAQUES = './dados_saques.json';
+const ARQUIVO_MEMBROS = './dados_membros_entrada.json';
 
 // === FUNÇÕES DO SISTEMA DE REFERÊNCIA ===
+
+// Registrar entrada de novo membro
+async function registrarEntradaMembro(grupoId, participantId) {
+    try {
+        if (!membrosEntrada[grupoId]) {
+            membrosEntrada[grupoId] = {};
+        }
+        
+        membrosEntrada[grupoId][participantId] = new Date().toISOString();
+        await salvarDadosMembros();
+        
+        console.log(`📝 Entrada registrada: ${participantId} no grupo ${grupoId}`);
+    } catch (error) {
+        console.error('❌ Erro ao registrar entrada de membro:', error);
+    }
+}
+
+// Salvar dados de membros
+async function salvarDadosMembros() {
+    try {
+        await fs.writeFile(ARQUIVO_MEMBROS, JSON.stringify(membrosEntrada, null, 2));
+    } catch (error) {
+        console.error('❌ Erro ao salvar dados de membros:', error);
+    }
+}
+
+// Enviar mensagem de boas-vindas para novos membros
+async function enviarBoasVindas(grupoId, participantId) {
+    try {
+        console.log(`👋 Enviando boas-vindas para ${participantId} no grupo ${grupoId}`);
+        
+        // Registrar entrada do membro
+        await registrarEntradaMembro(grupoId, participantId);
+        
+        // Obter informações do participante
+        const contact = await client.getContactById(participantId);
+        const nomeUsuario = contact.name || contact.pushname || participantId.replace('@c.us', '');
+        
+        // Criar mensagem de boas-vindas personalizada
+        let mensagemBoasVindas = `🎉 *BOAS-VINDAS AO GRUPO!*\n\n`;
+        mensagemBoasVindas += `👋 Olá @${participantId.replace('@c.us', '')}, seja bem-vindo!\n\n`;
+        mensagemBoasVindas += `🤖 *COMO FUNCIONA NOSSO SISTEMA:*\n`;
+        mensagemBoasVindas += `📱 1. Envie comprovante de pagamento aqui\n`;
+        mensagemBoasVindas += `⚡ 2. Nosso sistema processa automaticamente\n`;
+        mensagemBoasVindas += `📊 3. Participe do ranking diário de compradores\n\n`;
+        mensagemBoasVindas += `💰 *COMANDOS ÚTEIS:*\n`;
+        mensagemBoasVindas += `• *tabela* - Ver preços de pacotes\n`;
+        mensagemBoasVindas += `• *pagamento* - Ver formas de pagamento\n`;
+        mensagemBoasVindas += `• *.ranking* - Ver ranking do grupo\n`;
+        mensagemBoasVindas += `• *.meucodigo* - Gerar código de referência\n\n`;
+        mensagemBoasVindas += `🎁 *SISTEMA DE REFERÊNCIAS:*\n`;
+        mensagemBoasVindas += `Você tem código de referência de alguém?\n`;
+        mensagemBoasVindas += `Use: *.convite CÓDIGO* para ativar!\n\n`;
+        mensagemBoasVindas += `✨ *IMPORTANTE:* Códigos de referência só funcionam para membros que entraram nos últimos 5 dias!\n\n`;
+        mensagemBoasVindas += `🚀 Vamos começar? Qualquer dúvida, pergunte no grupo!`;
+        
+        // Enviar mensagem com menção
+        await client.sendMessage(grupoId, mensagemBoasVindas, {
+            mentions: [participantId]
+        });
+        
+        console.log(`✅ Boas-vindas enviadas para ${nomeUsuario} (${participantId})`);
+        return true;
+        
+    } catch (error) {
+        console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
+        return false;
+    }
+}
+
+// Verificar se usuário é elegível para usar código (últimos 5 dias)
+function isElegivelParaCodigo(participantId, grupoId) {
+    try {
+        if (!membrosEntrada[grupoId] || !membrosEntrada[grupoId][participantId]) {
+            console.log(`⚠️ Membro ${participantId} não tem registro de entrada no grupo ${grupoId}`);
+            return false; // Se não tem registro, não é elegível
+        }
+        
+        const dataEntrada = new Date(membrosEntrada[grupoId][participantId]);
+        const agora = new Date();
+        const limite5Dias = 5 * 24 * 60 * 60 * 1000; // 5 dias em ms
+        
+        const tempoNoGrupo = agora - dataEntrada;
+        const elegivelTempo = tempoNoGrupo <= limite5Dias;
+        
+        console.log(`🔍 Elegibilidade ${participantId}: Entrada em ${dataEntrada.toISOString()}, tempo no grupo: ${Math.floor(tempoNoGrupo / (24 * 60 * 60 * 1000))} dias, elegível: ${elegivelTempo}`);
+        
+        return elegivelTempo;
+    } catch (error) {
+        console.error('❌ Erro ao verificar elegibilidade:', error);
+        return false;
+    }
+}
 
 // Carregar dados persistentes
 async function carregarDadosReferencia() {
@@ -123,6 +218,15 @@ async function carregarDadosReferencia() {
             console.log(`🏦 ${Object.keys(pedidosSaque).length} pedidos de saque carregados`);
         } catch (e) {
             pedidosSaque = {};
+        }
+
+        // Carregar dados de entrada de membros
+        try {
+            const dados = await fs.readFile(ARQUIVO_MEMBROS, 'utf8');
+            membrosEntrada = JSON.parse(dados);
+            console.log(`👥 ${Object.keys(membrosEntrada).length} grupos com dados de entrada carregados`);
+        } catch (e) {
+            membrosEntrada = {};
         }
 
     } catch (error) {
@@ -272,35 +376,33 @@ const MODERACAO_CONFIG = {
 const CONFIGURACAO_GRUPOS = {
     '258820749141-1441573529@g.us': {
         nome: 'Data Store - Vodacom',
-        tabela: `SUPER PROMOÇÃO  DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO - 04-05/09/2025
+        tabela: `PROMOÇÃO DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO
 
 📆 PACOTES DIÁRIOS
 900MB 💎 15MT 💵💽
-1100MB 💎 17MT 💵💽
+1024MB 💎 17MT 💵💽
 1200MB 💎 20MT 💵💽
-2200MB 💎 34MT 💵💽
-3300MB 💎 51MT 💵💽
-4400MB 💎 68MT 💵💽
-5500MB 💎 85MT 💵💽
-10240MB 💎 170MT 💵💽 ➕ Bónus 1GB na próxima compra 🎁
-20480MB 💎 340MT 💵💽 ➕ Bónus 2GB na próxima compra 🎁
+2048MB 💎 34MT 💵💽
+3072MB 💎 51MT 💵💽
+4096MB 💎 68MT 💵💽
+5120MB 💎 85MT 💵💽
+10240MB 💎 170MT 💵💽
+20480MB 💎 340MT 💵💽
 
 📅 PACOTES SEMANAIS
-
 3072 + 700MB 💎 105MT 💵💽
 5120 + 700MB 💎 155MT 💵💽
-10240 + 700MB 💎 210MT 💵💽
-15360 + 700MB 💎 290MT 💵💽
-20480 + 700MB 💎 360MT 💵💽
+10240 + 700MB 💎 300MT 💵💽
+15360 + 700MB 💎 455MT 💵💽
+20480 + 700MB 💎 600MT 💵💽
 
 📅 PACOTES MENSAIS
-
-12.8GB 💎 270MT 💵💽
+⚠ Para ativar estes pacotes, o Txuna Crédito não pode estar ativo
+12.8GB 💎 255MT 💵💽
 22.8GB 💎 435MT 💵💽
 32.8GB 💎 605MT 💵💽
 52.8GB 💎 945MT 💵💽
-102.8GB 💎 1605MT 💵💽
-
+102.8GB 💎 1605MT 💵💽
 
 PACOTES DIAMANTE MENSAIS
 Chamadas + SMS ilimitadas + 12GB 💎 460MT 💵
@@ -545,6 +647,56 @@ Adquira já os teus megas com segurança, confiança e rapidez!🚨🔥
 
 🚀 O futuro é agora! Vamos? 🔥🛒
 `
+    },
+    '120363152151047451@g.us': {
+        nome: 'MEGA PROMO VODACOM',
+        tabela: `🔥 MEGA PROMO VODACOM
+━━━━━━━━━━━━━━━
+
+PACOTES DIÁRIOS 24h 
+✅ 18MT - 1050MB 
+✅ 20MT - 1200MB 
+✅ 40MT - 2400MB 
+✅ 60MT - 3600MB 
+✅ 180MT - 10240MB
+
+━━━━━━━━━━━━━━
+
+PLANO SEMANAL (7 DIAS)
+
+✅ 97MT - 3GB
+✅ 147MT - 5GB 
+✅ 196MT  - 7GB 
+✅ 296MT - 10GB
+
+━━━━━━━━━━━━━━
+
+PACOTES MENSAIS 
+✅ 150MT - 5GB 
+✅ 280MT - 10GB 
+✅ 480MT - 20GB
+
+━━━━━━━━━━━━━━
+
+ILIMITADO 30 DIAS 
+✅ 450MT = Chamadas + SMS ilimitados todas redes + 11GB
+✅ 550MT = Chamadas + SMS ilimitados todas redes + 15GB
+✅ 650MT = Chamadas + SMS ilimitados todas redes + 20GB 
+✅ 750MT = Chamadas + SMS ilimitados todas redes + 25GB 
+✅ 1250MT = Chamadas + SMS ilimitados todas redes + 50GB
+
+━━━━━━━━━━━━━━
+
+⚠ NB: PARA ACTIVAR O PACOTE SEMANAL E MENSAL NÃO PODE TER NENHUM CRÉDITO`,
+        pagamento: `🅼🅴🅶🅰🆂 🅿🆁🅾🅼🅾    💳 🛒⛔ FORMAS DE PAGAMENTO:⛔🛒💳
+
+
+      ● E-MOLA: 868019487🛒
+      ● M-PESA: 851841990🛒
+
+NOME:   Alice Armando Nhaquila📝
+
+!¡ 📂⛔🛒 ENVIE O SEU COMPROVATIVO NO GRUPO,  JUNTAMENTE COM O NÚMERO QUE VAI RECEBER OS MB✅⛔🛒`
     }
 };
 
@@ -649,7 +801,7 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
             // Extrair apenas o número do autorMensagem (remover @c.us se houver)
             const numeroRemetente = autorMensagem.replace('@c.us', '');
             console.log(`🔍 DEBUG COMPRA: autorMensagem="${autorMensagem}" | numeroRemetente="${numeroRemetente}" | numero="${numero}"`);
-            await sistemaCompras.registrarCompraPendente(referencia, numero, valor, numeroRemetente);
+            await sistemaCompras.registrarCompraPendente(referencia, numero, valor, numeroRemetente, grupoId);
         }
     } else {
         // Fallback para WhatsApp se Google Sheets falhar
@@ -1423,7 +1575,7 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra');
+    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking');
 });
 
 client.on('group-join', async (notification) => {
@@ -1451,6 +1603,29 @@ client.on('group-join', async (notification) => {
                     console.error('❌ Erro ao enviar mensagem de status:', error);
                 }
             }, 3000);
+        } else {
+            // NOVOS MEMBROS (NÃO-BOT) ENTRARAM NO GRUPO
+            const configGrupo = getConfiguracaoGrupo(chatId);
+            if (configGrupo) {
+                // Processar cada novo membro
+                for (const participantId of addedParticipants) {
+                    try {
+                        console.log(`👋 Novo membro detectado: ${participantId}`);
+                        
+                        // Aguardar um pouco para evitar spam
+                        setTimeout(async () => {
+                            try {
+                                await enviarBoasVindas(chatId, participantId);
+                            } catch (error) {
+                                console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
+                            }
+                        }, 2000 + (Math.random() * 3000)); // Entre 2-5 segundos de delay aleatório
+                        
+                    } catch (error) {
+                        console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
+                    }
+                }
+            }
         }
         
         // Código original do grupo já configurado
@@ -1734,7 +1909,7 @@ client.on('message', async (message) => {
                 // .ranking - Mostrar ranking completo de compradores
                 if (comando === '.ranking') {
                     try {
-                        const ranking = await sistemaCompras.obterRankingCompleto();
+                        const ranking = await sistemaCompras.obterRankingCompletoGrupo(message.from);
                         
                         if (ranking.length === 0) {
                             await message.reply(`📊 *RANKING DE COMPRADORES*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n🚫 Nenhum comprador registrado hoje.`);
@@ -1757,29 +1932,29 @@ client.on('message', async (message) => {
                                 const numeroLimpo = contact.id.user; // Número sem @ e sem +
                                 
                                 const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
-                                const megasFormatados = item.megasHoje >= 1024 ? 
-                                    `${(item.megasHoje/1024).toFixed(1)}GB` : `${item.megasHoje}MB`;
+                                const megasFormatados = item.megas >= 1024 ? 
+                                    `${(item.megas/1024).toFixed(1)}GB` : `${item.megas}MB`;
                                 
                                 mensagem += `${posicaoEmoji} @${numeroLimpo}\n`;
-                                mensagem += `   💾 ${megasFormatados} hoje (${item.comprasHoje}x)\n`;
+                                mensagem += `   💾 ${megasFormatados} no grupo (${item.compras}x)\n`;
                                 mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
                                 
                                 mentions.push(contactId);
                             } catch (error) {
                                 // Se não conseguir obter o contato, usar apenas o número
                                 const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
-                                const megasFormatados = item.megasHoje >= 1024 ? 
-                                    `${(item.megasHoje/1024).toFixed(1)}GB` : `${item.megasHoje}MB`;
+                                const megasFormatados = item.megas >= 1024 ? 
+                                    `${(item.megas/1024).toFixed(1)}GB` : `${item.megas}MB`;
                                 
                                 mensagem += `${posicaoEmoji} @${item.numero}\n`;
-                                mensagem += `   💾 ${megasFormatados} hoje (${item.comprasHoje}x)\n`;
+                                mensagem += `   💾 ${megasFormatados} no grupo (${item.compras}x)\n`;
                                 mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
                                 
                                 mentions.push(contactId);
                             }
                         }
                         
-                        mensagem += `🏆 *Total de compradores hoje: ${ranking.length}*`;
+                        mensagem += `🏆 *Total de compradores no grupo: ${ranking.length}*`;
                         
                         await client.sendMessage(message.from, mensagem, { mentions: mentions });
                         return;
@@ -1907,6 +2082,42 @@ client.on('message', async (message) => {
                         await message.reply(`❌ *ERRO*\n\nNão foi possível obter a lista de usuários sem compras.\n\n⚠️ Erro: ${error.message}`);
                         return;
                     }
+                }
+
+                // .resetranking - Reset manual do ranking diário (ADMIN APENAS)
+                if (comando === '.resetranking') {
+                    try {
+                        // Verificar permissão de admin
+                        const admins = ['258861645968', '258123456789']; // Lista de admins
+                        if (!admins.includes(remetente)) {
+                            return; // Falha silenciosa para segurança
+                        }
+
+                        console.log(`🔄 RESET: Admin ${remetente} solicitou reset do ranking diário`);
+
+                        // Executar reset através do sistema de compras
+                        const resultado = await sistemaCompras.resetarRankingGrupo(message.from);
+
+                        if (resultado.success) {
+                            let resposta = `🔄 *RANKING RESETADO*\n\n`;
+                            resposta += `✅ *Status:* ${resultado.message}\n`;
+                            resposta += `👥 *Clientes afetados:* ${resultado.clientesResetados}\n`;
+                            resposta += `📅 *Data do reset:* ${new Date(resultado.dataReset).toLocaleString('pt-BR')}\n`;
+                            resposta += `👑 *Executado por:* Administrador\n\n`;
+                            resposta += `💡 *Próximos passos:*\n`;
+                            resposta += `• Use .ranking para verificar novo estado\n`;
+                            resposta += `• Novos comprovantes começarão nova contagem`;
+
+                            await message.reply(resposta);
+                        } else {
+                            await message.reply(`❌ *ERRO NO RESET*\n\n⚠️ ${resultado.message}\n\n💡 Contate o suporte técnico se o problema persistir`);
+                        }
+
+                    } catch (error) {
+                        console.error('❌ Erro no comando .resetranking:', error);
+                        await message.reply(`❌ *ERRO INTERNO*\n\n⚠️ Não foi possível resetar o ranking\n\n📝 Erro: ${error.message}`);
+                    }
+                    return;
                 }
             }
 
@@ -2413,6 +2624,20 @@ client.on('message', async (message) => {
                     await message.reply('❌ Não podes usar teu próprio código de referência! 😅');
                     return;
                 }
+
+                // NOVA VALIDAÇÃO: Verificar se é elegível (entrou nos últimos 5 dias)
+                if (!isElegivelParaCodigo(remetente, message.from)) {
+                    await message.reply(
+                        `⏳ *CÓDIGO EXPIRADO PARA SEU PERFIL*\n\n` +
+                        `❌ Códigos de referência só funcionam para membros que entraram no grupo nos últimos 5 dias.\n\n` +
+                        `🤔 *Por que isso acontece?*\n` +
+                        `• Sistema anti-abuse\n` +
+                        `• Incentiva convites genuínos\n` +
+                        `• Protege economia do grupo\n\n` +
+                        `💡 *Solução:* Você ainda pode gerar seu próprio código com *.meucodigo* e convidar outros!`
+                    );
+                    return;
+                }
                 
                 // Registrar referência
                 referenciasClientes[remetente] = {
@@ -2629,7 +2854,8 @@ client.on('message', async (message) => {
                 message.body.startsWith('.clear_') ||
                 message.body.startsWith('.ranking') ||
                 message.body.startsWith('.inativos') ||
-                message.body.startsWith('.semcompra')
+                message.body.startsWith('.semcompra') ||
+                message.body.startsWith('.resetranking')
             );
 
             // Verificar se é admin executando comando
