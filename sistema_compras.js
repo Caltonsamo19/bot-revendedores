@@ -60,7 +60,7 @@ class SistemaCompras {
             await Promise.all([
                 fs.writeFile(this.ARQUIVO_COMPRADORES, JSON.stringify(this.historicoCompradores, null, 2)),
                 fs.writeFile(this.ARQUIVO_COMPRAS_PENDENTES, JSON.stringify(this.comprasPendentes, null, 2)),
-                fs.writeFile(this.ARQUIVO_RANKING_DIARIO, JSON.stringify(this.rankingDiario, null, 2))
+                fs.writeFile(this.ARQUIVO_RANKING_DIARIO, JSON.stringify(this.rankingPorGrupo, null, 2))
             ]);
         } catch (error) {
             console.error('❌ COMPRAS: Erro ao salvar dados:', error);
@@ -329,46 +329,6 @@ class SistemaCompras {
         }
     }
 
-    // === RESET MANUAL DO RANKING DIÁRIO ===
-    async resetarRankingDiario() {
-        try {
-            let clientesResetados = 0;
-            const dataReset = new Date().toISOString();
-            
-            // Resetar contadores diários de todos os clientes
-            Object.values(this.historicoCompradores).forEach(cliente => {
-                if (cliente.comprasHoje > 0 || cliente.megasHoje > 0) {
-                    console.log(`🔄 COMPRAS: Resetando ranking para ${cliente.numero} (${cliente.comprasHoje} compras, ${cliente.megasHoje}MB)`);
-                    cliente.comprasHoje = 0;
-                    cliente.megasHoje = 0;
-                    clientesResetados++;
-                }
-            });
-            
-            // Limpar ranking diário
-            this.rankingDiario = [];
-            
-            // Salvar dados
-            await this.salvarDados();
-            
-            console.log(`✅ COMPRAS: Ranking resetado! ${clientesResetados} clientes afetados em ${dataReset}`);
-            
-            return {
-                success: true,
-                clientesResetados: clientesResetados,
-                dataReset: dataReset,
-                message: `Ranking diário resetado com sucesso! ${clientesResetados} cliente(s) afetado(s).`
-            };
-            
-        } catch (error) {
-            console.error('❌ COMPRAS: Erro ao resetar ranking diário:', error);
-            return {
-                success: false,
-                error: error.message,
-                message: `Erro ao resetar ranking: ${error.message}`
-            };
-        }
-    }
 
     // === ESTATÍSTICAS POR GRUPO ===
     async obterEstatisticasGrupo(grupoId) {

@@ -309,6 +309,25 @@ async function processarBonusCompra(remetenteCompra, valorCompra) {
     
     bonusSaldos[convidador].detalhesReferencias[remetenteCompra].compras = referencia.comprasRealizadas;
     bonusSaldos[convidador].detalhesReferencias[remetenteCompra].bonusGanho += bonusAtual;
+    
+    // Enviar notificação de bônus por referência
+    try {
+        const nomeComprador = message.from.includes('@g.us') ? await obterNomeContato(remetenteCompra) : 'Cliente';
+        const novoSaldo = bonusSaldos[convidador].saldo;
+        const novoSaldoFormatado = novoSaldo >= 1024 ? `${(novoSaldo/1024).toFixed(2)}GB` : `${novoSaldo}MB`;
+        
+        await client.sendMessage(message.from, 
+            `🎉 *BÔNUS CREDITADO!*\n\n` +
+            `💎 @${convidador.replace('@c.us', '')}, recebeste *${bonusAtual}MB* de bônus!\n\n` +
+            `👤 *Comprador:* @${remetenteCompra.replace('@c.us', '')}\n` +
+            `🛒 *Compra:* ${referencia.comprasRealizadas}ª de 5\n` +
+            `💰 *Novo saldo:* ${novoSaldoFormatado}\n\n` +
+            `${novoSaldo >= 1024 ? '🚀 *Já podes sacar!* Use: *.sacar*' : '⏳ *Continua a convidar amigos!*'}`, {
+            mentions: [convidador, remetenteCompra]
+        });
+    } catch (error) {
+        console.error('❌ Erro ao enviar notificação de bônus:', error);
+    }
 
     // Salvar dados
     await salvarDadosReferencia();
@@ -1575,7 +1594,7 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking');
+    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus');
 });
 
 client.on('group-join', async (notification) => {
@@ -2119,6 +2138,118 @@ client.on('message', async (message) => {
                     }
                     return;
                 }
+                
+                // .bonus NUMERO QUANTIDADE - Dar bônus manual (ADMIN APENAS)
+                if (comando.startsWith('.bonus ')) {
+                    try {
+                        // Verificar permissão de admin
+                        const admins = ['258861645968', '258123456789']; // Lista de admins
+                        if (!admins.includes(remetente)) {
+                            return; // Falha silenciosa para segurança
+                        }
+
+                        const parametros = comando.split(' ');
+                        if (parametros.length < 3) {
+                            await message.reply(`❌ *FORMATO INCORRETO*\n\n✅ Use: *.bonus NUMERO QUANTIDADE*\nExemplo: *.bonus 258123456789 500MB*`);
+                            return;
+                        }
+
+                        const numeroDestino = parametros[1];
+                        const quantidadeStr = parametros[2].toUpperCase();
+
+                        // Validar número (deve ter 12 dígitos)
+                        if (!/^\d{12}$/.test(numeroDestino)) {
+                            await message.reply(`❌ *NÚMERO INVÁLIDO*\n\n✅ Use formato: 258123456789 (12 dígitos)`);
+                            return;
+                        }
+
+                        // Converter quantidade para MB
+                        let quantidadeMB;
+                        if (quantidadeStr.endsWith('GB')) {
+                            const gb = parseFloat(quantidadeStr.replace('GB', ''));
+                            if (isNaN(gb) || gb <= 0) {
+                                await message.reply(`❌ Quantidade inválida: *${quantidadeStr}*`);
+                                return;
+                            }
+                            quantidadeMB = Math.round(gb * 1024);
+                        } else if (quantidadeStr.endsWith('MB')) {
+                            quantidadeMB = parseInt(quantidadeStr.replace('MB', ''));
+                            if (isNaN(quantidadeMB) || quantidadeMB <= 0) {
+                                await message.reply(`❌ Quantidade inválida: *${quantidadeStr}*`);
+                                return;
+                            }
+                        } else {
+                            await message.reply(`❌ *FORMATO INVÁLIDO*\n\n✅ Use: MB ou GB\nExemplos: 500MB, 1.5GB, 2GB`);
+                            return;
+                        }
+
+                        const participantId = numeroDestino + '@c.us';
+                        
+                        // Inicializar saldo se não existir
+                        if (!bonusSaldos[participantId]) {
+                            bonusSaldos[participantId] = {
+                                saldo: 0,
+                                detalhesReferencias: {},
+                                historicoSaques: [],
+                                totalReferencias: 0,
+                                bonusAdmin: []
+                            };
+                        }
+
+                        // Adicionar bônus
+                        bonusSaldos[participantId].saldo += quantidadeMB;
+                        
+                        // Registrar histórico de bônus admin
+                        if (!bonusSaldos[participantId].bonusAdmin) {
+                            bonusSaldos[participantId].bonusAdmin = [];
+                        }
+                        
+                        bonusSaldos[participantId].bonusAdmin.push({
+                            quantidade: quantidadeMB,
+                            data: new Date().toISOString(),
+                            admin: remetente,
+                            motivo: 'Bônus administrativo'
+                        });
+
+                        await salvarDadosReferencia();
+
+                        const quantidadeFormatada = quantidadeMB >= 1024 ? `${(quantidadeMB/1024).toFixed(2)}GB` : `${quantidadeMB}MB`;
+                        const novoSaldo = bonusSaldos[participantId].saldo;
+                        const novoSaldoFormatado = novoSaldo >= 1024 ? `${(novoSaldo/1024).toFixed(2)}GB` : `${novoSaldo}MB`;
+
+                        console.log(`🎁 ADMIN BONUS: ${remetente} deu ${quantidadeFormatada} para ${numeroDestino}`);
+
+                        // Notificar o usuário que recebeu o bônus
+                        try {
+                            await client.sendMessage(message.from, 
+                                `🎁 *BÔNUS ADMINISTRATIVO!*\n\n` +
+                                `💎 @${numeroDestino}, recebeste *${quantidadeFormatada}* de bônus!\n\n` +
+                                `👨‍💼 *Ofertado por:* Administrador\n` +
+                                `💰 *Novo saldo:* ${novoSaldoFormatado}\n\n` +
+                                `${novoSaldo >= 1024 ? '🚀 *Já podes sacar!* Use: *.sacar*' : '💡 *Continua a acumular para sacar!*'}`, {
+                                mentions: [participantId]
+                            });
+                        } catch (notificationError) {
+                            console.error('❌ Erro ao enviar notificação de bônus admin:', notificationError);
+                        }
+
+                        await message.reply(
+                            `✅ *BÔNUS ADMINISTRATIVO CONCEDIDO*\n\n` +
+                            `👤 Beneficiário: ${numeroDestino}\n` +
+                            `🎁 Bônus concedido: ${quantidadeFormatada}\n` +
+                            `💰 Novo saldo: ${novoSaldoFormatado}\n` +
+                            `👑 Concedido por: Administrador\n` +
+                            `📅 Data: ${new Date().toLocaleString('pt-BR')}\n\n` +
+                            `💡 *O usuário foi notificado automaticamente*`
+                        );
+                        
+                        return;
+                    } catch (error) {
+                        console.error('❌ Erro no comando .bonus:', error);
+                        await message.reply(`❌ *ERRO INTERNO*\n\n⚠️ Não foi possível conceder bônus\n\n📝 Erro: ${error.message}`);
+                        return;
+                    }
+                }
             }
 
             // === COMANDOS GOOGLE SHEETS ===
@@ -2649,17 +2780,19 @@ client.on('message', async (message) => {
                 
                 await salvarDadosReferencia();
                 
+                const convidadorId = codigosReferencia[codigo].dono;
                 const nomeConvidador = codigosReferencia[codigo].nome;
                 
-                await message.reply(
+                await client.sendMessage(message.from, 
                     `✅ *CÓDIGO APLICADO COM SUCESSO!*\n\n` +
-                    `🎉 ${nomeConvidador} te convidou - registrado!\n\n` +
+                    `🎉 @${convidadorId.replace('@c.us', '')} te convidou - registrado!\n\n` +
                     `💎 *Benefícios:*\n` +
-                    `• Nas tuas próximas 5 compras, ${nomeConvidador} ganha 200MB cada\n` +
+                    `• Nas tuas próximas 5 compras, @${convidadorId.replace('@c.us', '')} ganha 200MB cada\n` +
                     `• Tu recebes teus megas normalmente\n` +
                     `• Ajudas um amigo a ganhar bônus!\n\n` +
-                    `🚀 *Próximo passo:* Faz tua primeira compra!`
-                );
+                    `🚀 *Próximo passo:* Faz tua primeira compra!`, {
+                    mentions: [convidadorId]
+                });
                 return;
             }
 
