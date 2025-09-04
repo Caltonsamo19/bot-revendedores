@@ -272,33 +272,35 @@ const MODERACAO_CONFIG = {
 const CONFIGURACAO_GRUPOS = {
     '258820749141-1441573529@g.us': {
         nome: 'Data Store - Vodacom',
-        tabela: `PROMOÇÃO DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO
+        tabela: `SUPER PROMOÇÃO  DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO - 04-05/09/2025
 
 📆 PACOTES DIÁRIOS
 900MB 💎 15MT 💵💽
-1024MB 💎 17MT 💵💽
+1100MB 💎 17MT 💵💽
 1200MB 💎 20MT 💵💽
-2048MB 💎 34MT 💵💽
-3072MB 💎 51MT 💵💽
-4096MB 💎 68MT 💵💽
-5120MB 💎 85MT 💵💽
-10240MB 💎 170MT 💵💽
-20480MB 💎 340MT 💵💽
+2200MB 💎 34MT 💵💽
+3300MB 💎 51MT 💵💽
+4400MB 💎 68MT 💵💽
+5500MB 💎 85MT 💵💽
+10240MB 💎 170MT 💵💽 ➕ Bónus 1GB na próxima compra 🎁
+20480MB 💎 340MT 💵💽 ➕ Bónus 2GB na próxima compra 🎁
 
 📅 PACOTES SEMANAIS
+
 3072 + 700MB 💎 105MT 💵💽
 5120 + 700MB 💎 155MT 💵💽
-10240 + 700MB 💎 300MT 💵💽
-15360 + 700MB 💎 455MT 💵💽
-20480 + 700MB 💎 600MT 💵💽
+10240 + 700MB 💎 210MT 💵💽
+15360 + 700MB 💎 290MT 💵💽
+20480 + 700MB 💎 360MT 💵💽
 
 📅 PACOTES MENSAIS
-⚠ Para ativar estes pacotes, o Txuna Crédito não pode estar ativo
-12.8GB 💎 255MT 💵💽
+
+12.8GB 💎 270MT 💵💽
 22.8GB 💎 435MT 💵💽
 32.8GB 💎 605MT 💵💽
 52.8GB 💎 945MT 💵💽
-102.8GB 💎 1605MT 💵💽
+102.8GB 💎 1605MT 💵💽
+
 
 PACOTES DIAMANTE MENSAIS
 Chamadas + SMS ilimitadas + 12GB 💎 460MT 💵
