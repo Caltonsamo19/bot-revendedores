@@ -1602,6 +1602,10 @@ client.on('ready', async () => {
 client.on('group-join', async (notification) => {
     try {
         const chatId = notification.chatId;
+        console.log(`🔔 EVENTO GROUP-JOIN DISPARADO!`);
+        console.log(`   📋 chatId: ${chatId}`);
+        console.log(`   👥 recipientIds:`, notification.recipientIds);
+        console.log(`   📊 notification:`, JSON.stringify(notification, null, 2));
         
         // Detectar se o bot foi adicionado
         const addedParticipants = notification.recipientIds || [];
@@ -1626,17 +1630,27 @@ client.on('group-join', async (notification) => {
             }, 3000);
         } else {
             // NOVOS MEMBROS (NÃO-BOT) ENTRARAM NO GRUPO
+            console.log(`🔍 Verificando se é entrada de novo membro...`);
+            console.log(`   📊 Total participantes: ${addedParticipants.length}`);
+            
             const configGrupo = getConfiguracaoGrupo(chatId);
+            console.log(`   ⚙️ Grupo configurado: ${configGrupo ? 'SIM' : 'NÃO'}`);
+            if (configGrupo) {
+                console.log(`   📋 Nome do grupo: ${configGrupo.nome}`);
+            }
+            
             if (configGrupo) {
                 // Processar cada novo membro
                 for (const participantId of addedParticipants) {
                     try {
-                        console.log(`👋 Novo membro detectado: ${participantId}`);
+                        console.log(`👋 PROCESSANDO NOVO MEMBRO: ${participantId}`);
                         
                         // Aguardar um pouco para evitar spam
                         setTimeout(async () => {
                             try {
+                                console.log(`⏰ EXECUTANDO enviarBoasVindas para ${participantId}`);
                                 await enviarBoasVindas(chatId, participantId);
+                                console.log(`✅ enviarBoasVindas FINALIZADA para ${participantId}`);
                             } catch (error) {
                                 console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
                             }
@@ -1646,40 +1660,10 @@ client.on('group-join', async (notification) => {
                         console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
                     }
                 }
+            } else {
+                console.log(`⚠️ GRUPO NÃO CONFIGURADO - Boas-vindas não enviadas`);
+                console.log(`   🔧 Para configurar, adicione ${chatId} em CONFIGURACAO_GRUPOS`);
             }
-        }
-        
-        // Código original do grupo já configurado
-        const configGrupo = getConfiguracaoGrupo(chatId);
-        if (configGrupo) {
-            console.log(`👋 Novo membro no grupo ${configGrupo.nome}`);
-            
-            const mensagemBoasVindas = `
-🤖 *SISTEMA DE VENDA AUTOMÁTICA 24/7* 
-
-Bem-vindo(a) ao *${configGrupo.nome}*! 
-
-✨ *Aqui usamos sistema automático!*
-
-🛒 *Como comprar:*
-1️⃣ Faça o pagamento 
-2️⃣ Envie comprovante + número
-3️⃣ Receba automaticamente!
-
-📋 Digite: *tabela* (ver preços)
-💳 Digite: *pagamento* (ver formas)
-
-⚡ *Atendimento instantâneo!*
-            `;
-            
-            setTimeout(async () => {
-                try {
-                    await client.sendMessage(chatId, mensagemBoasVindas);
-                    console.log(`✅ Mensagem de boas-vindas enviada`);
-                } catch (error) {
-                    console.error('❌ Erro ao enviar boas-vindas:', error);
-                }
-            }, 2000);
         }
     } catch (error) {
         console.error('❌ Erro no evento group-join:', error);

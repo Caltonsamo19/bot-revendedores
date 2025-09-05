@@ -131,14 +131,14 @@ class SistemaCompras {
             // Registrar compra confirmada para o REMETENTE (quem comprou)
             const numeroComprador = remetente || numero; // Fallback para compatibilidade
             console.log(`🔍 COMPRAS: Dados para parabenização - Remetente: ${remetente} | Número: ${numero} | Comprador final: ${numeroComprador}`);
-            await this.registrarCompraConfirmada(numeroComprador, megas, referencia);
+            await this.registrarCompraConfirmada(numeroComprador, megas, referencia, compraPendente.grupoId);
             
             // Remover das pendentes
             delete this.comprasPendentes[referencia];
             await this.salvarDados();
             
             // Gerar mensagem de parabenização para o REMETENTE (quem comprou)
-            const mensagemParabenizacao = await this.gerarMensagemParabenizacao(numeroComprador, megas);
+            const mensagemParabenizacao = await this.gerarMensagemParabenizacao(numeroComprador, megas, compraPendente.grupoId);
             
             console.log(`✅ COMPRAS: Confirmação processada para ${numero} - ${megas}MB`);
             console.log(`💬 COMPRAS: Mensagem de parabenização:`, mensagemParabenizacao ? 'GERADA' : 'NÃO GERADA');
