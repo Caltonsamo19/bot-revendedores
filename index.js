@@ -845,41 +845,41 @@ Adquira já os teus megas com segurança, confiança e rapidez!🚨🔥
         tabela: `🔥 MEGA PROMO VODACOM
 ━━━━━━━━━━━━━━━
 
-PACOTES DIÁRIOS 24h 
-✅ 18MT - 1050MB 
-✅ 20MT - 1200MB 
-✅ 40MT - 2400MB 
-✅ 60MT - 3600MB 
-✅ 180MT - 10240MB
+PACOTES DIÁRIOS 24h
+✅ 1050MB – 18MT
+✅ 1200MB – 20MT
+✅ 2400MB – 40MT
+✅ 3600MB – 60MT
+✅ 10240MB – 180MT
 
 ━━━━━━━━━━━━━━
 
 PLANO SEMANAL (7 DIAS)
-
-✅ 97MT - 3GB
-✅ 147MT - 5GB 
-✅ 196MT  - 7GB 
-✅ 296MT - 10GB
-
-━━━━━━━━━━━━━━
-
-PACOTES MENSAIS 
-✅ 150MT - 5GB 
-✅ 280MT - 10GB 
-✅ 480MT - 20GB
+✅ 3GB – 97MT
+✅ 5GB – 147MT
+✅ 7GB – 196MT
+✅ 10GB – 296MT
 
 ━━━━━━━━━━━━━━
 
-ILIMITADO 30 DIAS 
-✅ 450MT = Chamadas + SMS ilimitados todas redes + 11GB
-✅ 550MT = Chamadas + SMS ilimitados todas redes + 15GB
-✅ 650MT = Chamadas + SMS ilimitados todas redes + 20GB 
-✅ 750MT = Chamadas + SMS ilimitados todas redes + 25GB 
-✅ 1250MT = Chamadas + SMS ilimitados todas redes + 50GB
+PACOTES MENSAIS
+✅ 5GB – 150MT
+✅ 10GB – 280MT
+✅ 20GB – 480MT
 
 ━━━━━━━━━━━━━━
 
-⚠ NB: PARA ACTIVAR O PACOTE SEMANAL E MENSAL NÃO PODE TER NENHUM CRÉDITO`,
+ILIMITADO 30 DIAS
+✅ 11GB + Chamadas & SMS ilimitados – 450MT
+✅ 15GB + Chamadas & SMS ilimitados – 550MT
+✅ 20GB + Chamadas & SMS ilimitados – 650MT
+✅ 25GB + Chamadas & SMS ilimitados – 750MT
+✅ 50GB + Chamadas & SMS ilimitados – 1250MT
+
+━━━━━━━━━━━━━━
+
+⚠ NB: Para activar o pacote semanal e mensal não pode ter nenhum crédito
+`,
         pagamento: `🅼🅴🅶🅰🆂 🅿🆁🅾🅼🅾    💳 🛒⛔ FORMAS DE PAGAMENTO:⛔🛒💳
 
 
