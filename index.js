@@ -649,10 +649,10 @@ NOME:   Alice Armando Nhaquila📝
     '258840161370-1471468657@g.us': {
         nome: 'Venda Automática 24/7',
         tabela: `TABELA ATUALIZADA
-TERÇA-FEIRA 02/09/2026 - 06:25:48
+TERÇA-FEIRA 05/10/2026 - 15:58:48
 ___________________________
 
- PACOTE DIÁRIO ( 24H) 
+ PACOTE DIÁRIO ( 24H⏱) 
 1024MB    - 17,00 MT
 1200MB    - 20,00 MT
 2048MB   - 34,00 MT
@@ -666,16 +666,32 @@ ___________________________
 9144MB    - 153,00 MT
 10240MB  - 170,00 MT
 
-PACOTE SEMANAL (7 Dias)
+ PACOTE DIÁRIO PREMIUM ( 3 DIAS 🗓) 
 Megabyte Renováveis!
-1.7GB - 45,00MT
-2.9GB - 80,00MT
-3.4GB - 100,00MT
-5.5GB - 150,00MT
-7.8GB - 200,00MT
-11.4GB - 300,00MT 
+2000MB+300MB    - 44,00 MT
+3000MB+300MB    - 66,00 MT
+4000MB+300MB    - 88,00 MT
+5000MB+300MB    - 109,00 MT
+6000MB+300MB    - 129,00 MT
 
-PACOTE MENSAL(30 dias)
+PACOTE SEMANAL BÁSICO (7 Dias🗓)
+Megabyte Renováveis!
+1700+700MB - 45,00MT
+2900+700Mb - 80,00MT
+3400+700MB - 110,00MT
+5500+700MB - 150,00MT
+7800+700MB - 200,00MT
+11400+700MB - 300,00MT 
+
+ PACOTE SEMANAL PREMIUM ( 15 DIAS 🗓 ) 
+Megabyte Renováveis!
+5000MB+1500MB     - 189,00 MT
+8000MB+1500MB     - 249,00 MT
+10000MB+1500MB    - 349,00 MT
+20000MB+1500MB    - 449,00 MT
+
+PACOTE MENSAL(30 dias🗓)
+Não pode ter xtuna crédito
 3.1GB    - 100,00MT
 5.1GB     - 180,00MT
 12.8GB    - 250,00MT
@@ -2249,7 +2265,7 @@ client.on('message', async (message) => {
                 if (comando === '.resetranking') {
                     try {
                         // Verificar permissão de admin
-                        const admins = ['258861645968', '258123456789']; // Lista de admins
+                        const admins = ['258861645968', '258123456789', '258852118624']; // Lista de admins
                         if (!admins.includes(remetente)) {
                             return; // Falha silenciosa para segurança
                         }
@@ -2382,7 +2398,7 @@ client.on('message', async (message) => {
                     try {
                         console.log(`🔍 Debug .bonus: remetente = ${remetente}`);
                         // Verificar permissão de admin
-                        const admins = ['258861645968', '258123456789']; // Lista de admins
+                        const admins = ['258861645968', '258123456789', '258852118624']; // Lista de admins
                         if (!admins.includes(remetente)) {
                             console.log(`❌ Admin não autorizado: ${remetente}`);
                             return; // Falha silenciosa para segurança
