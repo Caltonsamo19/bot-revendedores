@@ -2399,8 +2399,9 @@ client.on('message', async (message) => {
                         console.log(`🔍 Debug .bonus: autorMensagem = ${autorMensagem}`);
                         // Verificar permissão de admin
                         const admins = ['258861645968', '258123456789', '258852118624']; // Lista de admins
-                        if (!admins.includes(autorMensagem)) {
-                            console.log(`❌ Admin não autorizado: ${autorMensagem}`);
+                        const numeroAdmin = autorMensagem.replace('@c.us', '');
+                        if (!admins.includes(numeroAdmin)) {
+                            console.log(`❌ Admin não autorizado: ${autorMensagem} (${numeroAdmin})`);
                             return; // Falha silenciosa para segurança
                         }
 
