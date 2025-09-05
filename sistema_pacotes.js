@@ -295,21 +295,25 @@ class SistemaPacotes {
                 headers: { 'Content-Type': 'application/json' }
             });
             
-            // Verificar se foi sucesso - pode ser objeto {success: true}, string "Sucesso!" ou "Duplicado" (que também é sucesso)
+            // Verificar se foi sucesso - pode ser objeto {success: true}, string "Sucesso!" ou duplicado (que deve ser tratado como sucesso)
+            const isDuplicado = (response.data && response.data.duplicado === true) ||
+                               (typeof response.data === 'string' && response.data.includes('Duplicado'));
+            
             const isSuccess = (response.data && response.data.success) || 
+                             isDuplicado ||
                              (typeof response.data === 'string' && (
                                  response.data.includes('Sucesso') || 
-                                 response.data.includes('Duplicado') ||
                                  response.data.includes('IGNORADO')
                              ));
             
-            if (!response.data || !isSuccess) {
-                throw new Error(`Erro ao salvar pagamento pacote: ${JSON.stringify(response.data)}`);
+            // Se for duplicado, tratar como sucesso silencioso (não erro)
+            if (isDuplicado) {
+                console.log(`⚠️ PACOTES: Pagamento duplicado ignorado (normal) - ${novaReferencia}|${valorMT}MT|${numero}`);
+                return; // Sair sem erro
             }
             
-            // Log diferenciado para duplicados
-            if (typeof response.data === 'string' && response.data.includes('Duplicado')) {
-                console.log(`⚠️ PACOTES: Pagamento duplicado ignorado (normal) - ${novaReferencia}|${valorMT}MT|${numero}`);
+            if (!response.data || !isSuccess) {
+                throw new Error(`Erro ao salvar pagamento pacote: ${JSON.stringify(response.data)}`);
             }
             
             console.log(`✅ PACOTES: Pagamento pacote criado com sucesso - ${novaReferencia}|${valorMT}MT|${numero}`);
