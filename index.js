@@ -2396,11 +2396,11 @@ client.on('message', async (message) => {
                 // .bonus NUMERO QUANTIDADE - Dar bônus manual (ADMIN APENAS)
                 if (comando.startsWith('.bonus ')) {
                     try {
-                        console.log(`🔍 Debug .bonus: remetente = ${remetente}`);
+                        console.log(`🔍 Debug .bonus: autorMensagem = ${autorMensagem}`);
                         // Verificar permissão de admin
                         const admins = ['258861645968', '258123456789', '258852118624']; // Lista de admins
-                        if (!admins.includes(remetente)) {
-                            console.log(`❌ Admin não autorizado: ${remetente}`);
+                        if (!admins.includes(autorMensagem)) {
+                            console.log(`❌ Admin não autorizado: ${autorMensagem}`);
                             return; // Falha silenciosa para segurança
                         }
 
@@ -2482,7 +2482,7 @@ client.on('message', async (message) => {
                         bonusSaldos[participantId].bonusAdmin.push({
                             quantidade: quantidadeMB,
                             data: new Date().toISOString(),
-                            admin: remetente,
+                            admin: autorMensagem,
                             motivo: 'Bônus administrativo'
                         });
 
@@ -2492,7 +2492,7 @@ client.on('message', async (message) => {
                         const novoSaldo = bonusSaldos[participantId].saldo;
                         const novoSaldoFormatado = novoSaldo >= 1024 ? `${(novoSaldo/1024).toFixed(2)}GB` : `${novoSaldo}MB`;
 
-                        console.log(`🎁 ADMIN BONUS: ${remetente} deu ${quantidadeFormatada} para ${numeroDestino}`);
+                        console.log(`🎁 ADMIN BONUS: ${autorMensagem} deu ${quantidadeFormatada} para ${numeroDestino}`);
 
                         // Notificar o usuário que recebeu o bônus
                         try {
