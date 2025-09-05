@@ -2142,25 +2142,46 @@ client.on('message', async (message) => {
                 // .bonus NUMERO QUANTIDADE - Dar bônus manual (ADMIN APENAS)
                 if (comando.startsWith('.bonus ')) {
                     try {
+                        console.log(`🔍 Debug .bonus: remetente = ${remetente}`);
                         // Verificar permissão de admin
                         const admins = ['258861645968', '258123456789']; // Lista de admins
                         if (!admins.includes(remetente)) {
+                            console.log(`❌ Admin não autorizado: ${remetente}`);
                             return; // Falha silenciosa para segurança
                         }
 
                         const parametros = comando.split(' ');
                         if (parametros.length < 3) {
-                            await message.reply(`❌ *FORMATO INCORRETO*\n\n✅ Use: *.bonus NUMERO QUANTIDADE*\nExemplo: *.bonus 258123456789 500MB*`);
+                            await message.reply(`❌ *FORMATO INCORRETO*\n\n✅ Use: *.bonus @usuario QUANTIDADE* ou *.bonus NUMERO QUANTIDADE*\nExemplos:\n• *.bonus @258123456789 500MB*\n• *.bonus 258123456789 500MB*`);
                             return;
                         }
 
-                        const numeroDestino = parametros[1];
+                        let numeroDestino = parametros[1];
                         const quantidadeStr = parametros[2].toUpperCase();
 
-                        // Validar número (deve ter 12 dígitos)
-                        if (!/^\d{12}$/.test(numeroDestino)) {
-                            await message.reply(`❌ *NÚMERO INVÁLIDO*\n\n✅ Use formato: 258123456789 (12 dígitos)`);
+                        // Verificar se é menção ou número direto
+                        if (numeroDestino.startsWith('@')) {
+                            // Remover @ e verificar se tem menções na mensagem
+                            const numeroMencao = numeroDestino.substring(1);
+                            if (message.mentionedIds && message.mentionedIds.length > 0) {
+                                // Usar a primeira menção encontrada
+                                const mencaoId = message.mentionedIds[0];
+                                numeroDestino = mencaoId.replace('@c.us', '');
+                            } else {
+                                // Tentar usar o número após @
+                                numeroDestino = numeroMencao;
+                            }
+                        }
+
+                        // Validar número - aceitar 9 dígitos (848715208) ou 12 dígitos (258848715208)
+                        if (!/^\d{9}$/.test(numeroDestino) && !/^\d{12}$/.test(numeroDestino)) {
+                            await message.reply(`❌ *NÚMERO INVÁLIDO*\n\n✅ Use formato:\n• *.bonus @848715208 500MB* (9 dígitos)\n• *.bonus @258848715208 500MB* (12 dígitos)\n• *.bonus 848715208 500MB* (número direto)`);
                             return;
+                        }
+                        
+                        // Converter para formato completo se necessário (adicionar 258 no início)
+                        if (numeroDestino.length === 9) {
+                            numeroDestino = '258' + numeroDestino;
                         }
 
                         // Converter quantidade para MB
