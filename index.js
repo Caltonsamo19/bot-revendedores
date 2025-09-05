@@ -650,6 +650,7 @@ NOME:   Alice Armando Nhaquila📝
         nome: 'Venda Automática 24/7',
         tabela: `TABELA ATUALIZADA
 TERÇA-FEIRA 05/10/2026 - 15:58:48
+
 ___________________________
 
  PACOTE DIÁRIO ( 24H⏱) 
@@ -668,27 +669,27 @@ ___________________________
 
  PACOTE DIÁRIO PREMIUM ( 3 DIAS 🗓) 
 Megabyte Renováveis!
-2000MB+300MB    - 44,00 MT
-3000MB+300MB    - 66,00 MT
-4000MB+300MB    - 88,00 MT
-5000MB+300MB    - 109,00 MT
-6000MB+300MB    - 129,00 MT
+2000MB  - 44,00 MT
+3000MB  - 66,00 MT
+4000MB  - 88,00 MT
+5000MB - 109,00 MT
+6000MB  - 129,00 MT
 
-PACOTE SEMANAL BÁSICO (7 Dias🗓)
+PACOTE SEMANAL BÁSICO (5 Dias🗓)
 Megabyte Renováveis!
-1700+700MB - 45,00MT
-2900+700Mb - 80,00MT
-3400+700MB - 110,00MT
-5500+700MB - 150,00MT
-7800+700MB - 200,00MT
-11400+700MB - 300,00MT 
+1700MB - 45,00MT
+2900MB - 80,00MT
+3400MB - 110,00MT
+5500MB - 150,00MT
+7800MB - 200,00MT
+11400MB - 300,00MT 
 
  PACOTE SEMANAL PREMIUM ( 15 DIAS 🗓 ) 
 Megabyte Renováveis!
-5000MB+1500MB     - 189,00 MT
-8000MB+1500MB     - 249,00 MT
-10000MB+1500MB    - 349,00 MT
-20000MB+1500MB    - 449,00 MT
+5000MB - 189,00 MT
+8000MB - 249,00 MT
+10000MB - 349,00 MT
+20000MB - 449,00 MT
 
 PACOTE MENSAL(30 dias🗓)
 Não pode ter xtuna crédito
@@ -697,7 +698,22 @@ Não pode ter xtuna crédito
 12.8GB    - 250,00MT
 22.8GB   - 400,00MT
 32.8GB   - 550,00MT
-51.2GB   - 950,00MT`,
+51.2GB   - 950,00MT
+
+💎CHAMADAS TODAS REDES + SMS + NET:
+
+Mensal(30dias):
+450MT - Ilimitado + 11.5GB.
+500MT - Ilimitado + 14.5GB.
+700MT - Ilimitado + 26.5GB.
+1000MT - Ilimitado + 37.5GB.
+1500MT - Ilimitado + 53.5GB
+2150MT - Ilimitado + 102.5GB
+
+PARA OS PACOTES MENSAIS, NÃO PODE TER TXUNA CRÉDITO.
+
+Importante 🚨: Envie o valor que consta na tabela!
+`,
 
         pagamento: `╭━━━┛ 💸  ＦＯＲＭＡＳ ＤＥ ＰＡＧＡＭＥＮＴＯ: 
 ┃
@@ -765,7 +781,7 @@ Não pode ter xtuna crédito
 - *JOSE TOMÁS*
 
 📩 Envie o seu comprovantivo no grupo, juntamente com o número que vai receber os dados.`
-},'120363418801452164@g.us': {
+},'120363022366545020@g.us': {
         nome: 'Megas VIP',
         boasVindas: `🎉 *BOAS-VINDAS AO MEGAS VIP!*
 
@@ -802,22 +818,22 @@ Bem-vindo à família VIP! 🔥`,
 🛜3072MB = 54MT
 🛜4096MB = 72MT
 🛜5120MB = 90MT
+🛜6144MB = 108MB
+🛜7168MB = 126MB
+🛜8192MB = 144MB
+🛜9216MB = 162MB
 🛜10240MB = 180MT
 🛜20480MB = 360MT
 
-  
 PACOTE SEMANAL🛒📦
-⚠Não deve ter txuna crédito⚠
+⚠ Vai receber 100MB por dia durante 6 dias, totalizando +0.6GB. ⚠
 
-
-🛜2.9GB = 85MT
-🛜3.4GB = 95MT
-🛜5.2GB = 145MT
-🛜7.1GB = 195MT 
-🛜10.7GB = 295MT
-🛜14.3GB = 395MT
-
-
+🛜2.0GB = 65MT
+🛜3.0GB = 85MT
+🛜5.0GB = 130MT
+🛜7.0GB = 175MT 
+🛜10.0GB = 265MT
+🛜14.0GB = 362MT
 
 📦PACOTE MENSAL📦
 ⚠Não deve ter txuna crédito⚠
