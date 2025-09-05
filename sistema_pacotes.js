@@ -93,7 +93,7 @@ class SistemaPacotes {
     // === CRIAR PACOTE (SEM VERIFICAÇÃO DE PAGAMENTO) ===
     async processarComprovante(referencia, numero, grupoId, tipoPacote) {
         try {
-            console.log(`📦 PROCESSAR PACOTE: ${referencia} - ${numero} - Tipo: ${tipoPacote}`);
+            console.log(`📦 Processando pacote: ${referencia}`);
             
             // 1. Verificar se a referência já foi usada (evitar duplicatas)
             const referenciaExiste = await this.verificarReferenciaExistente(referencia);
@@ -144,7 +144,7 @@ class SistemaPacotes {
             // 6. Salvar dados
             await this.salvarDados();
             
-            console.log(`✅ PACOTES: Cliente ${numero} ativado com pacote ${this.TIPOS_PACOTES[tipoPacote].nome}`);
+            console.log(`✅ Cliente ativado com ${this.TIPOS_PACOTES[tipoPacote].nome}`);
             
             return {
                 sucesso: true,
@@ -238,7 +238,7 @@ class SistemaPacotes {
     // === CRIAR PEDIDO PARA PACOTE ===
     async criarPedidoPacote(novaReferencia, megas, numero, grupoId, horarioEnvio) {
         try {
-            console.log(`📋 PACOTES: Criando pedido pacote ${novaReferencia} - ${megas}MB para ${numero}`);
+            console.log(`📋 Criando pedido: ${novaReferencia}`);
             
             const timestamp = new Date().toLocaleString('pt-BR');
             const dadosCompletos = `${novaReferencia}|${megas}|${numero}`; // Formato correto: REF|MEGAS|NUMERO (sem timestamp)
@@ -252,7 +252,7 @@ class SistemaPacotes {
                 message: `Pacote automatico: ${dadosCompletos}`
             };
             
-            console.log(`📋 PACOTES: Enviando pedido para planilha RETALHO: ${JSON.stringify(dados)}`);
+            console.log(`📋 Enviando pedido para planilha`);
             
             const response = await axios.post(this.PLANILHAS.PEDIDOS, dados, {
                 timeout: 20000,
@@ -263,7 +263,7 @@ class SistemaPacotes {
                 throw new Error(`Erro ao salvar pedido pacote: ${JSON.stringify(response.data)}`);
             }
             
-            console.log(`✅ PACOTES: Pedido pacote criado com sucesso - ${novaReferencia}|${megas}MB|${numero}`);
+            console.log(`✅ Pedido criado: ${novaReferencia}`);
             
         } catch (error) {
             console.error(`❌ PACOTES: Erro ao criar pedido pacote:`, error.message);
@@ -274,7 +274,7 @@ class SistemaPacotes {
     // === CRIAR PAGAMENTO PARA PACOTE (FORMATO CORRETO) ===
     async criarPagamentoPacote(novaReferencia, valorMT, numero, grupoId, horarioEnvio) {
         try {
-            console.log(`💰 PACOTES: Criando pagamento pacote ${novaReferencia} - ${valorMT}MT para ${numero}`);
+            console.log(`💰 Criando pagamento: ${novaReferencia}`);
             
             const timestamp = new Date().toLocaleString('pt-BR');
             const dadosCompletos = `${novaReferencia}|${valorMT}|${numero}`; // Formato correto: REF|VALOR|NUMERO
@@ -288,7 +288,7 @@ class SistemaPacotes {
                 message: `Pacote automatico: Renovacao ${novaReferencia} - ${valorMT}MT para ${numero}`
             };
             
-            console.log(`💰 PACOTES: Enviando pagamento para planilha UNIVERSAL: ${JSON.stringify(dados)}`);
+            console.log(`💰 Enviando pagamento para planilha`);
             
             const response = await axios.post(this.PLANILHAS.PAGAMENTOS, dados, {
                 timeout: 20000,
@@ -308,7 +308,7 @@ class SistemaPacotes {
             
             // Se for duplicado, tratar como sucesso silencioso (não erro)
             if (isDuplicado) {
-                console.log(`⚠️ PACOTES: Pagamento duplicado ignorado (normal) - ${novaReferencia}|${valorMT}MT|${numero}`);
+                console.log(`⚠️ Pagamento duplicado ignorado: ${novaReferencia}`);
                 return; // Sair sem erro
             }
             
@@ -316,7 +316,7 @@ class SistemaPacotes {
                 throw new Error(`Erro ao salvar pagamento pacote: ${JSON.stringify(response.data)}`);
             }
             
-            console.log(`✅ PACOTES: Pagamento pacote criado com sucesso - ${novaReferencia}|${valorMT}MT|${numero}`);
+            console.log(`✅ Pagamento criado: ${novaReferencia}`);
             
         } catch (error) {
             console.error(`❌ PACOTES: Erro ao criar pagamento pacote:`, error.message);
@@ -373,7 +373,7 @@ class SistemaPacotes {
                     
                     // Verificar se expirou
                     if (agora >= dataExpiracao) {
-                        console.log(`⌛ PACOTES: Cliente ${cliente.numero} expirado - removendo`);
+                        console.log(`⌛ Cliente expirado - removendo`);
                         delete this.clientesAtivos[clienteId];
                         expiracoes++;
                         continue;
@@ -394,7 +394,7 @@ class SistemaPacotes {
                 await this.salvarDados();
             }
             
-            console.log(`✅ PACOTES: Verificação concluída - ${renovacoesProcessadas} renovações, ${expiracoes} expirações`);
+            console.log(`✅ Verificação: ${renovacoesProcessadas} renovações, ${expiracoes} expirações`);
             
         } catch (error) {
             console.error(`❌ PACOTES: Erro na verificação automática:`, error);
@@ -404,7 +404,7 @@ class SistemaPacotes {
     // === PROCESSAR RENOVAÇÃO ===
     async processarRenovacao(clienteId, cliente) {
         try {
-            console.log(`🔄 PACOTES: Processando renovação para ${cliente.numero} (${cliente.diasRestantes} dias restantes)`);
+            console.log(`🔄 Processando renovação (${cliente.diasRestantes} dias)`);
             
             // Criar nova referência
             const diaAtual = cliente.diasTotal - cliente.diasRestantes + 1;
@@ -442,10 +442,10 @@ class SistemaPacotes {
                 timestamp: agora.toISOString()
             });
             
-            console.log(`✅ PACOTES: Renovação ${novaReferencia} criada para ${cliente.numero} - ${cliente.diasRestantes} dias restantes`);
+            console.log(`✅ Renovação criada: ${novaReferencia} (${cliente.diasRestantes} dias)`);
             if (cliente.diasRestantes > 0) {
                 const proximaData = new Date(cliente.proximaRenovacao);
-                console.log(`   📅 Próxima renovação: ${proximaData.toLocaleString('pt-BR')} (2h antes de ${agora.toLocaleString('pt-BR')} de amanhã)`);
+                console.log(`   📅 Próxima: ${proximaData.toLocaleDateString('pt-BR')}`);
             }
             
         } catch (error) {

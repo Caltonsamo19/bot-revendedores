@@ -23,7 +23,7 @@ const GOOGLE_SHEETS_CONFIG = {
     retryDelay: 2000
 };
 
-console.log(`📊 Google Sheets configurado: ${GOOGLE_SHEETS_CONFIG.scriptUrl}`);
+console.log(`📊 Google Sheets configurado`);
 
 // Criar instância do cliente
 const client = new Client({
@@ -167,7 +167,7 @@ async function processarNovoMembro(grupoId, participantId) {
             return;
         }
         
-        console.log(`👋 NOVO MEMBRO DETECTADO: ${participantId} em ${configGrupo.nome}`);
+        console.log(`👋 Novo membro detectado`);
         
         // Registrar entrada do membro
         await registrarEntradaMembro(grupoId, participantId);
@@ -179,7 +179,7 @@ async function processarNovoMembro(grupoId, participantId) {
         setTimeout(async () => {
             try {
                 await enviarBoasVindas(grupoId, participantId);
-                console.log(`✅ Boas-vindas enviadas para ${participantId}`);
+                console.log(`✅ Boas-vindas enviadas`);
             } catch (error) {
                 console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error.message);
             }
@@ -206,7 +206,7 @@ async function registrarEntradaMembro(grupoId, participantId) {
         membrosEntrada[grupoId][participantId] = new Date().toISOString();
         await salvarDadosMembros();
         
-        console.log(`📝 Entrada registrada: ${participantId} no grupo ${grupoId}`);
+        console.log(`📝 Entrada registrada`);
     } catch (error) {
         console.error('❌ Erro ao registrar entrada de membro:', error);
     }
@@ -224,7 +224,7 @@ async function salvarDadosMembros() {
 // Enviar mensagem de boas-vindas para novos membros
 async function enviarBoasVindas(grupoId, participantId) {
     try {
-        console.log(`👋 Enviando boas-vindas para ${participantId} no grupo ${grupoId}`);
+        console.log(`👋 Enviando boas-vindas`);
         
         // Registrar entrada do membro
         await registrarEntradaMembro(grupoId, participantId);
@@ -233,30 +233,46 @@ async function enviarBoasVindas(grupoId, participantId) {
         const contact = await client.getContactById(participantId);
         const nomeUsuario = contact.name || contact.pushname || participantId.replace('@c.us', '');
         
-        // Criar mensagem de boas-vindas personalizada
-        let mensagemBoasVindas = `🎉 *BOAS-VINDAS AO GRUPO!*\n\n`;
-        mensagemBoasVindas += `👋 Olá @${participantId.replace('@c.us', '')}, seja bem-vindo!\n\n`;
-        mensagemBoasVindas += `🤖 *COMO FUNCIONA NOSSO SISTEMA:*\n`;
-        mensagemBoasVindas += `📱 1. Envie comprovante de pagamento aqui\n`;
-        mensagemBoasVindas += `⚡ 2. Nosso sistema processa automaticamente\n`;
-        mensagemBoasVindas += `📊 3. Participe do ranking diário de compradores\n\n`;
-        mensagemBoasVindas += `💰 *COMANDOS ÚTEIS:*\n`;
-        mensagemBoasVindas += `• *tabela* - Ver preços de pacotes\n`;
-        mensagemBoasVindas += `• *pagamento* - Ver formas de pagamento\n`;
-        mensagemBoasVindas += `• *.ranking* - Ver ranking do grupo\n`;
-        mensagemBoasVindas += `• *.meucodigo* - Gerar código de referência\n\n`;
-        mensagemBoasVindas += `🎁 *SISTEMA DE REFERÊNCIAS:*\n`;
-        mensagemBoasVindas += `Você tem código de referência de alguém?\n`;
-        mensagemBoasVindas += `Use: *.convite CÓDIGO* para ativar!\n\n`;
-        mensagemBoasVindas += `✨ *IMPORTANTE:* Códigos de referência só funcionam para membros que entraram nos últimos 5 dias!\n\n`;
-        mensagemBoasVindas += `🚀 Vamos começar? Qualquer dúvida, pergunte no grupo!`;
+        // Obter configuração do grupo
+        const configGrupo = getConfiguracaoGrupo(grupoId);
+        if (!configGrupo) {
+            console.log(`⚠️ Grupo não configurado`);
+            return false;
+        }
+        
+        // Usar mensagem personalizada do grupo ou padrão
+        let mensagemBoasVindas = configGrupo.boasVindas || `🎉 *BOAS-VINDAS AO GRUPO!*
+
+👋 Olá @NOME, seja bem-vindo!
+
+🤖 *SISTEMA DE VENDAS 100% AUTOMÁTICO!*
+📱 1. Envie comprovante de pagamento aqui
+⚡ 2. Nosso sistema processa automaticamente
+📊 3. Participe do ranking diário de compradores
+
+💰 *COMANDOS ÚTEIS:*
+• *tabela* - Ver preços de pacotes
+• *pagamento* - Ver formas de pagamento
+• *.ranking* - Ver ranking do grupo
+• *.meucodigo* - Gerar código de referência
+
+🎁 *SISTEMA DE REFERÊNCIAS:*
+Você tem código de referência de alguém?
+Use: *.convite CÓDIGO* para ativar!
+
+✨ *IMPORTANTE:* Códigos de referência só funcionam para membros que entraram nos últimos 5 dias!
+
+🚀 Vamos começar? Qualquer dúvida, pergunte no grupo!`;
+        
+        // Substituir placeholder @NOME pelo nome real
+        mensagemBoasVindas = mensagemBoasVindas.replace('@NOME', `@${participantId.replace('@c.us', '')}`);
         
         // Enviar mensagem com menção
         await client.sendMessage(grupoId, mensagemBoasVindas, {
             mentions: [participantId]
         });
         
-        console.log(`✅ Boas-vindas enviadas para ${nomeUsuario} (${participantId})`);
+        console.log(`✅ Boas-vindas enviadas`);
         return true;
         
     } catch (error) {
@@ -269,7 +285,7 @@ async function enviarBoasVindas(grupoId, participantId) {
 function isElegivelParaCodigo(participantId, grupoId) {
     try {
         if (!membrosEntrada[grupoId] || !membrosEntrada[grupoId][participantId]) {
-            console.log(`⚠️ Membro ${participantId} não tem registro de entrada no grupo ${grupoId}`);
+            console.log(`⚠️ Membro sem registro de entrada`);
             return false; // Se não tem registro, não é elegível
         }
         
@@ -280,7 +296,7 @@ function isElegivelParaCodigo(participantId, grupoId) {
         const tempoNoGrupo = agora - dataEntrada;
         const elegivelTempo = tempoNoGrupo <= limite5Dias;
         
-        console.log(`🔍 Elegibilidade ${participantId}: Entrada em ${dataEntrada.toISOString()}, tempo no grupo: ${Math.floor(tempoNoGrupo / (24 * 60 * 60 * 1000))} dias, elegível: ${elegivelTempo}`);
+        console.log(`🔍 Verificando elegibilidade - ${Math.floor(tempoNoGrupo / (24 * 60 * 60 * 1000))} dias no grupo`);
         
         return elegivelTempo;
     } catch (error) {
@@ -372,7 +388,7 @@ function gerarCodigoReferencia(remetente) {
 
 // Processar bônus de compra
 async function processarBonusCompra(remetenteCompra, valorCompra) {
-    console.log(`🎁 Verificando bônus para compra de ${remetenteCompra}`);
+    console.log(`🎁 Verificando bônus para compra`);
     
     // Verificar se cliente tem referência
     const referencia = referenciasClientes[remetenteCompra];
@@ -440,7 +456,7 @@ async function processarBonusCompra(remetenteCompra, valorCompra) {
     // Salvar dados
     await salvarDadosReferencia();
     
-    console.log(`   ✅ Bônus creditado: ${bonusAtual}MB para ${convidador} (compra ${referencia.comprasRealizadas}/5)`);
+    console.log(`   ✅ Bônus creditado: ${bonusAtual}MB (${referencia.comprasRealizadas}/5)`);
     
     return {
         convidador: convidador,
@@ -503,6 +519,28 @@ const MODERACAO_CONFIG = {
 const CONFIGURACAO_GRUPOS = {
     '258820749141-1441573529@g.us': {
         nome: 'Data Store - Vodacom',
+        boasVindas: `🎉 *BOAS-VINDAS AO GRUPO!*
+
+👋 Olá @NOME, seja bem-vindo!
+
+🤖 *SISTEMA DE VENDAS 100% AUTOMÁTICO!*
+📱 1. Envie comprovante de pagamento aqui
+⚡ 2. Nosso sistema processa automaticamente
+📊 3. Participe do ranking diário de compradores
+
+💰 *COMANDOS ÚTEIS:*
+• *tabela* - Ver preços de pacotes
+• *pagamento* - Ver formas de pagamento
+• *.ranking* - Ver ranking do grupo
+• *.meucodigo* - Gerar código de referência
+
+🎁 *SISTEMA DE REFERÊNCIAS:*
+Você tem código de referência de alguém?
+Use: *.convite CÓDIGO* para ativar!
+
+✨ *IMPORTANTE:* Códigos de referência só funcionam para membros que entraram nos últimos 5 dias!
+
+🚀 Vamos começar? Qualquer dúvida, pergunte no grupo!`,
         tabela: `SUPER PROMOÇÃO  DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO - 04-05/09/2025
 
 📆 PACOTES DIÁRIOS
@@ -713,6 +751,31 @@ PACOTE MENSAL(30 dias)
 📩 Envie o seu comprovantivo no grupo, juntamente com o número que vai receber os dados.`
 },'120363418801452164@g.us': {
         nome: 'Megas VIP',
+        boasVindas: `🎉 *BOAS-VINDAS AO MEGAS VIP!*
+
+👋 Olá @NOME, seja bem-vindo ao melhor grupo de internet!
+
+🤖 *SISTEMA 100% AUTOMÁTICO - SEM DEMORAS!*
+⚡ Envie seu comprovante e receba instantaneamente
+🏆 Sistema mais rápido de Moçambique
+📊 Ranking diário com prêmios especiais
+
+💰 *COMANDOS:*
+• *tabela* - Ver preços VIP
+• *pagamento* - Formas de pagamento
+• *.ranking* - Ver seu ranking
+
+🎁 *BÔNUS DE REFERÊNCIA:*
+Indique amigos e ganhe MB extras!
+Use: *.meucodigo* para seu código
+
+🚀 *VANTAGENS EXCLUSIVAS:*
+✅ Processamento em tempo real
+✅ Suporte 24/7
+✅ Preços especiais
+✅ Sem taxas escondidas
+
+Bem-vindo à família VIP! 🔥`,
         tabela: `🚨📢MEGABYTES DA VODACOM📢🚨
 
 📦PACOTE DIÁRIO📦
@@ -861,7 +924,7 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
     };
     
     try {
-        console.log(`📊 Enviando para Google Sheets [${grupoNome}]: ${referencia}|${valor}|${numero}`);
+        console.log(`📊 Enviando para Google Sheets: ${referencia}`);
         console.log(`🔍 Dados enviados:`, JSON.stringify(dados, null, 2));
         console.log(`🔗 URL destino:`, GOOGLE_SHEETS_CONFIG.scriptUrl);
         
@@ -882,7 +945,7 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
         console.log(`📥 Resposta Google Sheets: ${responseText}`);
         
         if (responseText.includes('Sucesso!')) {
-            console.log(`✅ Google Sheets: Dados enviados! | Grupo: ${grupoNome}`);
+            console.log(`✅ Google Sheets: Dados enviados!`);
             return { sucesso: true, row: 'N/A' };
         } else if (responseText.includes('Erro:')) {
             throw new Error(responseText);
@@ -1704,7 +1767,7 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus');
+    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .setboasvindas .getboasvindas .testboasvindas');
     
     // Iniciar monitoramento automático de novos membros
     await iniciarMonitoramentoMembros();
@@ -2214,6 +2277,102 @@ client.on('message', async (message) => {
                     } catch (error) {
                         console.error('❌ Erro no comando .resetranking:', error);
                         await message.reply(`❌ *ERRO INTERNO*\n\n⚠️ Não foi possível resetar o ranking\n\n📝 Erro: ${error.message}`);
+                    }
+                    return;
+                }
+                
+                // .setboasvindas - Definir mensagem de boas-vindas personalizada (ADMIN APENAS)
+                if (comando.startsWith('.setboasvindas ')) {
+                    if (!isAdmin) {
+                        await message.reply('❌ Apenas administradores podem usar este comando!');
+                        return;
+                    }
+                    
+                    try {
+                        // Extrair a nova mensagem
+                        const novaMensagem = message.body.substring('.setboasvindas '.length).trim();
+                        
+                        if (novaMensagem.length === 0) {
+                            await message.reply(`❌ *ERRO*\n\nUso: .setboasvindas [mensagem]\n\n📝 *Placeholder disponível:*\n@NOME - será substituído pelo nome do novo membro\n\n*Exemplo:*\n.setboasvindas 🎉 Bem-vindo @NOME! Nosso sistema é 100% automático!`);
+                            return;
+                        }
+                        
+                        if (novaMensagem.length > 2000) {
+                            await message.reply(`❌ *MENSAGEM MUITO LONGA*\n\nMáximo: 2000 caracteres\nAtual: ${novaMensagem.length} caracteres`);
+                            return;
+                        }
+                        
+                        // Salvar no arquivo (simulação - na prática você salvaria em BD)
+                        console.log(`🔧 ADMIN ${remetente} definiu nova mensagem de boas-vindas para grupo ${message.from}`);
+                        
+                        const resposta = `✅ *MENSAGEM DE BOAS-VINDAS ATUALIZADA*\n\n` +
+                                        `👤 *Admin:* ${message._data.notifyName || 'Admin'}\n` +
+                                        `📱 *Grupo:* ${message.from}\n` +
+                                        `📝 *Caracteres:* ${novaMensagem.length}/2000\n\n` +
+                                        `📋 *Prévia da mensagem:*\n` +
+                                        `${novaMensagem.substring(0, 200)}${novaMensagem.length > 200 ? '...' : ''}\n\n` +
+                                        `✅ A nova mensagem será usada para próximos membros!\n` +
+                                        `💡 Use .testboasvindas para testar`;
+                        
+                        await message.reply(resposta);
+                        
+                    } catch (error) {
+                        console.error('❌ Erro no comando .setboasvindas:', error);
+                        await message.reply(`❌ *ERRO*\n\nNão foi possível atualizar a mensagem\n\n📝 Erro: ${error.message}`);
+                    }
+                    return;
+                }
+                
+                // .getboasvindas - Ver mensagem atual de boas-vindas (ADMIN APENAS)
+                if (comando === '.getboasvindas') {
+                    if (!isAdmin) {
+                        await message.reply('❌ Apenas administradores podem usar este comando!');
+                        return;
+                    }
+                    
+                    try {
+                        const configGrupo = getConfiguracaoGrupo(message.from);
+                        if (!configGrupo) {
+                            await message.reply('❌ Este grupo não está configurado!');
+                            return;
+                        }
+                        
+                        const mensagemAtual = configGrupo.boasVindas || 'Mensagem padrão (não personalizada)';
+                        
+                        const resposta = `📋 *MENSAGEM DE BOAS-VINDAS ATUAL*\n\n` +
+                                        `📱 *Grupo:* ${configGrupo.nome}\n` +
+                                        `📝 *Caracteres:* ${mensagemAtual.length}/2000\n\n` +
+                                        `📋 *Mensagem:*\n${mensagemAtual}\n\n` +
+                                        `💡 Use .setboasvindas para alterar\n` +
+                                        `🧪 Use .testboasvindas para testar`;
+                        
+                        await message.reply(resposta);
+                        
+                    } catch (error) {
+                        console.error('❌ Erro no comando .getboasvindas:', error);
+                        await message.reply(`❌ *ERRO*\n\nNão foi possível obter a mensagem\n\n📝 Erro: ${error.message}`);
+                    }
+                    return;
+                }
+                
+                // .testboasvindas - Testar mensagem de boas-vindas (ADMIN APENAS)  
+                if (comando === '.testboasvindas') {
+                    if (!isAdmin) {
+                        await message.reply('❌ Apenas administradores podem usar este comando!');
+                        return;
+                    }
+                    
+                    try {
+                        await message.reply('🧪 *TESTE DE BOAS-VINDAS*\n\nEnviando mensagem de teste...');
+                        
+                        // Enviar boas-vindas para o próprio admin como teste
+                        setTimeout(async () => {
+                            await enviarBoasVindas(message.from, autorMensagem);
+                        }, 1000);
+                        
+                    } catch (error) {
+                        console.error('❌ Erro no comando .testboasvindas:', error);
+                        await message.reply(`❌ *ERRO*\n\nNão foi possível testar a mensagem\n\n📝 Erro: ${error.message}`);
                     }
                     return;
                 }

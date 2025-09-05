@@ -41,7 +41,7 @@ class WhatsAppAI {
     }, 10 * 60 * 1000);
     
     const visionStatus = this.googleVisionEnabled ? 'Google Vision + GPT-4' : 'GPT-4 Vision';
-    console.log(`🧠 IA WhatsApp inicializada com ${visionStatus} e histórico expandido`);
+    console.log(`🧠 IA WhatsApp inicializada`);
   }
 
   // === RECONSTRUIR REFERÊNCIAS QUEBRADAS ===
@@ -156,11 +156,11 @@ class WhatsAppAI {
       // O primeiro item contém todo o texto detectado
       let textoCompleto = result.textAnnotations[0].description;
       console.log(`✅ Google Vision extraiu ${textoCompleto.length} caracteres`);
-      console.log(`📝 Texto extraído bruto: ${textoCompleto.substring(0, 200)}...`);
+      console.log(`📝 Texto extraído: ${textoCompleto.length} caracteres`);
 
       // PRÉ-PROCESSAMENTO: Tentar reconstruir referências quebradas
       textoCompleto = this.reconstruirReferenciasQuebradas(textoCompleto);
-      console.log(`🔧 Texto pós-processado: ${textoCompleto.substring(0, 200)}...`);
+      console.log(`🔧 Texto processado`);
 
       return textoCompleto;
 
@@ -278,9 +278,9 @@ Se não conseguires extrair os dados:
       const { textoComprovante, numeros } = this.separarComprovanteENumeros(legendaImagem, true);
       
       if (numeros.length > 0) {
-        console.log(`🎯 IMAGEM + NÚMEROS NA LEGENDA DETECTADOS!`);
-        console.log(`💰 Comprovante da imagem: ${comprovante.referencia} - ${comprovante.valor}MT`);
-        console.log(`📱 Números da legenda: ${numeros.join(', ')}`);
+        console.log(`🎯 Imagem + números detectados`);
+        console.log(`💰 Comprovante: ${comprovante.referencia}`);
+        console.log(`📱 Números detectados: ${numeros.length}`);
         
         // Processar imediatamente como pedido completo
         if (configGrupo && parseFloat(comprovante.valor) >= 32) {
@@ -655,7 +655,7 @@ Se não conseguires extrair os dados:
       const posicao = legendaLimpa.indexOf(numero);
       const comprimentoLegenda = legendaLimpa.length;
       
-      console.log(`   🔍 LEGENDA: Analisando ${numero} na posição ${posicao}/${comprimentoLegenda}`);
+      // Análise de número removida para privacidade
       
       // Contexto antes e depois do número
       const contextoBefore = legendaLimpa.substring(Math.max(0, posicao - 30), posicao).toLowerCase();
@@ -715,17 +715,17 @@ Se não conseguires extrair os dados:
       // LÓGICA DE DECISÃO MELHORADA PARA LEGENDAS
       if (eNumeroDestino || temPadraoTipico) {
         numerosValidos.push(numero);
-        console.log(`   ✅ LEGENDA: ACEITO por contexto/padrão: ${numero}`);
+        console.log(`   ✅ LEGENDA: Número aceito por contexto`);
       } else if (eNumeroPagamento) {
-        console.log(`   ❌ LEGENDA: REJEITADO por ser pagamento: ${numero}`);
+        console.log(`   ❌ LEGENDA: Número rejeitado (pagamento)`);
       } else if (estaNofinal) {
         // Se está no final e não é claramente pagamento, assumir destino
         numerosValidos.push(numero);
-        console.log(`   ✅ LEGENDA: ACEITO por estar no final: ${numero}`);
+        console.log(`   ✅ LEGENDA: Número aceito (final)`);
       } else {
         // Para legendas, ser mais permissivo que mensagens de texto
         numerosValidos.push(numero);
-        console.log(`   ✅ LEGENDA: ACEITO por padrão permissivo: ${numero}`);
+        console.log(`   ✅ LEGENDA: Número aceito (padrão)`);
       }
     }
     
@@ -802,15 +802,15 @@ Se não conseguires extrair os dados:
       
       if (eNumeroDestino) {
         numerosValidos.push(numero);
-        console.log(`   ✅ TEXTO: ACEITO por contexto de destino: ${numero}`);
+        console.log(`   ✅ TEXTO: Número aceito (destino)`);
       } else if (eNumeroPagamento) {
         // console.log(`   ❌ TEXTO: REJEITADO por ser pagamento: ${numero}`);
       } else if (estaIsoladoNoFinal) {
         numerosValidos.push(numero);
-        console.log(`   ✅ TEXTO: ACEITO por estar isolado no final: ${numero}`);
+        console.log(`   ✅ TEXTO: Número aceito (isolado)`);
       } else if (estaNofinalAbsoluto && !eNumeroPagamento) {
         numerosValidos.push(numero);
-        console.log(`   ✅ TEXTO: ACEITO por estar no final: ${numero}`);
+        console.log(`   ✅ TEXTO: Número aceito (final)`);
       } else {
         // console.log(`   ❌ TEXTO: REJEITADO por ser ambíguo: ${numero}`);
       }
@@ -863,8 +863,8 @@ Se não conseguires extrair os dados:
     // Limpar espaços extras
     textoComprovante = textoComprovante.replace(/\s+/g, ' ').trim();
     
-    console.log(`   📄 Texto do comprovante: ${textoComprovante.substring(0, 50)}...`);
-    console.log(`   📱 Números extraídos: ${numeros.join(', ')}`);
+    console.log(`   📄 Texto do comprovante processado`);
+    console.log(`   📱 Números extraídos: ${numeros.length}`);
     
     return {
       textoComprovante: textoComprovante,
@@ -1137,7 +1137,7 @@ Se não conseguires extrair os dados:
     });
 
     if (mensagensRecentes.length === 0) {
-      console.log(`   ❌ Nenhuma mensagem recente de ${remetente} nos últimos 30 minutos`);
+      console.log(`   ❌ Nenhuma mensagem recente nos últimos 30 min`);
       return null;
     }
 
@@ -1167,14 +1167,14 @@ Se não conseguires extrair os dados:
     
     // Log melhorado para debug
     if (tipoMensagem === 'imagem') {
-      console.log(`\n🧠 IA processando IMAGEM de ${remetente}`);
+      console.log(`\n🧠 IA processando IMAGEM`);
       if (legendaImagem && legendaImagem.trim().length > 0) {
         // console.log(`📝 Com legenda: "${legendaImagem.substring(0, 100)}..."`);
       } else {
         // console.log(`📝 Sem legenda ou legenda vazia`);
       }
     } else {
-      console.log(`\n🧠 IA processando TEXTO de ${remetente}: ${mensagem.substring(0, 50)}...`);
+      console.log(`\n🧠 IA processando TEXTO`);
     }
     
     // Adicionar ao histórico
@@ -1270,7 +1270,7 @@ Se não conseguires extrair os dados:
       
       // Extrair números da mensagem
       const numerosDetectados = mensagemLimpa.match(/8[0-9]{8}/g) || [];
-      console.log(`   📱 Números detectados: ${numerosDetectados.join(', ')}`);
+      console.log(`   📱 Números detectados: ${numerosDetectados.length}`);
       
       if (numerosDetectados.length > 0) {
         return await this.processarNumeros(numerosDetectados, remetente, timestamp, mensagem, configGrupo);
@@ -1290,7 +1290,7 @@ Se não conseguires extrair os dados:
     if (comprovante && numeros.length > 0) {
       console.log(`   🎯 COMPROVANTE + NÚMEROS na mesma mensagem!`);
       console.log(`   💰 Comprovante: ${comprovante.referencia} - ${comprovante.valor}MT`);
-      console.log(`   📱 Números: ${numeros.join(', ')}`);
+      console.log(`   📱 Números: ${numeros.length}`);
       
       // Processar imediatamente como pedido completo
       if (configGrupo && parseFloat(comprovante.valor) >= 32) {
@@ -1345,7 +1345,7 @@ Se não conseguires extrair os dados:
     
     // 3. Se encontrou apenas números (sem comprovante)
     if (numeros.length > 0 && !comprovante) {
-      console.log(`   📱 Apenas números detectados: ${numeros.join(', ')}`);
+      console.log(`   📱 Números detectados: ${numeros.length}`);
       return await this.processarNumeros(numeros, remetente, timestamp, mensagem, configGrupo);
     }
     
@@ -1396,7 +1396,7 @@ Se não conseguires extrair os dados:
 
   // === PROCESSAR IMAGEM (HÍBRIDO: GOOGLE VISION + GPT-4 COM FALLBACK) ===
   async processarImagem(imagemBase64, remetente, timestamp, configGrupo = null, legendaImagem = null) {
-    console.log(`📸 Processando imagem de ${remetente}`);
+    console.log(`📸 Processando imagem`);
     
     // Validação melhorada da legenda
     const temLegendaValida = legendaImagem && 
@@ -1528,7 +1528,7 @@ Se não conseguires ler a imagem ou extrair os dados:
 
   // === PROCESSAR NÚMEROS (MELHORADO) ===
   async processarNumeros(numeros, remetente, timestamp, mensagemOriginal, configGrupo = null) {
-    console.log(`   🔢 Processando ${numeros.length} número(s) para ${remetente}`);
+    console.log(`   🔢 Processando ${numeros.length} número(s)`);
     console.log(`   📝 Mensagem original: "${mensagemOriginal}"`);
     
     // Verificar se tem comprovante em aberto PRIMEIRO
@@ -1793,7 +1793,7 @@ Se não conseguires extrair, responde:
       fonte: comprovante.fonte
     };
 
-    console.log(`   ⏳ Comprovante de ${remetente} guardado, aguardando número...`);
+    console.log(`   ⏳ Comprovante guardado, aguardando número...`);
   }
 
   // === BUSCAR NO HISTÓRICO (MÚLTIPLOS) - MELHORADO ===
@@ -1807,7 +1807,7 @@ Se não conseguires extrair, responde:
     });
 
     if (mensagensRecentes.length === 0) {
-      console.log(`   ❌ Nenhuma mensagem recente de ${remetente} nos últimos 30 minutos`);
+      console.log(`   ❌ Nenhuma mensagem recente nos últimos 30 min`);
       return null;
     }
 

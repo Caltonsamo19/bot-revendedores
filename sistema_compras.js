@@ -70,8 +70,8 @@ class SistemaCompras {
     // === REGISTRAR NOVA COMPRA (AGUARDANDO CONFIRMAÇÃO) ===
     async registrarCompraPendente(referencia, numero, megas, remetente = null, grupoId = null) {
         try {
-            console.log(`🛒 COMPRAS: Registrando compra pendente - ${referencia} | ${numero} | ${megas}MB | Grupo: ${grupoId}`);
-            console.log(`🔍 DEBUG PENDENTE: remetente recebido = "${remetente}"`);
+            console.log(`🛒 Registrando compra pendente - ${referencia}`);
+            // Debug removido para privacidade
             
             // Adicionar à lista de pendentes
             this.comprasPendentes[referencia] = {
@@ -130,7 +130,7 @@ class SistemaCompras {
             
             // Registrar compra confirmada para o REMETENTE (quem comprou)
             const numeroComprador = remetente || numero; // Fallback para compatibilidade
-            console.log(`🔍 COMPRAS: Dados para parabenização - Remetente: ${remetente} | Número: ${numero} | Comprador final: ${numeroComprador}`);
+            console.log(`🔍 Processando parabenização`);
             await this.registrarCompraConfirmada(numeroComprador, megas, referencia, compraPendente.grupoId);
             
             // Remover das pendentes
@@ -200,7 +200,7 @@ class SistemaCompras {
                 await this.atualizarRankingGrupo(grupoId);
             }
             
-            console.log(`📊 COMPRAS: ${numero} - Total: ${cliente.comprasTotal} compras | ${cliente.megasTotal}MB | Grupo ${grupoId}: ${grupoId ? cliente.grupos[grupoId].compras : 0} compras`);
+            console.log(`📊 Cliente atualizado - ${cliente.comprasTotal} compras | ${cliente.megasTotal}MB`);
             
         } catch (error) {
             console.error('❌ COMPRAS: Erro ao registrar compra confirmada:', error);
@@ -278,7 +278,7 @@ class SistemaCompras {
             
             await this.salvarDados();
             
-            console.log(`🏆 RANKING: Grupo ${grupoId} atualizado - ${rankingGrupo.length} participantes`);
+            console.log(`🏆 Ranking atualizado - ${rankingGrupo.length} participantes`);
             
         } catch (error) {
             console.error('❌ COMPRAS: Erro ao atualizar ranking do grupo:', error);
@@ -383,7 +383,7 @@ class SistemaCompras {
             // Resetar contadores do grupo específico
             Object.entries(this.historicoCompradores).forEach(([numero, cliente]) => {
                 if (cliente.grupos[grupoId] && (cliente.grupos[grupoId].compras > 0 || cliente.grupos[grupoId].megas > 0)) {
-                    console.log(`🔄 COMPRAS: Resetando ranking do grupo ${grupoId} para ${numero} (${cliente.grupos[grupoId].compras} compras, ${cliente.grupos[grupoId].megas}MB)`);
+                    console.log(`🔄 Resetando cliente - ${cliente.grupos[grupoId].compras} compras`);
                     cliente.grupos[grupoId].compras = 0;
                     cliente.grupos[grupoId].megas = 0;
                     clientesResetados++;
@@ -398,7 +398,7 @@ class SistemaCompras {
             // Salvar dados
             await this.salvarDados();
             
-            console.log(`✅ COMPRAS: Ranking do grupo ${grupoId} resetado! ${clientesResetados} clientes afetados em ${dataReset}`);
+            console.log(`✅ Ranking resetado - ${clientesResetados} clientes afetados`);
             
             return {
                 success: true,
