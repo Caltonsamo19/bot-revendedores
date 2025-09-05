@@ -88,6 +88,114 @@ const ARQUIVO_MEMBROS = './dados_membros_entrada.json';
 
 // === FUNÇÕES DO SISTEMA DE REFERÊNCIA ===
 
+// Cache para controlar boas-vindas (evitar spam)
+let cacheBoasVindas = {}; // {grupoId_participantId: timestamp}
+let ultimosParticipantes = {}; // {grupoId: [participantIds]} - cache dos participantes
+
+// Sistema automático de detecção de novos membros
+async function iniciarMonitoramentoMembros() {
+    console.log('🕵️ Iniciando monitoramento automático de novos membros...');
+    
+    // Executar a cada 30 segundos
+    setInterval(async () => {
+        try {
+            await verificarNovosMembros();
+        } catch (error) {
+            console.error('❌ Erro no monitoramento de membros:', error);
+        }
+    }, 30000); // 30 segundos
+    
+    // Primeira execução após 10 segundos (para dar tempo do bot conectar)
+    setTimeout(async () => {
+        await verificarNovosMembros();
+    }, 10000);
+}
+
+// Verificar novos membros em todos os grupos monitorados
+async function verificarNovosMembros() {
+    for (const grupoId of Object.keys(CONFIGURACAO_GRUPOS)) {
+        try {
+            await detectarNovosMembrosGrupo(grupoId);
+        } catch (error) {
+            // Silencioso para não poluir logs
+        }
+    }
+}
+
+// Detectar novos membros em um grupo específico
+async function detectarNovosMembrosGrupo(grupoId) {
+    try {
+        const chat = await client.getChatById(grupoId);
+        const participants = await chat.participants;
+        const participantIds = participants.map(p => p.id._serialized);
+        
+        // Se é a primeira vez que verificamos este grupo
+        if (!ultimosParticipantes[grupoId]) {
+            ultimosParticipantes[grupoId] = participantIds;
+            return;
+        }
+        
+        // Encontrar novos participantes
+        const novosParticipantes = participantIds.filter(id => 
+            !ultimosParticipantes[grupoId].includes(id)
+        );
+        
+        // Processar novos membros
+        for (const participantId of novosParticipantes) {
+            await processarNovoMembro(grupoId, participantId);
+        }
+        
+        // Atualizar cache
+        ultimosParticipantes[grupoId] = participantIds;
+        
+    } catch (error) {
+        // Silencioso - grupo pode não existir ou bot não ter acesso
+    }
+}
+
+// Processar novo membro detectado
+async function processarNovoMembro(grupoId, participantId) {
+    try {
+        const configGrupo = getConfiguracaoGrupo(grupoId);
+        if (!configGrupo) return;
+        
+        const cacheKey = `${grupoId}_${participantId}`;
+        const agora = Date.now();
+        
+        // Verificar se já enviamos boas-vindas recentemente (últimas 24h)
+        if (cacheBoasVindas[cacheKey] && (agora - cacheBoasVindas[cacheKey]) < (24 * 60 * 60 * 1000)) {
+            return;
+        }
+        
+        console.log(`👋 NOVO MEMBRO DETECTADO: ${participantId} em ${configGrupo.nome}`);
+        
+        // Registrar entrada do membro
+        await registrarEntradaMembro(grupoId, participantId);
+        
+        // Marcar como processado
+        cacheBoasVindas[cacheKey] = agora;
+        
+        // Enviar boas-vindas com delay aleatório
+        setTimeout(async () => {
+            try {
+                await enviarBoasVindas(grupoId, participantId);
+                console.log(`✅ Boas-vindas enviadas para ${participantId}`);
+            } catch (error) {
+                console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error.message);
+            }
+        }, 3000 + (Math.random() * 5000)); // 3-8 segundos
+        
+    } catch (error) {
+        console.error('❌ Erro ao processar novo membro:', error);
+    }
+}
+
+// Detectar novo membro pela primeira mensagem (backup)
+async function detectarNovoMembro(grupoId, participantId, configGrupo) {
+    // Esta função agora é só um backup caso o monitoramento automático falhe
+    return;
+}
+
 // Registrar entrada de novo membro
 async function registrarEntradaMembro(grupoId, participantId) {
     try {
@@ -1597,17 +1705,14 @@ client.on('ready', async () => {
     });
     
     console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus');
+    
+    // Iniciar monitoramento automático de novos membros
+    await iniciarMonitoramentoMembros();
 });
 
 client.on('group-join', async (notification) => {
     try {
         const chatId = notification.chatId;
-        console.log(`🔔 EVENTO GROUP-JOIN DISPARADO!`);
-        console.log(`   📋 chatId: ${chatId}`);
-        console.log(`   👥 recipientIds:`, notification.recipientIds);
-        console.log(`   📊 notification:`, JSON.stringify(notification, null, 2));
-        
-        // Detectar se o bot foi adicionado
         const addedParticipants = notification.recipientIds || [];
         const botInfo = client.info;
         
@@ -1630,39 +1735,27 @@ client.on('group-join', async (notification) => {
             }, 3000);
         } else {
             // NOVOS MEMBROS (NÃO-BOT) ENTRARAM NO GRUPO
-            console.log(`🔍 Verificando se é entrada de novo membro...`);
-            console.log(`   📊 Total participantes: ${addedParticipants.length}`);
-            
             const configGrupo = getConfiguracaoGrupo(chatId);
-            console.log(`   ⚙️ Grupo configurado: ${configGrupo ? 'SIM' : 'NÃO'}`);
-            if (configGrupo) {
-                console.log(`   📋 Nome do grupo: ${configGrupo.nome}`);
-            }
             
             if (configGrupo) {
                 // Processar cada novo membro
                 for (const participantId of addedParticipants) {
                     try {
-                        console.log(`👋 PROCESSANDO NOVO MEMBRO: ${participantId}`);
+                        console.log(`👋 Novo membro: ${participantId} em ${configGrupo.nome}`);
                         
                         // Aguardar um pouco para evitar spam
                         setTimeout(async () => {
                             try {
-                                console.log(`⏰ EXECUTANDO enviarBoasVindas para ${participantId}`);
                                 await enviarBoasVindas(chatId, participantId);
-                                console.log(`✅ enviarBoasVindas FINALIZADA para ${participantId}`);
                             } catch (error) {
                                 console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
                             }
-                        }, 2000 + (Math.random() * 3000)); // Entre 2-5 segundos de delay aleatório
+                        }, 2000 + (Math.random() * 3000));
                         
                     } catch (error) {
                         console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
                     }
                 }
-            } else {
-                console.log(`⚠️ GRUPO NÃO CONFIGURADO - Boas-vindas não enviadas`);
-                console.log(`   🔧 Para configurar, adicione ${chatId} em CONFIGURACAO_GRUPOS`);
             }
         }
     } catch (error) {
@@ -2978,6 +3071,9 @@ client.on('message', async (message) => {
         if (!configGrupo || message.fromMe) {
             return;
         }
+
+        // === DETECÇÃO DE NOVOS MEMBROS (ALTERNATIVO) ===
+        await detectarNovoMembro(message.from, autorMensagem, configGrupo);
 
         // === MODERAÇÃO ===
         if (message.type === 'chat') {
