@@ -25,6 +25,21 @@ const GOOGLE_SHEETS_CONFIG = {
 
 console.log(`📊 Google Sheets configurado`);
 
+// Função helper para reply com fallback
+async function safeReply(message, client, texto) {
+    try {
+        await message.reply(texto);
+    } catch (error) {
+        console.log('⚠️ Erro no reply, usando sendMessage como fallback:', error.message);
+        try {
+            await client.sendMessage(message.from, texto);
+        } catch (fallbackError) {
+            console.error('❌ Erro também no sendMessage fallback:', fallbackError.message);
+            throw fallbackError;
+        }
+    }
+}
+
 // Criar instância do cliente
 const client = new Client({
     authStrategy: new LocalAuth({
@@ -649,11 +664,11 @@ NOME:   Alice Armando Nhaquila📝
     '258840161370-1471468657@g.us': {
         nome: 'Venda Automática 24/7',
         tabela: `TABELA ATUALIZADA
-TERÇA-FEIRA 05/10/2026 - 15:58:48
+10/10/2026 - 07:30:48 
 
 ___________________________
 
- PACOTE DIÁRIO ( 24H⏱) 
+ PACOTE DIÁRIO BÁSICO( 24H⏱) 
 1024MB    - 17,00 MT
 1200MB    - 20,00 MT
 2048MB   - 34,00 MT
@@ -673,7 +688,7 @@ Megabyte Renováveis!
 3000MB  - 66,00 MT
 4000MB  - 88,00 MT
 5000MB - 109,00 MT
-6000MB  - 129,00 MT
+6000MB  - 133,00 MT
 
 PACOTE SEMANAL BÁSICO (5 Dias🗓)
 Megabyte Renováveis!
@@ -686,21 +701,36 @@ Megabyte Renováveis!
 
  PACOTE SEMANAL PREMIUM ( 15 DIAS 🗓 ) 
 Megabyte Renováveis!
-5000MB - 189,00 MT
-8000MB - 249,00 MT
-10000MB - 349,00 MT
-20000MB - 449,00 MT
+5000MB - 149,00 MT
+8000MB - 201,00 MT
+10000MB - 231,00 MT
+20000MB - 352,00 MT
 
-PACOTE MENSAL(30 dias🗓)
+PACOTE MENSAL PREMIUM (30 dias🗓)
+Megabyte Renováveis!
+3198MB   - 104,00MT
+5298MB   - 184,00MT
+8398MB   - 229,00MT
+10498MB   - 254,00MT
+12598MB   - 294,00MT
+15698MB   - 349,00MT
+18798MB   - 414,00MT
+20898MB   - 468,00MT
+25998MB   - 529,00MT
+
+PACOTE MENSAL EXCLUSIVO (30 dias🗓)
 Não pode ter xtuna crédito
-3.1GB    - 100,00MT
-5.1GB     - 180,00MT
-12.8GB    - 250,00MT
-22.8GB   - 400,00MT
-32.8GB   - 550,00MT
-51.2GB   - 950,00MT
+32.8GB   - 649,00MT
+51.2GB   - 1049,00MT
+60.2GB   - 124900MT
+80.2GB   - 1449,00MT
+100.2GB   - 1700,00MT
 
-💎CHAMADAS TODAS REDES + SMS + NET:
+🔴🔴 VODACOM
+➖Chamadas +SMS ILIMITADAS ➖p/todas as redes +GB➖
+
+➖ SEMANAL (7dias)➖
+280mt = Ilimitado+ 7.5GB
 
 Mensal(30dias):
 450MT - Ilimitado + 11.5GB.
@@ -711,6 +741,20 @@ Mensal(30dias):
 2150MT - Ilimitado + 102.5GB
 
 PARA OS PACOTES MENSAIS, NÃO PODE TER TXUNA CRÉDITO.
+
+🟠🟠 MOVITEL
+➖Chamadas +SMS ILIMITADAS ➖p/todas as redes +GB➖
+
+➖ SEMANAL (7dias)➖
+280mt = Ilimitado+ 7.1GB
+
+🟠➖ MENSAL (30dias)➖ p./tds redes
+450mt = Ilimitado+ 9GB
+950mt = Ilimitado+ 23GB
+1450mt = Ilimitado+ 38GB
+1700mt = Ilimitado+ 46GB
+1900mt = Ilimitado+ 53GB
+2400mt = ilimitado+ 68GB
 
 Importante 🚨: Envie o valor que consta na tabela!
 `,
@@ -3408,12 +3452,12 @@ client.on('message', async (message) => {
 
         // Comandos de tabela e pagamento
         if (/tabela/i.test(message.body)) {
-            await message.reply(configGrupo.tabela);
+            await safeReply(message, client, configGrupo.tabela);
             return;
         }
 
         if (/pagamento/i.test(message.body)) {
-            await message.reply(configGrupo.pagamento);
+            await safeReply(message, client, configGrupo.pagamento);
             return;
         }
 
