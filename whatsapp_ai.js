@@ -167,159 +167,8 @@ Se não conseguires extrair os dados:
     }
   }
 
-  // === FUNÇÕES DE IMAGEM REMOVIDAS ===
-  // Processamento de imagens desativado para otimização
-  /*
-  async processarImagemHibrida_REMOVIDA(imagemBase64, remetente, timestamp, configGrupo = null, legendaImagem = null) {
-    console.log(`🔄 Método híbrido: Google Vision + GPT-4 para ${remetente}`);
-    
-    try {
-      // ETAPA 1: Tentar extrair texto com Google Vision
-      const textoExtraido = await this.extrairTextoGoogleVision(imagemBase64);
-      
-      // ETAPA 2: Interpretar texto com GPT-4 (mais barato que Vision)
-      const resultadoGPT = await this.interpretarComprovanteComGPT(textoExtraido);
-      
-      if (resultadoGPT.encontrado) {
-        console.log('✅ Método híbrido bem-sucedido!');
-        
-        const comprovante = {
-          referencia: resultadoGPT.referencia,
-          valor: this.limparValor(resultadoGPT.valor),
-          fonte: 'google_vision_gpt',
-          metodo: 'hibrido'
-        };
-        
-        return await this.processarComprovanteExtraido(comprovante, remetente, timestamp, configGrupo, legendaImagem);
-      } else {
-        console.log('⚠️ GPT não conseguiu interpretar o texto extraído');
-        throw new Error('Interpretação GPT falhou');
-      }
-      
-    } catch (error) {
-      console.error('❌ Método híbrido falhou:', error.message);
-      throw error; // Será capturado pelo fallback
-    }
-  }
-
-  // === PROCESSAR COMPROVANTE EXTRAÍDO (LÓGICA COMUM) ===
-  async processarComprovanteExtraido(comprovante, remetente, timestamp, configGrupo = null, legendaImagem = null) {
-    console.log(`✅ Dados extraídos: ${comprovante.referencia} - ${comprovante.valor}MT (${comprovante.metodo})`);
-    
-    // VERIFICAR SE HÁ LEGENDA COM NÚMEROS (VERSÃO MELHORADA)
-    const temLegendaValida = legendaImagem && 
-                            typeof legendaImagem === 'string' && 
-                            legendaImagem.trim().length > 0;
-    
-    if (temLegendaValida) {
-      console.log(`🔍 ANALISANDO LEGENDA DA IMAGEM...`);
-      
-      const { textoComprovante, numeros } = this.separarComprovanteENumeros(legendaImagem, true);
-      
-      if (numeros.length > 0) {
-        console.log(`🎯 Imagem + números detectados`);
-        console.log(`💰 Comprovante: ${comprovante.referencia}`);
-        console.log(`📱 Números detectados: ${numeros.length}`);
-        
-        // Processar imediatamente como pedido completo
-        if (configGrupo && parseFloat(comprovante.valor) >= 32) {
-          const analiseAutomatica = await this.analisarDivisaoAutomatica(comprovante.valor, configGrupo);
-          if (analiseAutomatica.deveDividir) {
-            const comprovanteComDivisao = {
-              referencia: comprovante.referencia,
-              valor: comprovante.valor,
-              timestamp: timestamp,
-              fonte: comprovante.fonte,
-              tipo: 'divisao_automatica',
-              analiseAutomatica: analiseAutomatica
-            };
-            
-            return await this.processarNumerosComDivisaoAutomatica(numeros, remetente, comprovanteComDivisao);
-          }
-        }
-        
-        // Processamento normal (sem divisão automática)
-        if (numeros.length === 1) {
-          // Verificar se valor existe na tabela (apenas para aviso)
-          if (configGrupo) {
-            const verificacao = this.verificarSeValorExisteNaTabela(comprovante.valor, configGrupo.tabela);
-            if (!verificacao.existe && verificacao.motivo === 'valor_nao_encontrado') {
-              console.log(`⚠️ VALOR NÃO ENCONTRADO NA TABELA: ${comprovante.valor}MT`);
-              // Continua o processamento mas retorna mensagem de aviso também
-              const resultado = `${comprovante.referencia}|${comprovante.valor}|${numeros[0]}`;
-              return { 
-                sucesso: true, 
-                dadosCompletos: resultado,
-                tipo: 'numero_processado_com_aviso',
-                numero: numeros[0],
-                fonte: comprovante.fonte,
-                metodo: comprovante.metodo,
-                valorPago: comprovante.valor,
-                megas: comprovante.valor,
-                avisoTabela: `⚠️ *ATENÇÃO*: O valor ${comprovante.valor}MT não foi encontrado na tabela de preços.\n\n📋 *Valores disponíveis:* ${verificacao.precosDisponiveis}\n\n⚡ Seu pedido foi processado, mas verifique se o valor está correto da próxima vez.`
-              };
-            }
-          }
-          
-          // Calcular megas baseado no valor e tabela do grupo
-          const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
-          const resultado = `${comprovante.referencia}|${megas}|${numeros[0]}`;
-          console.log(`✅ PEDIDO COMPLETO IMEDIATO (${comprovante.metodo}): ${resultado} (${comprovante.valor}MT → ${megas}MB)`);
-          return { 
-            sucesso: true, 
-            dadosCompletos: resultado,
-            tipo: 'numero_processado',
-            numero: numeros[0],
-            fonte: comprovante.fonte,
-            metodo: comprovante.metodo,
-            valorPago: comprovante.valor,
-            megas: megas
-          };
-        } else {
-          // Múltiplos números - dividir valor igualmente
-          const valorTotal = parseFloat(comprovante.valor);
-          const valorPorNumero = (valorTotal / numeros.length).toFixed(2);
-          
-          const resultados = numeros.map(numero => 
-            `${comprovante.referencia}|${valorPorNumero}|${numero}`
-          );
-          
-          console.log(`✅ PEDIDOS MÚLTIPLOS IMEDIATOS (${comprovante.metodo}): ${resultados.join(' + ')}`);
-          return { 
-            sucesso: true, 
-            dadosCompletos: resultados.join('\n'),
-            tipo: 'numeros_multiplos_processados',
-            numeros: numeros,
-            valorCada: valorPorNumero,
-            fonte: comprovante.fonte,
-            metodo: comprovante.metodo
-          };
-        }
-      } else {
-        console.log(`❌ Nenhum número válido encontrado na legenda`);
-      }
-    } else {
-      console.log(`⚠️ Legenda não disponível ou vazia`);
-    }
-    
-    // Sem números na legenda - processar comprovante normalmente
-    await this.processarComprovante(comprovante, remetente, timestamp);
-    
-    // Calcular megas para mostrar na mensagem
-    const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
-    
-    return { 
-      sucesso: true, 
-      tipo: 'comprovante_imagem_recebido',
-      referencia: comprovante.referencia,
-      valor: comprovante.valor,
-      megas: megas,
-      fonte: comprovante.fonte,
-      metodo: comprovante.metodo,
-      mensagem: `Comprovante processado com ${comprovante.metodo}! Agora envie o número que vai receber os megas.`
-    };
-  }
-  */ // FIM DA PRIMEIRA FUNÇÃO DE IMAGEM REMOVIDA
+  // === FUNÇÕES DE IMAGEM REMOVIDAS PARA OTIMIZAÇÃO ===
+  // processarImagemHibrida, extrairTextoGoogleVision, etc. - REMOVIDAS
 
   // === VERIFICAR SE VALOR EXISTE NA TABELA ===
   verificarSeValorExisteNaTabela(valor, tabelaTexto) {
@@ -1447,7 +1296,7 @@ Se não conseguires ler a imagem ou extrair os dados:
         mensagem: 'Erro ao processar imagem. Tente enviar como texto.'
       };
     }
-  }
+  */
 
   // === PROCESSAR COMPROVANTE COM DIVISÃO ===
   async processarComprovanteComDivisao(comprovante, remetente, timestamp, analiseAutomatica) {
@@ -1804,11 +1653,11 @@ Se não conseguires extrair, responde:
   // === LIMPAR VALOR MONETÁRIO ===
   limparValor(valor) {
     if (!valor) return '0';
-    
+
     let valorStr = valor.toString();
-    valorStr = valorStr.replace(/\s*(MT|mt|meticais?|metical)\s*/gi, '');
+    valorStr = valorStr.replace(new RegExp('\\s*(MT|mt|meticais?|metical)\\s*', 'gi'), '');
     valorStr = valorStr.trim();
-    
+
     if (valorStr.includes(',') && valorStr.includes('.')) {
       valorStr = valorStr.replace(/,/g, '');
     } else if (valorStr.includes(',')) {
@@ -1819,13 +1668,13 @@ Se não conseguires extrair, responde:
         valorStr = valorStr.replace(/,/g, '');
       }
     }
-    
-    const match = valorStr.match(/\d+\.?\d*/);
+
+    const match = valorStr.match(new RegExp('\\d+\\.?\\d*'));
     if (match) {
       const numero = parseFloat(match[0]);
       return numero.toString();
     }
-    
+
     const digitos = valorStr.replace(/[^\d]/g, '');
     return digitos || '0';
   }
@@ -1849,7 +1698,7 @@ Se não conseguires extrair, responde:
       this.historicoMensagens = this.historicoMensagens.slice(-this.maxHistorico);
     }
   }
-  */ // FIM DAS FUNÇÕES DE IMAGEM REMOVIDAS
+  // FIM DAS FUNÇÕES DE IMAGEM REMOVIDAS
 
   // === LIMPEZA (MELHORADA) ===
   limparComprovantesAntigos() {
