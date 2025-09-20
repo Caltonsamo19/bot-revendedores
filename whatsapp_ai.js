@@ -103,6 +103,31 @@ class WhatsAppAI {
     return textoProcessado;
   }
 
+  // === EXTRAIR VALOR CORRETO DO M-PESA ===
+  extrairValorMPesa(texto) {
+    // Procurar especificamente por "Transferiste X.XXMT"
+    const padraoTransferiste = /Transferiste\s+(\d+(?:[.,]\d{1,2})?)\s*MT/i;
+    const matchTransferiste = texto.match(padraoTransferiste);
+
+    if (matchTransferiste) {
+      const valor = matchTransferiste[1].replace(',', '.');
+      console.log(`💰 Valor extraído via regex: ${valor}MT (Transferiste)`);
+      return valor;
+    }
+
+    // Fallback: procurar outros padrões
+    const padraoValor = /(?:pagou|enviou|valor|quantia)[\s:]+(\d+(?:[.,]\d{1,2})?)\s*MT/i;
+    const matchValor = texto.match(padraoValor);
+
+    if (matchValor) {
+      const valor = matchValor[1].replace(',', '.');
+      console.log(`💰 Valor extraído via regex: ${valor}MT (padrão geral)`);
+      return valor;
+    }
+
+    return null;
+  }
+
   // === EXTRAIR TEXTO COM GOOGLE VISION ===
   // === GOOGLE VISION REMOVIDO PARA OTIMIZAÇÃO ===
   // Processamento de imagens desativado
@@ -126,12 +151,19 @@ INSTRUÇÕES IMPORTANTES:
 - Procura por "ID da transacao", "Confirmado", "Transferiste"
 - Junta códigos que aparecem próximos e parecem ser parte da mesma referência
 - O valor pode estar em formato "100.00MT", "100MT", "100,00MT"
+- ATENÇÃO: Procura pelo valor após "Transferiste" - NÃO o saldo da conta!
+- Exemplo: "Transferiste 17.00MT" = valor é 17.00, não o saldo mencionado depois
 
 EXEMPLOS DE RECONSTRUÇÃO:
 - Se vês "PP250901.1250.B" e depois "64186", a referência é "PP250901.1250.B64186"
 - Se vês "CI6H85P" e depois "TN4", a referência é "CI6H85PTN4"
 - Se vês "CHMOH4HICK" e depois "2", a referência é "CHMOH4HICK2"
 - Se vês texto como "CODIGO\n2.\nTransferiste", junta "CODIGO2"
+
+EXEMPLO REAL:
+Texto: "ID da transacao PP250920.1335.y04068. Transferiste 17.00MT para conta 871112049... O saldo da tua conta e 1.00MT"
+Resposta correta: {"referencia": "PP250920.1335.y04068", "valor": "17.00", "encontrado": true}
+NOTA: O valor é 17.00MT (transferido), NÃO 1.00MT (saldo)!
 
 Responde APENAS no formato JSON:
 {
@@ -158,7 +190,16 @@ Se não conseguires extrair os dados:
       
       const resultado = this.extrairJSON(resposta.choices[0].message.content);
       console.log(`✅ JSON extraído do texto:`, resultado);
-      
+
+      // Verificar se o GPT extraiu o valor correto usando fallback de regex
+      if (resultado.encontrado && resultado.valor) {
+        const valorRegex = this.extrairValorMPesa(textoExtraido);
+        if (valorRegex && parseFloat(valorRegex) !== parseFloat(resultado.valor)) {
+          console.log(`⚠️ Correção de valor: GPT extraiu ${resultado.valor}MT, regex encontrou ${valorRegex}MT`);
+          resultado.valor = valorRegex;
+        }
+      }
+
       return resultado;
 
     } catch (error) {
