@@ -259,7 +259,20 @@ class SistemaPacotes {
                 headers: { 'Content-Type': 'application/json' }
             });
             
-            if (!response.data || !response.data.includes('Sucesso!')) {
+            // Verificar resposta do script (compatível com string e JSON)
+            console.log(`🔍 PACOTES: Resposta do script (tipo: ${typeof response.data}):`, response.data);
+
+            let isSuccess = false;
+
+            if (typeof response.data === 'string') {
+                // Resposta em string (formato antigo)
+                isSuccess = response.data.includes('Sucesso') || response.data.includes('success');
+            } else if (response.data && typeof response.data === 'object') {
+                // Resposta em JSON (formato atual)
+                isSuccess = response.data.success === true;
+            }
+
+            if (!isSuccess) {
                 throw new Error(`Erro ao salvar pedido pacote: ${JSON.stringify(response.data)}`);
             }
             
