@@ -23,6 +23,12 @@ const GOOGLE_SHEETS_CONFIG = {
     retryDelay: 2000
 };
 
+// === CONFIGURAÇÃO DE PAGAMENTOS (MESMA PLANILHA DO BOT ATACADO) ===
+const PAGAMENTOS_CONFIG = {
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbzzifHGu1JXc2etzG3vqK5Jd3ihtULKezUTQQIDJNsr6tXx3CmVmKkOlsld0x1Feo0H/exec',
+    timeout: 30000
+};
+
 console.log(`📊 Google Sheets configurado`);
 
 // Função helper para reply com fallback
@@ -230,7 +236,7 @@ async function registrarEntradaMembro(grupoId, participantId) {
 // Salvar dados de membros
 async function salvarDadosMembros() {
     try {
-        await fs.writeFile(ARQUIVO_MEMBROS, JSON.stringify(membrosEntrada, null, 2));
+        await fs.writeFile(ARQUIVO_MEMBROS, JSON.stringify(membrosEntrada));
     } catch (error) {
         console.error('❌ Erro ao salvar dados de membros:', error);
     }
@@ -374,17 +380,49 @@ async function carregarDadosReferencia() {
 }
 
 // Salvar dados persistentes
+// === SISTEMA DE SALVAMENTO OTIMIZADO ===
+let salvamentoPendente = false;
+
 async function salvarDadosReferencia() {
+    // Evitar salvamentos simultâneos
+    if (salvamentoPendente) return;
+    salvamentoPendente = true;
+
     try {
-        await Promise.all([
-            fs.writeFile(ARQUIVO_CODIGOS, JSON.stringify(codigosReferencia, null, 2)),
-            fs.writeFile(ARQUIVO_REFERENCIAS, JSON.stringify(referenciasClientes, null, 2)),
-            fs.writeFile(ARQUIVO_BONUS, JSON.stringify(bonusSaldos, null, 2)),
-            fs.writeFile(ARQUIVO_SAQUES, JSON.stringify(pedidosSaque, null, 2))
+        // Usar Promise.allSettled para não falhar se um arquivo der erro
+        const resultados = await Promise.allSettled([
+            fs.writeFile(ARQUIVO_CODIGOS, JSON.stringify(codigosReferencia)),
+            fs.writeFile(ARQUIVO_REFERENCIAS, JSON.stringify(referenciasClientes)),
+            fs.writeFile(ARQUIVO_BONUS, JSON.stringify(bonusSaldos)),
+            fs.writeFile(ARQUIVO_SAQUES, JSON.stringify(pedidosSaque))
         ]);
+
+        // Log apenas se houve falhas
+        const falhas = resultados.filter(r => r.status === 'rejected');
+        if (falhas.length > 0) {
+            console.error('❌ Algumas escritas falharam:', falhas.length);
+        }
     } catch (error) {
         console.error('❌ Erro ao salvar dados de referência:', error);
+    } finally {
+        salvamentoPendente = false;
     }
+}
+
+// === SALVAMENTO COM DEBOUNCE (OTIMIZAÇÃO) ===
+let timeoutSalvamento = null;
+
+function agendarSalvamento() {
+    // Cancelar salvamento anterior se houver
+    if (timeoutSalvamento) {
+        clearTimeout(timeoutSalvamento);
+    }
+
+    // Agendar novo salvamento em 2 segundos
+    timeoutSalvamento = setTimeout(async () => {
+        agendarSalvamento();
+        timeoutSalvamento = null;
+    }, 2000);
 }
 
 // Gerar código único
@@ -469,7 +507,7 @@ async function processarBonusCompra(remetenteCompra, valorCompra) {
     }
 
     // Salvar dados
-    await salvarDadosReferencia();
+    agendarSalvamento();
     
     console.log(`   ✅ Bônus creditado: ${bonusAtual}MB (${referencia.comprasRealizadas}/5)`);
     
@@ -480,6 +518,59 @@ async function processarBonusCompra(remetenteCompra, valorCompra) {
         totalCompras: 5,
         novoSaldo: bonusSaldos[convidador].saldo
     };
+}
+
+// === FUNÇÃO PARA NORMALIZAR VALORES ===
+function normalizarValor(valor) {
+    if (typeof valor === 'number') return valor;
+    if (typeof valor === 'string') {
+        const valorLimpo = valor.replace(/[^\d]/g, '');
+        return parseInt(valorLimpo) || 0;
+    }
+    return 0;
+}
+
+// === FUNÇÃO PARA CALCULAR VALOR DO PEDIDO ===
+function calcularValorPedido(megas, precosGrupo) {
+    const megasNum = parseInt(megas) || 0;
+    if (precosGrupo && precosGrupo[megasNum]) {
+        return precosGrupo[megasNum];
+    }
+    // Fallback: calcular valor baseado em preço por MB (assumindo ~12.5MT/GB)
+    const valorPorMB = 12.5 / 1024; // ~0.012MT por MB
+    return Math.round(megasNum * valorPorMB);
+}
+
+// === FUNÇÃO PARA VERIFICAR PAGAMENTO ===
+async function verificarPagamentoIndividual(referencia, valorEsperado) {
+    try {
+        const valorNormalizado = normalizarValor(valorEsperado);
+
+        console.log(`🔍 REVENDEDORES: Verificando pagamento ${referencia} - ${valorNormalizado}MT (original: ${valorEsperado})`);
+
+        const response = await axios.post(PAGAMENTOS_CONFIG.scriptUrl, {
+            action: "buscar_por_referencia",
+            referencia: referencia,
+            valor: valorNormalizado
+        }, {
+            timeout: PAGAMENTOS_CONFIG.timeout,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.data && response.data.encontrado) {
+            console.log(`✅ REVENDEDORES: Pagamento encontrado!`);
+            return true;
+        }
+
+        console.log(`❌ REVENDEDORES: Pagamento não encontrado`);
+        return false;
+
+    } catch (error) {
+        console.error(`❌ REVENDEDORES: Erro ao verificar pagamento:`, error.message);
+        return false;
+    }
 }
 
 // Base de dados de compradores
@@ -1016,17 +1107,38 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
     }
 });
         
-        // Google Apps Script retorna texto simples: "Sucesso! REF|MEGAS|NUM [PENDENTE]"
-        const responseText = response.data || '';
-        console.log(`📥 Resposta Google Sheets: ${responseText}`);
-        
-        if (responseText.includes('Sucesso!')) {
-            console.log(`✅ Google Sheets: Dados enviados!`);
-            return { sucesso: true, row: 'N/A' };
-        } else if (responseText.includes('Erro:')) {
-            throw new Error(responseText);
+        // Google Apps Script agora retorna JSON
+        const responseData = response.data;
+        console.log(`📥 Resposta Google Sheets:`, JSON.stringify(responseData, null, 2));
+
+        // Verificar se é uma resposta JSON válida
+        if (typeof responseData === 'object') {
+            if (responseData.success) {
+                console.log(`✅ Google Sheets: Dados enviados!`);
+                return { sucesso: true, referencia: responseData.referencia, duplicado: false };
+            } else if (responseData.duplicado) {
+                console.log(`⚠️ Google Sheets: Pedido duplicado detectado - ${responseData.referencia} (Status: ${responseData.status_existente})`);
+                return {
+                    sucesso: false,
+                    duplicado: true,
+                    referencia: responseData.referencia,
+                    status_existente: responseData.status_existente,
+                    message: responseData.message
+                };
+            } else {
+                throw new Error(responseData.message || 'Erro desconhecido');
+            }
         } else {
-            throw new Error(`Resposta inesperada: ${responseText}`);
+            // Fallback para compatibilidade com resposta em texto
+            const responseText = String(responseData);
+            if (responseText.includes('Sucesso!')) {
+                console.log(`✅ Google Sheets: Dados enviados!`);
+                return { sucesso: true, row: 'N/A', duplicado: false };
+            } else if (responseText.includes('Erro:')) {
+                throw new Error(responseText);
+            } else {
+                throw new Error(`Resposta inesperada: ${responseText}`);
+            }
         }
         
     } catch (error) {
@@ -1063,7 +1175,7 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
         dadosParaTasker[dadosParaTasker.length - 1].metodo = 'google_sheets';
         dadosParaTasker[dadosParaTasker.length - 1].row = resultado.row;
         console.log(`✅ [${grupoNome}] Enviado para Google Sheets! Row: ${resultado.row}`);
-        
+
         // === REGISTRAR COMPRA PENDENTE NO SISTEMA DE COMPRAS ===
         if (sistemaCompras) {
             // Extrair apenas o número do autorMensagem (remover @c.us se houver)
@@ -1071,6 +1183,18 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
             console.log(`🔍 DEBUG COMPRA: autorMensagem="${autorMensagem}" | numeroRemetente="${numeroRemetente}" | numero="${numero}"`);
             await sistemaCompras.registrarCompraPendente(referencia, numero, valor, numeroRemetente, grupoId);
         }
+    } else if (resultado.duplicado) {
+        // Remover da lista local já que é duplicado
+        dadosParaTasker.pop();
+        console.log(`🛑 [${grupoNome}] Pedido duplicado detectado: ${referencia}`);
+
+        // Retornar informações do duplicado para o bot processar
+        return {
+            duplicado: true,
+            referencia: resultado.referencia,
+            status_existente: resultado.status_existente,
+            message: resultado.message
+        };
     } else {
         // Fallback para WhatsApp se Google Sheets falhar
         console.log(`🔄 [${grupoNome}] Google Sheets falhou, usando WhatsApp backup...`);
@@ -1078,8 +1202,8 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
         dadosParaTasker[dadosParaTasker.length - 1].metodo = 'whatsapp_backup';
     }
     
-    // Backup em arquivo
-    await salvarArquivoTasker(linhaCompleta, grupoNome, timestamp);
+    // === BACKUP REMOVIDO - OTIMIZAÇÃO ===
+    // Não salva mais arquivos .txt desnecessários
     
     // Manter apenas últimos 100 registros
     if (dadosParaTasker.length > 100) {
@@ -1107,21 +1231,9 @@ function enviarViaWhatsAppTasker(linhaCompleta, grupoNome, autorMensagem) {
     }
 }
 
-async function salvarArquivoTasker(linhaCompleta, grupoNome, timestamp) {
-    try {
-        // Arquivo principal para Tasker (apenas a linha)
-        await fs.appendFile('tasker_input.txt', linhaCompleta + '\n');
-        
-        // Log completo para histórico
-        const logLine = `${timestamp} | ${grupoNome} | ${linhaCompleta}\n`;
-        await fs.appendFile('tasker_log.txt', logLine);
-        
-        console.log(`📁 Arquivo → Backup: ${linhaCompleta}`);
-        
-    } catch (error) {
-        console.error('❌ Erro ao salvar arquivo Tasker:', error);
-    }
-}
+// === FUNÇÃO REMOVIDA PARA OTIMIZAÇÃO ===
+// Não salva mais arquivos .txt desnecessários
+// async function salvarArquivoTasker() - REMOVIDA
 
 function obterDadosTasker() {
     return dadosParaTasker;
@@ -1185,7 +1297,7 @@ async function carregarComandosCustomizados() {
 
 async function salvarComandosCustomizados() {
     try {
-        await fs.writeFile(ARQUIVO_COMANDOS, JSON.stringify(comandosCustomizados, null, 2));
+        await fs.writeFile(ARQUIVO_COMANDOS, JSON.stringify(comandosCustomizados));
         console.log('✅ Comandos customizados salvos');
     } catch (error) {
         console.error('❌ Erro ao salvar comandos:', error);
@@ -1697,13 +1809,32 @@ async function carregarHistorico() {
     }
 }
 
+// === SALVAMENTO DE HISTÓRICO OTIMIZADO ===
+let salvamentoHistoricoPendente = false;
+let timeoutHistorico = null;
+
 async function salvarHistorico() {
+    if (salvamentoHistoricoPendente) return;
+    salvamentoHistoricoPendente = true;
+
     try {
-        await fs.writeFile(ARQUIVO_HISTORICO, JSON.stringify(historicoCompradores, null, 2));
-        console.log('💾 Histórico salvo!');
+        await fs.writeFile(ARQUIVO_HISTORICO, JSON.stringify(historicoCompradores));
     } catch (error) {
         console.error('❌ Erro ao salvar histórico:', error);
+    } finally {
+        salvamentoHistoricoPendente = false;
     }
+}
+
+function agendarSalvamentoHistorico() {
+    if (timeoutHistorico) {
+        clearTimeout(timeoutHistorico);
+    }
+
+    timeoutHistorico = setTimeout(async () => {
+        agendarSalvamentoHistorico();
+        timeoutHistorico = null;
+    }, 3000); // 3 segundos para histórico
 }
 
 async function registrarComprador(grupoId, numeroComprador, nomeContato, valorTransferencia) {
@@ -1741,7 +1872,7 @@ async function registrarComprador(grupoId, numeroComprador, nomeContato, valorTr
             historicoCompradores[grupoId].compradores[numeroComprador].historico.slice(-10);
     }
 
-    await salvarHistorico();
+    agendarSalvamentoHistorico();
     console.log(`💰 Comprador registrado: ${nomeContato} (${numeroComprador}) - ${valorTransferencia}MT`);
 }
 
@@ -2073,9 +2204,9 @@ client.on('message', async (message) => {
                     return;
                 }
                 
-                // .pacotes_ativos - Listar clientes com pacotes ativos
+                // .pacotes_ativos - Listar clientes com pacotes ativos (do grupo atual)
                 if (comando === '.pacotes_ativos') {
-                    const lista = sistemaPacotes.listarClientesAtivos();
+                    const lista = sistemaPacotes.listarClientesAtivos(message.from);
                     await message.reply(lista);
                     return;
                 }
@@ -2084,6 +2215,17 @@ client.on('message', async (message) => {
                 if (comando === '.pacotes_stats') {
                     const stats = sistemaPacotes.obterEstatisticas();
                     await message.reply(stats);
+                    return;
+                }
+
+                // .pacotes_todos - Listar pacotes de TODOS os grupos (apenas admins globais)
+                if (comando === '.pacotes_todos') {
+                    if (!isAdministrador(autorMensagem)) {
+                        await message.reply('❌ *Acesso negado!* Apenas administradores globais podem ver pacotes de todos os grupos.');
+                        return;
+                    }
+                    const lista = sistemaPacotes.listarClientesAtivos(null); // null = todos os grupos
+                    await message.reply(lista);
                     return;
                 }
                 
@@ -2547,7 +2689,7 @@ client.on('message', async (message) => {
                             motivo: 'Bônus administrativo'
                         });
 
-                        await salvarDadosReferencia();
+                        agendarSalvamento();
 
                         const quantidadeFormatada = quantidadeMB >= 1024 ? `${(quantidadeMB/1024).toFixed(2)}GB` : `${quantidadeMB}MB`;
                         const novoSaldo = bonusSaldos[participantId].saldo;
@@ -3049,7 +3191,7 @@ client.on('message', async (message) => {
                         criado: new Date().toISOString(),
                         ativo: true
                     };
-                    await salvarDadosReferencia();
+                    agendarSalvamento();
                 }
                 
                 await message.reply(
@@ -3114,7 +3256,7 @@ client.on('message', async (message) => {
                     comprasRealizadas: 0
                 };
                 
-                await salvarDadosReferencia();
+                agendarSalvamento();
                 
                 const convidadorId = codigosReferencia[codigo].dono;
                 const nomeConvidador = codigosReferencia[codigo].nome;
@@ -3258,7 +3400,7 @@ client.on('message', async (message) => {
                     data: agora.toISOString()
                 });
                 
-                await salvarDadosReferencia();
+                agendarSalvamento();
                 
                 // Enviar para Tasker
                 try {
@@ -3346,103 +3488,15 @@ client.on('message', async (message) => {
             }
         }
 
-        // === PROCESSAMENTO DE IMAGENS ===
+        // === PROCESSAMENTO DE IMAGENS DESATIVADO ===
         if (message.type === 'image') {
-            console.log(`📸 Imagem recebida`);
-            
-            try {
-                const media = await message.downloadMedia();
-                
-                if (!media || !media.data) {
-                    throw new Error('Falha ao baixar imagem');
-                }
-                
-                const remetente = message.author || message.from;
-                const legendaImagem = message.body || null;
-                
-                if (legendaImagem) {
-                    console.log(`📝 Legenda da imagem detectada: ${legendaImagem.substring(0, 50)}...`);
-                }
-                
-                const resultadoIA = await ia.processarMensagemBot(media.data, remetente, 'imagem', configGrupo, legendaImagem);
-                
-                if (resultadoIA.sucesso) {
-                    
-                    if (resultadoIA.tipo === 'comprovante_recebido' || resultadoIA.tipo === 'comprovante_imagem_recebido') {
-                        const metodoInfo = resultadoIA.metodo ? ` (${resultadoIA.metodo})` : '';
-                        await message.reply(
-                            `✅ *Comprovante processado${metodoInfo}!*\n\n` +
-                            `💰 Referência: ${resultadoIA.referencia}\n` +
-                            `📊 Megas: ${resultadoIA.megas}\n\n` +
-                            `📱 *Envie UM número que vai receber ${resultadoIA.megas}!*`
-                        );
-                        return;
-                        
-                    } else if (resultadoIA.tipo === 'numero_processado_com_aviso') {
-                        const dadosCompletos = resultadoIA.dadosCompletos;
-                        const [referencia, megas, numero] = dadosCompletos.split('|');
-                        const nomeContato = message._data.notifyName || 'N/A';
-                        const autorMensagem = message.author || 'Desconhecido';
-                        
-                        // PROCESSAR BÔNUS DE REFERÊNCIA
-                        const bonusInfo = await processarBonusCompra(remetente, megas);
-                        
-                        await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
-                        await registrarComprador(message.from, numero, nomeContato, megas);
-                        
-                        if (message.from === ENCAMINHAMENTO_CONFIG.grupoOrigem) {
-                            const timestampMensagem = new Date().toLocaleString('pt-BR');
-                            adicionarNaFila(dadosCompletos, autorMensagem, configGrupo.nome, timestampMensagem);
-                        }
-                        
-                        // Enviar mensagem normal + aviso da tabela
-                        await message.reply(
-                            `✅ *Pedido Recebido!*\n\n` +
-                            `💰 Referência: ${referencia}\n` +
-                            `📊 Megas: ${megas} MB\n` +
-                            `📱 Número: ${numero}\n\n` +
-                            `${resultadoIA.avisoTabela}`
-                        );
-                        return;
-                        
-                    } else if (resultadoIA.tipo === 'numero_processado') {
-                        const dadosCompletos = resultadoIA.dadosCompletos;
-                        const [referencia, megas, numero] = dadosCompletos.split('|');
-                        const nomeContato = message._data.notifyName || 'N/A';
-                        const autorMensagem = message.author || 'Desconhecido';
-                        
-                        // PROCESSAR BÔNUS DE REFERÊNCIA
-                        const bonusInfo = await processarBonusCompra(remetente, megas);
-                        
-                        await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
-                        await registrarComprador(message.from, numero, nomeContato, megas);
-                        
-                        if (message.from === ENCAMINHAMENTO_CONFIG.grupoOrigem) {
-                            const timestampMensagem = new Date().toLocaleString('pt-BR');
-                            adicionarNaFila(dadosCompletos, autorMensagem, configGrupo.nome, timestampMensagem);
-                        }
-                        
-                        await message.reply(
-                            `✅ *Pedido Recebido!*\n\n` +
-                            `💰 Referência: ${referencia}\n` +
-                            `📊 Megas: ${megas}\n` +
-                            `📱 Número: ${numero}\n\n` +
-                            `_⏳Processando... Aguarde enquanto o Sistema executa a transferência_`
-                        );
-                        return;
-                    }
-                } else {
-                    await message.reply(
-                        `❌ *Não consegui processar o comprovante da imagem!*\n\n` +
-                        `📝 Envie o comprovante como texto.`
-                    );
-                }
-                
-            } catch (error) {
-                console.error('❌ Erro ao processar imagem:', error);
-                await message.reply(`❌ *Erro ao processar imagem!* Envie como texto.`);
-            }
-            
+            console.log(`📸 Imagem recebida - Processamento desativado`);
+
+            await message.reply(
+                '❌ Processamento de imagens desativado\n' +
+                '📄 Solicitamos que o comprovante seja enviado em formato de texto.\n\n' +
+                'ℹ️ Esta medida foi adotada para garantir que o sistema funcione de forma mais rápida, estável e com menos falhas.'
+            );
             return;
         }
 
@@ -3565,11 +3619,47 @@ client.on('message', async (message) => {
                 const [referencia, megas, numero] = dadosCompletos.split('|');
                 const nomeContato = message._data.notifyName || 'N/A';
                 const autorMensagem = message.author || 'Desconhecido';
-                
+
                 // PROCESSAR BÔNUS DE REFERÊNCIA
                 const bonusInfo = await processarBonusCompra(remetente, megas);
-                
-                await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+
+                // VERIFICAR PAGAMENTO ANTES DE ENVIAR PARA PLANILHA
+                const valorEsperado = calcularValorPedido(megas, configGrupo.precos);
+                const pagamentoConfirmado = await verificarPagamentoIndividual(referencia, valorEsperado);
+
+                if (!pagamentoConfirmado) {
+                    console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorEsperado}MT)`);
+                    await message.reply(
+                        `⏳ *AGUARDANDO CONFIRMAÇÃO DO PAGAMENTO*\n\n` +
+                        `💰 Referência: ${referencia}\n` +
+                        `📊 Megas: ${megas} MB\n` +
+                        `📱 Número: ${numero}\n` +
+                        `💳 Valor: ${valorEsperado}MT\n\n` +
+                        `🔍 Aguardando confirmação do pagamento no sistema...\n` +
+                        `⏰ ${new Date().toLocaleString('pt-BR')}`
+                    );
+                    return;
+                }
+
+                console.log(`✅ REVENDEDORES: Pagamento confirmado para texto! Processando...`);
+
+                const resultadoEnvio = await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+
+                // Verificar se é pedido duplicado
+                if (resultadoEnvio && resultadoEnvio.duplicado) {
+                    const statusTexto = resultadoEnvio.status_existente === 'PROCESSADO' ? 'já foi processado' : 'está pendente na fila';
+                    await message.reply(
+                        `⚠️ *PEDIDO DUPLICADO DETECTADO*\n\n` +
+                        `💰 Referência: ${referencia}\n` +
+                        `📊 Megas: ${megas} MB\n` +
+                        `📱 Número: ${numero}\n\n` +
+                        `❌ Este pedido ${statusTexto}.\n` +
+                        `📝 Status: ${resultadoEnvio.status_existente}\n\n` +
+                        `⏰ ${new Date().toLocaleString('pt-BR')}`
+                    );
+                    return;
+                }
+
                 await registrarComprador(message.from, numero, nomeContato, megas);
                 
                 if (message.from === ENCAMINHAMENTO_CONFIG.grupoOrigem) {
@@ -3592,11 +3682,47 @@ client.on('message', async (message) => {
                 const [referencia, megas, numero] = dadosCompletos.split('|');
                 const nomeContato = message._data.notifyName || 'N/A';
                 const autorMensagem = message.author || 'Desconhecido';
-                
+
                 // PROCESSAR BÔNUS DE REFERÊNCIA
                 const bonusInfo = await processarBonusCompra(remetente, megas);
-                
-                await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+
+                // VERIFICAR PAGAMENTO ANTES DE ENVIAR PARA PLANILHA
+                const valorEsperado = calcularValorPedido(megas, configGrupo.precos);
+                const pagamentoConfirmado = await verificarPagamentoIndividual(referencia, valorEsperado);
+
+                if (!pagamentoConfirmado) {
+                    console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorEsperado}MT)`);
+                    await message.reply(
+                        `⏳ *AGUARDANDO CONFIRMAÇÃO DO PAGAMENTO*\n\n` +
+                        `💰 Referência: ${referencia}\n` +
+                        `📊 Megas: ${megas} MB\n` +
+                        `📱 Número: ${numero}\n` +
+                        `💳 Valor: ${valorEsperado}MT\n\n` +
+                        `🔍 Aguardando confirmação do pagamento no sistema...\n` +
+                        `⏰ ${new Date().toLocaleString('pt-BR')}`
+                    );
+                    return;
+                }
+
+                console.log(`✅ REVENDEDORES: Pagamento confirmado para texto! Processando...`);
+
+                const resultadoEnvio = await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+
+                // Verificar se é pedido duplicado
+                if (resultadoEnvio && resultadoEnvio.duplicado) {
+                    const statusTexto = resultadoEnvio.status_existente === 'PROCESSADO' ? 'já foi processado' : 'está pendente na fila';
+                    await message.reply(
+                        `⚠️ *PEDIDO DUPLICADO DETECTADO*\n\n` +
+                        `💰 Referência: ${referencia}\n` +
+                        `📊 Megas: ${megas} MB\n` +
+                        `📱 Número: ${numero}\n\n` +
+                        `❌ Este pedido ${statusTexto}.\n` +
+                        `📝 Status: ${resultadoEnvio.status_existente}\n\n` +
+                        `⏰ ${new Date().toLocaleString('pt-BR')}`
+                    );
+                    return;
+                }
+
                 await registrarComprador(message.from, numero, nomeContato, megas);
                 
                 if (message.from === ENCAMINHAMENTO_CONFIG.grupoOrigem) {
@@ -3672,27 +3798,9 @@ setInterval(() => {
     }
 }, 60 * 60 * 1000);
 
-// Salvar dados de pacotes para Tasker a cada 30 minutos
-setInterval(async () => {
-    if (sistemaPacotes) {
-        try {
-            // Dados dos pacotes ativos
-            const dadosPacotes = obterDadosPacotesTasker();
-            await fs.writeFile('tasker_pacotes.json', JSON.stringify(dadosPacotes, null, 2));
-            
-            // Renovações pendentes
-            const renovacoesPendentes = obterRenovacoesPendentesTasker();
-            await fs.writeFile('tasker_renovacoes.json', JSON.stringify(renovacoesPendentes, null, 2));
-            
-            if (dadosPacotes.length > 0 || renovacoesPendentes.length > 0) {
-                console.log(`💾 Dados Tasker salvos: ${dadosPacotes.length} pacotes, ${renovacoesPendentes.length} renovações`);
-            }
-            
-        } catch (error) {
-            console.error('❌ Erro ao salvar dados Tasker:', error);
-        }
-    }
-}, 30 * 60 * 1000); // 30 minutos
+// === CACHE DESNECESSÁRIO REMOVIDO ===
+// Arquivos .json dos pacotes removidos para otimização
+// Dados disponíveis via comandos quando necessário
 
 // Limpar cache de grupos logados a cada 2 horas
 setInterval(() => {
@@ -3709,20 +3817,24 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 process.on('SIGINT', async () => {
-    console.log('\n💾 Salvando antes de sair...');
-    await salvarHistorico();
-    
-    // Salvar dados finais do Tasker
-    if (dadosParaTasker.length > 0) {
-        const dadosFinais = dadosParaTasker.map(d => d.dados).join('\n');
-        await fs.writeFile('tasker_backup_final.txt', dadosFinais);
-        console.log('💾 Backup final do Tasker salvo!');
+    console.log('\n💾 Salvando dados finais...');
+
+    try {
+        // Salvar apenas dados importantes (sem arquivos desnecessários)
+        await Promise.allSettled([
+            salvarDadosReferencia(),
+            salvarHistorico()
+        ]);
+
+        console.log('✅ Dados salvos com sucesso!');
+    } catch (error) {
+        console.error('❌ Erro ao salvar:', error);
     }
-    
+
     console.log('🧠 IA: ATIVA');
     console.log('📊 Google Sheets: CONFIGURADO');
     console.log(`🔗 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}`);
-    console.log('🤖 Bot Retalho - Funcionamento igual ao Bot Atacado');
+    console.log('🤖 Bot Retalho - Funcionamento otimizado');
     console.log(ia.getStatus());
     process.exit(0);
 });

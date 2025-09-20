@@ -457,19 +457,26 @@ class SistemaPacotes {
     // === COMANDOS ADMINISTRATIVOS ===
     
     // Listar clientes ativos
-    listarClientesAtivos() {
-        const clientes = Object.values(this.clientesAtivos);
-        
+    listarClientesAtivos(grupoIdFiltro = null) {
+        const todosClientes = Object.values(this.clientesAtivos);
+
+        // Filtrar por grupo se especificado
+        const clientes = grupoIdFiltro
+            ? todosClientes.filter(cliente => cliente.grupoId === grupoIdFiltro)
+            : todosClientes;
+
         if (clientes.length === 0) {
-            return `📦 *PACOTES ATIVOS*\n\n❌ Nenhum cliente com pacote ativo.`;
+            const textoGrupo = grupoIdFiltro ? ' neste grupo' : '';
+            return `📦 *PACOTES ATIVOS*\n\n❌ Nenhum cliente com pacote ativo${textoGrupo}.`;
         }
-        
-        let resposta = `📦 *PACOTES ATIVOS* (${clientes.length})\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-        
+
+        const textoGrupo = grupoIdFiltro ? ` - ESTE GRUPO` : ` - TODOS OS GRUPOS`;
+        let resposta = `📦 *PACOTES ATIVOS* (${clientes.length})${textoGrupo}\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
         clientes.forEach((cliente, index) => {
             const dataExpiracao = new Date(cliente.dataExpiracao);
             const diasAteExpiracao = Math.ceil((dataExpiracao - new Date()) / (24 * 60 * 60 * 1000));
-            
+
             resposta += `${index + 1}. **${cliente.numero}**\n`;
             resposta += `   📋 Ref: ${cliente.referenciaOriginal}\n`;
             resposta += `   📦 Tipo: ${this.TIPOS_PACOTES[cliente.tipoPacote].nome}\n`;

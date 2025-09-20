@@ -1,5 +1,5 @@
 const { OpenAI } = require("openai");
-const vision = require('@google-cloud/vision');
+// Google Vision removido - processamento de imagens desativado
 
 class WhatsAppAI {
   constructor(apiKey) {
@@ -8,40 +8,15 @@ class WhatsAppAI {
     this.historicoMensagens = [];
     this.maxHistorico = 200; // AUMENTADO: 200 mensagens para melhor histórico
     
-    // Configurar Google Vision
-    this.googleVisionEnabled = process.env.GOOGLE_VISION_ENABLED === 'true';
-    this.googleVisionTimeout = parseInt(process.env.GOOGLE_VISION_TIMEOUT) || 10000;
-    
-    if (this.googleVisionEnabled) {
-      try {
-        // Tentar inicializar Google Vision
-        if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-          // Usando arquivo de credenciais
-          this.visionClient = new vision.ImageAnnotatorClient();
-          console.log('🔍 Google Vision inicializado com arquivo de credenciais');
-        } else if (process.env.GOOGLE_VISION_API_KEY) {
-          // Usando API Key
-          this.visionClient = new vision.ImageAnnotatorClient({
-            apiKey: process.env.GOOGLE_VISION_API_KEY
-          });
-          console.log('🔍 Google Vision inicializado com API Key');
-        } else {
-          console.log('⚠️ Google Vision desabilitado: credenciais não encontradas');
-          this.googleVisionEnabled = false;
-        }
-      } catch (error) {
-        console.error('❌ Erro ao inicializar Google Vision:', error.message);
-        this.googleVisionEnabled = false;
-      }
-    }
+    // Processamento de imagens desativado para otimização
+    this.googleVisionEnabled = false;
     
     // Limpeza automática a cada 10 minutos
     setInterval(() => {
       this.limparComprovantesAntigos();
     }, 10 * 60 * 1000);
     
-    const visionStatus = this.googleVisionEnabled ? 'Google Vision + GPT-4' : 'GPT-4 Vision';
-    console.log(`🧠 IA WhatsApp inicializada`);
+    console.log(`🧠 IA WhatsApp inicializada - Processamento apenas de TEXTO`);
   }
 
   // === RECONSTRUIR REFERÊNCIAS QUEBRADAS ===
@@ -129,46 +104,8 @@ class WhatsAppAI {
   }
 
   // === EXTRAIR TEXTO COM GOOGLE VISION ===
-  async extrairTextoGoogleVision(imagemBase64) {
-    if (!this.googleVisionEnabled || !this.visionClient) {
-      throw new Error('Google Vision não está disponível');
-    }
-
-    try {
-      console.log('🔍 Extraindo texto com Google Vision...');
-      
-      // Preparar imagem para Google Vision
-      const imageBuffer = Buffer.from(imagemBase64, 'base64');
-      
-      // Chamar Google Vision API com timeout
-      const [result] = await Promise.race([
-        this.visionClient.textDetection({ image: { content: imageBuffer } }),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Google Vision timeout')), this.googleVisionTimeout)
-        )
-      ]);
-
-      if (!result.textAnnotations || result.textAnnotations.length === 0) {
-        console.log('⚠️ Google Vision não encontrou texto na imagem');
-        throw new Error('Nenhum texto encontrado na imagem');
-      }
-
-      // O primeiro item contém todo o texto detectado
-      let textoCompleto = result.textAnnotations[0].description;
-      console.log(`✅ Google Vision extraiu ${textoCompleto.length} caracteres`);
-      console.log(`📝 Texto extraído: ${textoCompleto.length} caracteres`);
-
-      // PRÉ-PROCESSAMENTO: Tentar reconstruir referências quebradas
-      textoCompleto = this.reconstruirReferenciasQuebradas(textoCompleto);
-      console.log(`🔧 Texto processado`);
-
-      return textoCompleto;
-
-    } catch (error) {
-      console.error('❌ Erro no Google Vision:', error.message);
-      throw error;
-    }
-  }
+  // === GOOGLE VISION REMOVIDO PARA OTIMIZAÇÃO ===
+  // Processamento de imagens desativado
 
   // === INTERPRETAR COMPROVANTE COM GPT (TEXTO PURO) ===
   async interpretarComprovanteComGPT(textoExtraido) {
@@ -230,8 +167,10 @@ Se não conseguires extrair os dados:
     }
   }
 
-  // === PROCESSAR IMAGEM COM MÉTODO HÍBRIDO (NOVA FUNÇÃO PRINCIPAL) ===
-  async processarImagemHibrida(imagemBase64, remetente, timestamp, configGrupo = null, legendaImagem = null) {
+  // === FUNÇÕES DE IMAGEM REMOVIDAS ===
+  // Processamento de imagens desativado para otimização
+  /*
+  async processarImagemHibrida_REMOVIDA(imagemBase64, remetente, timestamp, configGrupo = null, legendaImagem = null) {
     console.log(`🔄 Método híbrido: Google Vision + GPT-4 para ${remetente}`);
     
     try {
@@ -380,6 +319,7 @@ Se não conseguires extrair os dados:
       mensagem: `Comprovante processado com ${comprovante.metodo}! Agora envie o número que vai receber os megas.`
     };
   }
+  */ // FIM DA PRIMEIRA FUNÇÃO DE IMAGEM REMOVIDA
 
   // === VERIFICAR SE VALOR EXISTE NA TABELA ===
   verificarSeValorExisteNaTabela(valor, tabelaTexto) {
@@ -1164,28 +1104,25 @@ Se não conseguires extrair os dados:
   // === FUNÇÃO PRINCIPAL PARA O BOT (MELHORADA) ===
   async processarMensagemBot(mensagem, remetente, tipoMensagem = 'texto', configGrupo = null, legendaImagem = null) {
     const timestamp = Date.now();
-    
-    // Log melhorado para debug
+
+    // PROCESSAMENTO DE IMAGENS DESATIVADO
     if (tipoMensagem === 'imagem') {
-      console.log(`\n🧠 IA processando IMAGEM`);
-      if (legendaImagem && legendaImagem.trim().length > 0) {
-        // console.log(`📝 Com legenda: "${legendaImagem.substring(0, 100)}..."`);
-      } else {
-        // console.log(`📝 Sem legenda ou legenda vazia`);
-      }
-    } else {
-      console.log(`\n🧠 IA processando TEXTO`);
+      console.log(`\n🚫 IMAGEM REJEITADA - Processamento desativado`);
+      return {
+        sucesso: false,
+        erro: true,
+        tipo: 'imagem_desativada',
+        mensagem: 'Processamento de imagens desativado para otimização'
+      };
     }
-    
+
+    console.log(`\n🧠 IA processando TEXTO`);
+
     // Adicionar ao histórico
     this.adicionarAoHistorico(mensagem, remetente, timestamp, tipoMensagem);
-    
+
     try {
-      if (tipoMensagem === 'imagem') {
-        return await this.processarImagem(mensagem, remetente, timestamp, configGrupo, legendaImagem);
-      } else {
-        return await this.processarTexto(mensagem, remetente, timestamp, configGrupo);
-      }
+      return await this.processarTexto(mensagem, remetente, timestamp, configGrupo);
     } catch (error) {
       console.error('❌ Erro na IA:', error);
       return { erro: true, mensagem: error.message };
@@ -1394,8 +1331,10 @@ Se não conseguires extrair os dados:
     };
   }
 
-  // === PROCESSAR IMAGEM (HÍBRIDO: GOOGLE VISION + GPT-4 COM FALLBACK) ===
-  async processarImagem(imagemBase64, remetente, timestamp, configGrupo = null, legendaImagem = null) {
+  // === FUNÇÕES DE PROCESSAMENTO DE IMAGEM REMOVIDAS ===
+  // processarImagem, processarImagemGPTVision, etc. - REMOVIDAS
+  /*
+  async processarImagem_REMOVIDA(imagemBase64, remetente, timestamp, configGrupo = null, legendaImagem = null) {
     console.log(`📸 Processando imagem`);
     
     // Validação melhorada da legenda
@@ -1910,6 +1849,7 @@ Se não conseguires extrair, responde:
       this.historicoMensagens = this.historicoMensagens.slice(-this.maxHistorico);
     }
   }
+  */ // FIM DAS FUNÇÕES DE IMAGEM REMOVIDAS
 
   // === LIMPEZA (MELHORADA) ===
   limparComprovantesAntigos() {
@@ -1939,44 +1879,35 @@ Se não conseguires extrair, responde:
     };
   }
 
-  // === FUNÇÃO PARA COMANDOS ADMIN (ATUALIZADA COM GOOGLE VISION) ===
+  // === FUNÇÃO PARA COMANDOS ADMIN (OTIMIZADA) ===
   getStatusDetalhado() {
-    let status = `🧠 *STATUS DA IA MELHORADA v4.0*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    
+    let status = `🧠 *STATUS DA IA OTIMIZADA v5.0*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
     status += `💾 Mensagens no histórico: ${this.historicoMensagens.length}\n`;
     status += `⏳ Comprovantes em aberto: ${Object.keys(this.comprovantesEmAberto).length}\n\n`;
-    
-    // Status do Google Vision
-    status += `🔍 *SISTEMA DE PROCESSAMENTO DE IMAGENS:*\n`;
-    if (this.googleVisionEnabled) {
-      status += `✅ Google Vision: ATIVO\n`;
-      status += `🔄 Fallback: GPT-4 Vision\n`;
-      status += `⚡ Método híbrido: Google Vision OCR + GPT-4 interpretação\n`;
-      status += `⏱️ Timeout: ${this.googleVisionTimeout}ms\n\n`;
-    } else {
-      status += `❌ Google Vision: DESABILITADO\n`;
-      status += `🧠 Usando: GPT-4 Vision apenas\n\n`;
-    }
-    
+
+    // Status otimizado
+    status += `🔍 *SISTEMA DE PROCESSAMENTO:*\n`;
+    status += `❌ Processamento de imagens: DESATIVADO\n`;
+    status += `✅ Processamento de texto: ATIVO\n`;
+    status += `⚡ Sistema otimizado para velocidade\n\n`;
+
     if (Object.keys(this.comprovantesEmAberto).length > 0) {
       status += `📋 *Comprovantes aguardando número:*\n`;
       Object.entries(this.comprovantesEmAberto).forEach(([remetente, comp]) => {
         const tempo = Math.floor((Date.now() - comp.timestamp) / 60000);
         const tipo = comp.tipo === 'divisao_automatica' ? ' 🧮' : '';
-        const metodo = comp.metodo ? ` [${comp.metodo}]` : '';
-        status += `• ${remetente.replace('@c.us', '')}: ${comp.referencia} - ${comp.valor}MT${tipo}${metodo} (${tempo}min)\n`;
+        status += `• ${remetente.replace('@c.us', '')}: ${comp.referencia} - ${comp.valor}MT${tipo} (${tempo}min)\n`;
       });
     }
-    
-    status += `\n🔧 *MELHORIAS APLICADAS v4.0:*\n`;
-    status += `🆕 Google Vision OCR integrado!\n`;
-    status += `🆕 Método híbrido para maior precisão!\n`;
-    status += `🆕 Fallback automático para GPT-4 Vision!\n`;
-    status += `🆕 Sistema redundante de processamento!\n`;
-    status += `✅ Detecção de legendas CORRIGIDA!\n`;
-    status += `✅ Validação de dados melhorada!\n`;
-    status += `✅ Logs mais detalhados!\n`;
-    status += `✅ Tratamento de erros robusto!\n`;
+
+    status += `\n🚀 *OTIMIZAÇÕES APLICADAS v5.0:*\n`;
+    status += `✅ Processamento de imagens removido\n`;
+    status += `✅ Google Vision removido\n`;
+    status += `✅ Sistema mais rápido e estável\n`;
+    status += `✅ Menor uso de recursos\n`;
+    status += `✅ Verificação de pagamentos ativa\n`;
+    status += `✅ Detecção de duplicatas ativa\n`;
     status += `✅ Contexto de legendas otimizado!\n`;
     status += `✅ Padrões de números expandidos!\n`;
     status += `✅ Divisão automática estável!\n`;
