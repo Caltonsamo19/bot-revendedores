@@ -226,14 +226,21 @@ class SistemaCompras {
             
             if (posicao.posicao === 1) {
                 // Cliente em 1º lugar - usar placeholder para nome
-                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER! Compra ${comprasGrupo}ª neste grupo! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
-                mensagem += `🏆 Você está em 1º lugar no ranking do grupo! Continue comprando para se manter no topo!`;
+                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${comprasGrupo}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                mensagem += `Você está em 1º lugar no ranking. Continue comprando para se manter no topo e garantir seus bônus de líder! 🏆`;
             } else {
                 // Cliente não está em 1º lugar - usar placeholder para nome
                 const liderMegas = lider.megas >= 1024 ? `${(lider.megas/1024).toFixed(1)} GB` : `${lider.megas} MB`;
-                
-                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER! Compra ${comprasGrupo}ª neste grupo! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
-                mensagem += `🏅 Você está em ${posicao.posicao}º lugar no ranking do grupo. Continue comprando! O líder já acumulou ${liderMegas}!`;
+
+                if (comprasGrupo === 1) {
+                    // Primeira compra do dia
+                    mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua 1ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                    mensagem += `Você está em ${posicao.posicao}º lugar no ranking. Está quase lá! Continue comprando para alcançar o topo. O líder já acumulou ${liderMegas}! 🏆`;
+                } else {
+                    // Múltiplas compras
+                    mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${comprasGrupo}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                    mensagem += `Você está em ${posicao.posicao}º lugar no ranking. Continue comprando para subir e desbloquear bônus especiais. O líder já acumulou ${liderMegas}! 🏆`;
+                }
             }
             
             return {
@@ -244,7 +251,7 @@ class SistemaCompras {
         } catch (error) {
             console.error('❌ COMPRAS: Erro ao gerar mensagem:', error);
             return {
-                mensagem: `🎉 Obrigado, @NOME_PLACEHOLDER! Compra registrada com sucesso!`,
+                mensagem: `🎉 Obrigado, @NOME_PLACEHOLDER, sua compra foi registrada com sucesso!`,
                 contactId: numero + '@c.us'
             };
         }
