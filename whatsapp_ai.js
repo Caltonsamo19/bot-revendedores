@@ -1147,6 +1147,7 @@ Se não conseguires extrair os dados:
           dadosCompletos: resultado,
           tipo: 'numero_processado',
           numero: numeros[0],
+          valorComprovante: comprovante.valor,
           valorPago: comprovante.valor,
           megas: megas
         };
@@ -1382,6 +1383,7 @@ Se não conseguires ler a imagem ou extrair os dados:
           dadosCompletos: resultado,
           tipo: 'numero_processado',
           numero: numeros[0],
+          valorComprovante: comprovante.valor,
           origem: 'comprovante_em_aberto',
           valorPago: comprovante.valor,
           megas: megas

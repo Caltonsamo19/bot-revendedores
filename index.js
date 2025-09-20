@@ -3624,17 +3624,18 @@ client.on('message', async (message) => {
                 const bonusInfo = await processarBonusCompra(remetente, megas);
 
                 // VERIFICAR PAGAMENTO ANTES DE ENVIAR PARA PLANILHA
-                const valorEsperado = calcularValorPedido(megas, configGrupo.precos);
-                const pagamentoConfirmado = await verificarPagamentoIndividual(referencia, valorEsperado);
+                // Usar o valor real do comprovante (não o valor calculado dos megas)
+                const valorComprovante = resultadoIA.valorComprovante || megas;
+                const pagamentoConfirmado = await verificarPagamentoIndividual(referencia, valorComprovante);
 
                 if (!pagamentoConfirmado) {
-                    console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorEsperado}MT)`);
+                    console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorComprovante}MT)`);
                     await message.reply(
                         `⏳ *AGUARDANDO CONFIRMAÇÃO DO PAGAMENTO*\n\n` +
                         `💰 Referência: ${referencia}\n` +
                         `📊 Megas: ${megas} MB\n` +
                         `📱 Número: ${numero}\n` +
-                        `💳 Valor: ${valorEsperado}MT\n\n` +
+                        `💳 Valor: ${valorComprovante}MT\n\n` +
                         `🔍 Aguardando confirmação do pagamento no sistema...\n` +
                         `⏰ ${new Date().toLocaleString('pt-BR')}`
                     );
@@ -3687,17 +3688,18 @@ client.on('message', async (message) => {
                 const bonusInfo = await processarBonusCompra(remetente, megas);
 
                 // VERIFICAR PAGAMENTO ANTES DE ENVIAR PARA PLANILHA
-                const valorEsperado = calcularValorPedido(megas, configGrupo.precos);
-                const pagamentoConfirmado = await verificarPagamentoIndividual(referencia, valorEsperado);
+                // Usar o valor real do comprovante (não o valor calculado dos megas)
+                const valorComprovante = resultadoIA.valorComprovante || megas;
+                const pagamentoConfirmado = await verificarPagamentoIndividual(referencia, valorComprovante);
 
                 if (!pagamentoConfirmado) {
-                    console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorEsperado}MT)`);
+                    console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorComprovante}MT)`);
                     await message.reply(
                         `⏳ *AGUARDANDO CONFIRMAÇÃO DO PAGAMENTO*\n\n` +
                         `💰 Referência: ${referencia}\n` +
                         `📊 Megas: ${megas} MB\n` +
                         `📱 Número: ${numero}\n` +
-                        `💳 Valor: ${valorEsperado}MT\n\n` +
+                        `💳 Valor: ${valorComprovante}MT\n\n` +
                         `🔍 Aguardando confirmação do pagamento no sistema...\n` +
                         `⏰ ${new Date().toLocaleString('pt-BR')}`
                     );
