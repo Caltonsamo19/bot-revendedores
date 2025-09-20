@@ -755,8 +755,6 @@ NOME:   Alice Armando Nhaquila📝
     '258840161370-1471468657@g.us': {
         nome: 'Venda Automática 24/7',
         tabela: `TABELA ATUALIZADA
-10/10/2026 - 07:30:48 
-
 ___________________________
 
  PACOTE DIÁRIO BÁSICO( 24H⏱) 
@@ -774,12 +772,14 @@ ___________________________
 10240MB  - 170,00 MT
 
  PACOTE DIÁRIO PREMIUM ( 3 DIAS 🗓) 
-Megabyte Renováveis!
+Megabyte Renováveis! 
 2000MB  - 44,00 MT
 3000MB  - 66,00 MT
 4000MB  - 88,00 MT
 5000MB - 109,00 MT
 6000MB  - 133,00 MT
+7000MB  - 149,00 MT
+10000MB  - 219,00 MT
 
 PACOTE SEMANAL BÁSICO (5 Dias🗓)
 Megabyte Renováveis!
@@ -792,6 +792,7 @@ Megabyte Renováveis!
 
  PACOTE SEMANAL PREMIUM ( 15 DIAS 🗓 ) 
 Megabyte Renováveis!
+3000MB - 100,00 MT
 5000MB - 149,00 MT
 8000MB - 201,00 MT
 10000MB - 231,00 MT
@@ -839,7 +840,7 @@ PARA OS PACOTES MENSAIS, NÃO PODE TER TXUNA CRÉDITO.
 ➖ SEMANAL (7dias)➖
 280mt = Ilimitado+ 7.1GB
 
-🟠➖ MENSAL (30dias)➖ p./tds redes
+➖ MENSAL (30dias)➖ p./tds redes
 450mt = Ilimitado+ 9GB
 950mt = Ilimitado+ 23GB
 1450mt = Ilimitado+ 38GB
@@ -948,7 +949,9 @@ Bem-vindo à família VIP! 🔥`,
 📦PACOTE DIÁRIO📦
 
 🛜512MB = 10MT
+🛜768MB = 16MT
 🛜1024MB = 18MT
+🛜1280MB = 25MT
 🛜2048MB = 36MT
 🛜3072MB = 54MT
 🛜4096MB = 72MT
@@ -958,7 +961,6 @@ Bem-vindo à família VIP! 🔥`,
 🛜8192MB = 144MB
 🛜9216MB = 162MB
 🛜10240MB = 180MT
-🛜20480MB = 360MT
 
 PACOTE SEMANAL🛒📦
 ⚠ Vai receber 100MB por dia durante 6 dias, totalizando +0.6GB. ⚠
@@ -969,20 +971,14 @@ PACOTE SEMANAL🛒📦
 🛜7.0GB = 175MT 
 🛜10.0GB = 265MT
 🛜14.0GB = 362MT
+━━━━━━━━━━━━━━━━━━━━━━
+🚨Para pacote MENSAL é só entrar em contato com o número abaixo 👇👇🚨
 
-📦PACOTE MENSAL📦
-⚠Não deve ter txuna crédito⚠
-
-📊2.8GB = 95MT
-📊3.8GB = 125MT
-📊4.8GB = 145MT
-📊5.8GB = 165MT
-📊6.8GB = 195MT
-📊7.8GB = 215MT
-📊10.8GB = 285MT
-📊12.8GB = 345MT
-📊20.8GB = 565MT
-
+https://wa.me/258865627840?text=%20Quero%20pacote%20mensal?%20
+━━━━━━━━━━━━━━━━━━━━━━
+🚨Para pacote ILIMITADO é só entrar em contato com o número abaixo 👇👇🚨
+https://wa.me/258865627840?text=%20Quero%20pacote%20ilimitado?%20
+━━━━━━━━━━━━━━━━━━━━━━
 
 FORMA DE PAGAMENTO:
 💳💸
@@ -1002,60 +998,84 @@ Adquira já os teus megas com segurança, confiança e rapidez!🚨🔥
 📌 E-MOLA: 865627840 
     Nome: Alexandre Uanela  
 
-📮 _Apos a transferência do valor envie o comprovativo da transação ou a chave da mensagem 📸📂
+📮 Após a transferência enviei o comprovante em forma do cópia junto com seu número.
+ 
+> 1. 🚨Não mande comprovativo em formato de imagem 📸🚨
+
+> 2.  🚨 Não mande valor que não têm na tabela🚨
 
 🚀 O futuro é agora! Vamos? 🔥🛒
 `
     },
-    '120363152151047451@g.us': {
-        nome: 'MEGA PROMO VODACOM',
-        tabela: `🔥 MEGA PROMO VODACOM
-━━━━━━━━━━━━━━━
+    '120363023150137820@g.us': {
+        nome: 'NET VODACOM ACESSÍVEL',
+        tabela: `🚨📱 INTERNET VODACOM COM OS MELHORES PREÇOS!
+Mega Promoção da NET DA VODACOM ACESSÍVEL — Conecte-se já! 🚀
 
-PACOTES DIÁRIOS 24h
-1050MB = 18MT
-1200MB = 20MT
-2400MB = 40MT
-3600MB = 60MT
-10240MB = 180MT
+📅 PACOTES DIÁRIOS (24h de validade)
 
-━━━━━━━━━━━━━━
+✅ 1GB - 17MT
+✅ 2GB - 34MT
+✅ 3GB - 51MT
+✅ 4GB - 68MT
+✅ 5GB - 85MT
+✅ 6GB - 102MT
+✅ 7GB - 119MT
+✅ 8GB - 136MT
+✅ 9GB - 153MT
+✅ 10GB - 170MT
 
-PLANO SEMANAL (7 DIAS)
-3GB = 97MT
-5GB = 147MT
-7GB = 196MT
-10GB = 296MT
 
-━━━━━━━━━━━━━━
+📅 PACOTES SEMANAIS 
+⚠ Vai receber 100MB por dia durante 7 dias, totalizando +0.7GB
 
-PACOTES MENSAIS
-5GB = 150MT
-10GB = 280MT
-20GB = 480MT
+✅ 2GB – 55MT
+✅ 3GB – 75MT
+✅ 5GB – 130MT
+✅ 10GB – 220MT
 
-━━━━━━━━━━━━━━
 
-ILIMITADO 30 DIAS
-✅ 11GB + Chamadas & SMS ilimitados – 450MT
-✅ 15GB + Chamadas & SMS ilimitados – 550MT
-✅ 20GB + Chamadas & SMS ilimitados – 650MT
-✅ 25GB + Chamadas & SMS ilimitados – 750MT
-✅ 50GB + Chamadas & SMS ilimitados – 1250MT
 
-━━━━━━━━━━━━━━
+📅 PACOTES MENSAIS 
+⚠ Não deve ter txuna crédito ⚠
 
-⚠ NB: Para activar o pacote semanal e mensal não pode ter nenhum crédito
+✅ 5GB – 165MT
+✅ 10GB – 280MT
+✅ 20GB – 480MT
+✅ 30GB – 760MT
+✅ 50GB – 960MT
+✅ 100GB – 1940MT
+✅ 200GB – 3420MT
+
+
+📦 Compra rápida. Entrega garantida. Atendimento VIP! 💎✨
+
+🌟 TUDO TOP ILIMITADO 🌟
+📞💬 JÁ PODES FALAR SEM LIMITE E NAVEGAR COM A MELHOR INTERNET 🌐🔥
+
+📅 MENSAL (30 DIAS) 📅
+
+💰 450MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 11GB
+💰 550MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 15GB
+💰 750MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 21GB
+💰 1100MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 33GB
+💰 1350MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 50GB
+💰 2300MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 100GB
+
 `,
-        pagamento: `🅼🅴🅶🅰🆂 🅿🆁🅾🅼🅾    💳 🛒⛔ FORMAS DE PAGAMENTO:⛔🛒💳
+        pagamento: `💰 Método de Pagamento
+Envie o valor para um dos números abaixo:
+📲 858891101 — Isac Lurdes Raul Vilanculo
+📲 866291101 — Isac Lurdes Raul Vilanculo
 
 
-      ● E-MOLA: 868019487🛒
-      ● M-PESA: 851841990🛒
 
-NOME:   Alice Armando Nhaquila📝
+📌 Após o pagamento:
+📸 Envie o comprovativo ( screenshot ) no grupo.
+📱Informe ( junto com ) o número que receberá os megas.
 
-!¡ 📂⛔🛒 ENVIE O SEU COMPROVATIVO NO GRUPO,  JUNTAMENTE COM O NÚMERO QUE VAI RECEBER OS MB✅⛔🛒`
+🔥 Promoção ativa! Aproveite enquanto puder 🚀
+`
     }
 };
 
