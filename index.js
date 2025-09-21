@@ -1425,6 +1425,23 @@ async function processarPagamentoConfirmado(pendencia) {
         const { dadosCompletos, chatId, messageData, resultadoIA } = pendencia;
         const [referencia, megas, numero] = dadosCompletos.split('|');
 
+        // === VERIFICAÇÃO DE VALOR MUITO BAIXO ===
+        if (megas === 'VALOR_MUITO_BAIXO') {
+            console.log(`❌ VALOR MUITO BAIXO no pagamento confirmado: ${referencia}`);
+
+            const configGrupo = getConfiguracaoGrupo(chatId);
+            const precos = ia.extrairPrecosTabela(configGrupo.tabela);
+            const menorPreco = Math.min(...precos.map(p => p.preco));
+
+            await client.sendMessage(chatId,
+                `❌ *Valor muito baixo*\n\n` +
+                `💳 O valor transferido está abaixo do pacote mínimo disponível.\n\n` +
+                `📋 *Pacote mais barato:* ${menorPreco}MT\n\n` +
+                `💡 *Para ver todos os pacotes:* digite "tabela"`
+            );
+            return;
+        }
+
         // Enviar mensagem de confirmação
         await client.sendMessage(chatId,
             `✅ *PAGAMENTO CONFIRMADO!*\n\n` +
@@ -4432,17 +4449,59 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 }
             }
 
-            // Padrões diretos de intenção de compra
+            // Padrões diretos de intenção de compra (EXPANDIDOS)
             const padroesCompra = [
+                // Palavras simples e diretas
+                'posso',
+                'quero',
+                'preciso',
+                'vou',
+                'vendo',
+                'compro',
+                'pago',
+                'transferi',
+                'enviei',
+                'mandei',
+                'fiz',
+
+                // Frases sobre pagamento
                 'posso pagar',
                 'pode pagar',
                 'posso comprar',
                 'pode comprar',
+                'quero comprar',
+                'quero pagar',
+                'preciso pagar',
+                'vou pagar',
+                'vou comprar',
+                'como pagar',
+                'como comprar',
+                'onde pagar',
+                'posso fazer',
+                'como faço',
+
+                // Frases sobre disponibilidade
                 'tem megas',
                 'tem mega',
                 'tem internet',
                 'tem saldo',
                 'tem dados',
+                'tem pacote',
+                'tem pacotes',
+                'tem wifi',
+                'tem net',
+                'quero megas',
+                'quero mega',
+                'quero internet',
+                'quero dados',
+                'quero net',
+                'preciso de megas',
+                'preciso de mega',
+                'preciso de internet',
+                'preciso de dados',
+                'preciso de net',
+
+                // Sobre admins/atendimento
                 'admin disponivel',
                 'admin disponível',
                 'adm disponivel',
@@ -4451,24 +4510,67 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 'tem alguém',
                 'alguém aí',
                 'alguem ai',
-                'quero comprar',
-                'quero pagar',
-                'preciso de',
-                'como pagar',
-                'como comprar',
+                'tem admin',
+                'tem adm',
+                'pode atender',
+                'alguém pode',
+                'alguem pode',
+                'quem pode',
+                'disponível',
+                'disponivel',
+                'atende',
+                'atendimento',
+
+                // Sobre preços
                 'quanto custa',
                 'qual preço',
+                'qual o preço',
                 'preço',
                 'quanto é',
+                'quanto fica',
                 'valor',
-                'tabela',
+                'custo',
+                'custa',
+                'quanto vale',
+                'qual valor',
+
+                // Formas de pagamento
                 'formas de pagamento',
                 'forma de pagamento',
+                'como pago',
                 'aceita',
+                'recebe',
                 'mpesa',
                 'emola',
                 'mkesh',
-                'pode atender'
+                'transferência',
+                'transferencia',
+                'cartão',
+                'cartao',
+                'dinheiro',
+
+                // Saudações com intenção
+                'boa tarde',
+                'bom dia',
+                'boa noite',
+                'olá',
+                'ola',
+                'oi',
+                'hey',
+                'ei',
+                'salve',
+
+                // Expressões casuais
+                'e aí',
+                'e ai',
+                'beleza',
+                'tudo bem',
+                'como está',
+                'como esta',
+                'tá aí',
+                'ta ai',
+                'está aí',
+                'esta ai'
             ];
 
             // Verificação direta (mais rápido, sem IA)
@@ -4476,6 +4578,17 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 if (textoLimpo.includes(padrao)) {
                     console.log(`🛒 COMPRA DETECTADA: "${texto}" → padrão "${padrao}"`);
                     return true;
+                }
+            }
+
+            // Verificação adicional para palavras muito simples (apenas se mensagem for curta)
+            if (textoLimpo.length <= 20) {
+                const palavrasSimples = ['megas', 'mega', 'internet', 'dados', 'net', 'wifi', 'saldo'];
+                for (const palavra of palavrasSimples) {
+                    if (textoLimpo === palavra) {
+                        console.log(`🛒 PALAVRA SIMPLES DETECTADA: "${texto}" → "${palavra}"`);
+                        return true;
+                    }
                 }
             }
 
@@ -4937,6 +5050,23 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 const nomeContato = message._data.notifyName || 'N/A';
                 const autorMensagem = message.author || 'Desconhecido';
 
+                // === VERIFICAÇÃO DE VALOR MUITO BAIXO ===
+                if (megas === 'VALOR_MUITO_BAIXO') {
+                    console.log(`❌ VALOR MUITO BAIXO: ${referencia} - valor abaixo do pacote mínimo`);
+
+                    const configGrupo = getConfiguracaoGrupo(message.from);
+                    const precos = ia.extrairPrecosTabela(configGrupo.tabela);
+                    const menorPreco = Math.min(...precos.map(p => p.preco));
+
+                    await message.reply(
+                        `❌ *Valor muito baixo*\n\n` +
+                        `💳 O valor transferido está abaixo do pacote mínimo disponível.\n\n` +
+                        `📋 *Pacote mais barato:* ${menorPreco}MT\n\n` +
+                        `💡 *Para ver todos os pacotes:* digite "tabela"`
+                    );
+                    return;
+                }
+
                 // PROCESSAR BÔNUS DE REFERÊNCIA
                 const bonusInfo = await processarBonusCompra(remetente, megas);
 
@@ -5005,6 +5135,23 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 const [referencia, megas, numero] = dadosCompletos.split('|');
                 const nomeContato = message._data.notifyName || 'N/A';
                 const autorMensagem = message.author || 'Desconhecido';
+
+                // === VERIFICAÇÃO DE VALOR MUITO BAIXO ===
+                if (megas === 'VALOR_MUITO_BAIXO') {
+                    console.log(`❌ VALOR MUITO BAIXO: ${referencia} - valor abaixo do pacote mínimo`);
+
+                    const configGrupo = getConfiguracaoGrupo(message.from);
+                    const precos = ia.extrairPrecosTabela(configGrupo.tabela);
+                    const menorPreco = Math.min(...precos.map(p => p.preco));
+
+                    await message.reply(
+                        `❌ *Valor muito baixo*\n\n` +
+                        `💳 O valor transferido está abaixo do pacote mínimo disponível.\n\n` +
+                        `📋 *Pacote mais barato:* ${menorPreco}MT\n\n` +
+                        `💡 *Para ver todos os pacotes:* digite "tabela"`
+                    );
+                    return;
+                }
 
                 // PROCESSAR BÔNUS DE REFERÊNCIA
                 const bonusInfo = await processarBonusCompra(remetente, megas);

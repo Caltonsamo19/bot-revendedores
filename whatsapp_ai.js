@@ -278,13 +278,23 @@ Se não conseguires extrair os dados:
   // === CALCULAR MEGAS POR VALOR ===
   calcularMegasPorValor(valor, tabelaTexto) {
     console.log(`   🧮 Calculando megas para ${valor}MT...`);
-    
+
     const precos = this.extrairPrecosTabela(tabelaTexto);
     const valorNumerico = parseFloat(valor);
-    
+
     if (precos.length === 0) {
       console.log(`   ❌ Nenhum preço encontrado na tabela, retornando valor numérico`);
       return valorNumerico;
+    }
+
+    // === VERIFICAÇÃO DE VALOR MÍNIMO ===
+    // Encontrar o pacote mais barato da tabela
+    const menorPreco = Math.min(...precos.map(p => p.preco));
+
+    if (valorNumerico < menorPreco) {
+      console.log(`   ❌ VALOR ABAIXO DO MÍNIMO: ${valorNumerico}MT < ${menorPreco}MT (pacote mais barato)`);
+      // Retornar um valor especial que indique "valor muito baixo"
+      return 'VALOR_MUITO_BAIXO';
     }
     
     // Procurar correspondência exata
