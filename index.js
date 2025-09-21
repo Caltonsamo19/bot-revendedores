@@ -215,12 +215,16 @@ async function processarNovoMembro(grupoId, participantId) {
             return;
         }
 
-        // AGUARDAR EVENT 'group-join' PARA DADOS PRECISOS DO WHATSAPP
-        console.log(`ℹ️ Novo membro detectado - aguardando event 'group-join' para obter dados precisos do convidador`);
-        console.log(`⏳ O event 'group-join' deve disparar em breve com informações reais do WhatsApp`);
+        // USAR MÉTODOS ALTERNATIVOS (group-join event tem problemas conhecidos)
+        console.log(`🔍 Event 'group-join' não disparou - usando métodos alternativos...`);
 
-        // NÃO criar referência via polling - apenas enviar boas-vindas
-        console.log(`👋 Enviando apenas boas-vindas (referência será criada via event se aplicável)`);
+        // MÉTODO ALTERNATIVO: Analisar mensagens recentes do grupo
+        const referenciaCreada = await detectarConvidadorViaMensagens(grupoId, participantId);
+        if (referenciaCreada) {
+            console.log(`✅ Referência criada via análise de mensagens`);
+        } else {
+            console.log(`ℹ️ Não foi possível detectar convidador - enviando apenas boas-vindas`);
+        }
 
         // Registrar entrada do membro
         await registrarEntradaMembro(grupoId, participantId);
@@ -322,6 +326,162 @@ async function tentarDetectarConvidador(grupoId, novoMembroId) {
 
     } catch (error) {
         console.error('❌ Erro ao tentar detectar convidador (backup):', error);
+        return null;
+    }
+}
+
+// === DETECÇÃO DE CONVIDADOR VIA ANÁLISE DE MENSAGENS ===
+async function detectarConvidadorViaMensagens(grupoId, novoMembroId) {
+    try {
+        console.log(`🔍 ANÁLISE: Detectando convidador via mensagens para ${novoMembroId}...`);
+
+        // Obter histórico de mensagens recentes do grupo (últimos 10 minutos)
+        const chat = await client.getChatById(grupoId);
+        const agora = Date.now();
+        const limiteTempo = agora - (10 * 60 * 1000); // 10 minutos atrás
+
+        // Buscar mensagens recentes
+        const mensagens = await chat.fetchMessages({ limit: 50 });
+        console.log(`📜 Analisando ${mensagens.length} mensagens recentes...`);
+
+        let convidadorDetectado = null;
+        let confiabilidade = 0;
+
+        // Analisar mensagens em ordem cronológica reversa
+        for (const mensagem of mensagens) {
+            // Pular mensagens antigas
+            if (mensagem.timestamp * 1000 < limiteTempo) {
+                continue;
+            }
+
+            const autorMensagem = mensagem.author || mensagem.from;
+            const corpo = mensagem.body.toLowerCase();
+
+            // Buscar padrões de convite nas mensagens
+            const padroesFrases = [
+                /vou adicionar/i,
+                /vou convidar/i,
+                /vou chamar/i,
+                /adicionei/i,
+                /convidei/i,
+                /chamei/i,
+                /entrem?\s+no\s+grupo/i,
+                /venham?\s+para\s+o\s+grupo/i,
+                /grupo\s+novo/i
+            ];
+
+            // Verificar se mensagem contém padrões de convite
+            for (const padrao of padroesFrases) {
+                if (padrao.test(corpo)) {
+                    console.log(`💡 PADRÃO DETECTADO: "${corpo.substring(0, 50)}..." por ${autorMensagem}`);
+
+                    // Verificar se autor é admin do grupo
+                    const isAdmin = await isAdminGrupo(grupoId, autorMensagem);
+                    if (isAdmin) {
+                        convidadorDetectado = autorMensagem;
+                        confiabilidade = 85; // Alta confiabilidade para padrões + admin
+                        console.log(`🎯 DETECTADO: ${autorMensagem} (confiabilidade: ${confiabilidade}%)`);
+                        break;
+                    }
+                }
+            }
+
+            if (convidadorDetectado) break;
+        }
+
+        // Se não encontrou via padrões, usar distribuição inteligente
+        if (!convidadorDetectado || confiabilidade < 70) {
+            console.log(`🧠 Usando distribuição inteligente como backup...`);
+            convidadorDetectado = await selecionarAdminComMenosReferencias(grupoId);
+            confiabilidade = 60; // Confiabilidade média para distribuição inteligente
+        }
+
+        if (convidadorDetectado) {
+            console.log(`✅ DETECTADO: ${convidadorDetectado} (confiabilidade: ${confiabilidade}%)`);
+
+            // Criar referência automática com método identificado
+            const resultado = await criarReferenciaAutomaticaInteligente(
+                convidadorDetectado,
+                novoMembroId,
+                grupoId
+            );
+
+            if (resultado) {
+                // Adicionar indicador de método de detecção
+                const referencia = referenciasClientes[novoMembroId];
+                if (referencia) {
+                    referencia.metodoDeteccao = 'AUTO_ANALISE_MENSAGENS';
+                    referencia.confiabilidade = confiabilidade;
+
+                    console.log(`🎯 ANÁLISE: Referência criada com ${confiabilidade}% de confiabilidade`);
+                }
+            }
+
+            return resultado;
+        } else {
+            console.log(`❌ ANÁLISE: Não foi possível detectar convidador`);
+            return false;
+        }
+
+    } catch (error) {
+        console.error('❌ Erro na análise de mensagens:', error);
+        return false;
+    }
+}
+
+// === SELEÇÃO INTELIGENTE DE ADMIN COM MENOS REFERÊNCIAS ===
+async function selecionarAdminComMenosReferencias(grupoId) {
+    try {
+        const chat = await client.getChatById(grupoId);
+        const participants = chat.participants;
+
+        // Filtrar apenas admins
+        const admins = participants.filter(p => p.isAdmin);
+        if (admins.length === 0) {
+            console.log(`❌ Nenhum admin encontrado no grupo`);
+            return null;
+        }
+
+        console.log(`👥 DISTRIBUIÇÃO: Analisando ${admins.length} admins...`);
+
+        // Contar referências criadas hoje por cada admin
+        const hoje = new Date().toDateString();
+        const contadorReferencias = {};
+
+        // Inicializar contador para todos os admins
+        admins.forEach(admin => {
+            contadorReferencias[admin.id._serialized] = 0;
+        });
+
+        // Contar referências existentes
+        Object.values(referenciasClientes).forEach(ref => {
+            if (ref.dataReferencia && new Date(ref.dataReferencia).toDateString() === hoje) {
+                if (contadorReferencias.hasOwnProperty(ref.convidadoPor)) {
+                    contadorReferencias[ref.convidadoPor]++;
+                }
+            }
+        });
+
+        // Encontrar admin com menos referências
+        let adminSelecionado = null;
+        let menorContador = Infinity;
+
+        for (const [adminId, contador] of Object.entries(contadorReferencias)) {
+            console.log(`📊 Admin ${adminId}: ${contador} referências hoje`);
+            if (contador < menorContador) {
+                menorContador = contador;
+                adminSelecionado = adminId;
+            }
+        }
+
+        if (adminSelecionado) {
+            console.log(`🎯 SELECIONADO: ${adminSelecionado} (${menorContador} referências hoje)`);
+        }
+
+        return adminSelecionado;
+
+    } catch (error) {
+        console.error('❌ Erro ao selecionar admin:', error);
         return null;
     }
 }
@@ -2891,7 +3051,8 @@ client.on('message', async (message) => {
                 }
 
                 // Verificar se é uma referência automática
-                if (referencia.metodoDeteccao !== 'AUTO_INTELIGENTE') {
+                const metodosAutomaticos = ['AUTO_INTELIGENTE', 'AUTO_ANALISE_MENSAGENS'];
+                if (!metodosAutomaticos.includes(referencia.metodoDeteccao)) {
                     await message.reply(`❌ Apenas referências criadas automaticamente podem ser canceladas.\nPara referências manuais, contacte o administrador.`);
                     return;
                 }
