@@ -1871,7 +1871,7 @@ Bem-vindo à família VIP! 🔥`,
 🛜512MB = 10MT
 🛜768MB = 16MT
 🛜1024MB = 18MT
-🛜1280MB = 25MT
+🛜1280MB = 26MT
 🛜2048MB = 36MT
 🛜3072MB = 54MT
 🛜4096MB = 72MT
@@ -1891,14 +1891,14 @@ PACOTE SEMANAL🛒📦
 🛜7.0GB = 175MT 
 🛜10.0GB = 265MT
 🛜14.0GB = 362MT
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
 🚨Para pacote MENSAL é só entrar em contato com o número abaixo 👇👇🚨
 
 https://wa.me/258865627840?text=%20Quero%20pacote%20mensal?%20
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
 🚨Para pacote ILIMITADO é só entrar em contato com o número abaixo 👇👇🚨
 https://wa.me/258865627840?text=%20Quero%20pacote%20ilimitado?%20
-━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━
 
 FORMA DE PAGAMENTO:
 💳💸
@@ -4365,26 +4365,41 @@ client.on('message', async (message) => {
         // === FUNÇÃO PARA DETECTAR INTENÇÃO DE .MEUCODIGO ===
         async function detectarIntencaoMeuCodigo(texto) {
             // Primeiro, verificação básica por padrões (sem IA - economia)
-            const textoLimpo = texto.toLowerCase().trim().replace(/[^a-z]/g, '');
+            const textoLimpo = texto.toLowerCase().trim();
 
-            // Padrões mais comuns (sem usar IA para economizar)
+            // Padrões mais comuns (com e sem espaços)
             const padroesDiretos = [
+                // Versões sem espaço
                 'meucodigo',
                 'meucódigo',
-                'meucodigodeferencia',
-                'meucódigodeferência',
-                'vermeucódigo',
-                'vermeucodigo',
-                'qualmeucódigo',
-                'qualomeucodigo',
-                'oqueémeucódigo',
-                'comoémeucódigo',
-                'qualminhacódigo',
-                'códigomeu',
-                'códigopessoal',
-                'minhacódigo',
-                'minhasenha',
-                'minhareferência'
+                '.meucodigo',
+                '.meucódigo',
+
+                // Versões com espaço
+                'meu codigo',
+                'meu código',
+                '.meu codigo',
+                '.meu código',
+
+                // Outras variações
+                'meu codigo de referencia',
+                'meu código de referência',
+                'ver meu codigo',
+                'ver meu código',
+                'qual meu codigo',
+                'qual meu código',
+                'qual o meu codigo',
+                'qual o meu código',
+                'como ver meu codigo',
+                'como ver meu código',
+                'minha referencia',
+                'minha referência',
+                'codigo meu',
+                'código meu',
+                'codigo pessoal',
+                'código pessoal',
+                'meu referencia',
+                'meu referência'
             ];
 
             // Verificação direta (mais rápido)
@@ -4521,6 +4536,22 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 'atende',
                 'atendimento',
 
+                // Perguntas diretas por admin (muito comuns)
+                'adm?',
+                'admin?',
+                'adm ?',
+                'admin ?',
+                'tem adm?',
+                'tem admin?',
+                'cadê admin',
+                'cadê adm',
+                'onde admin',
+                'onde adm',
+                'admin aí',
+                'adm aí',
+                'admin ai',
+                'adm ai',
+
                 // Sobre preços
                 'quanto custa',
                 'qual preço',
@@ -4595,47 +4626,52 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return false; // Sem usar IA para economia máxima
         }
 
+        // === DETECÇÃO INTELIGENTE DE .MEUCODIGO (QUALQUER FORMATO) ===
+        if (message.type === 'chat' && await detectarIntencaoMeuCodigo(message.body)) {
+            const remetente = message.author || message.from;
+            let codigo = null;
+
+            // Verificar se já tem código
+            for (const [cod, dados] of Object.entries(codigosReferencia)) {
+                if (dados.dono === remetente) {
+                    codigo = cod;
+                    break;
+                }
+            }
+
+            // Se não tem, criar novo
+            if (!codigo) {
+                codigo = gerarCodigoReferencia(remetente);
+                codigosReferencia[codigo] = {
+                    dono: remetente,
+                    nome: message._data.notifyName || 'N/A',
+                    criado: new Date().toISOString(),
+                    ativo: true
+                };
+                // Sistema de cache otimizado - sem salvamento em arquivos
+            }
+
+            await message.reply(
+                `🎁 *SEU CÓDIGO DE REFERÊNCIA*\n\n` +
+                `📋 Código: *${codigo}*\n\n` +
+                `🎯 *Como usar:*\n` +
+                `1. Convide amigos para o grupo\n` +
+                `2. Peça para eles digitarem:\n` +
+                `   *.convite ${codigo}*\n\n` +
+                `💰 *Ganhe 200MB* a cada compra deles!\n` +
+                `🎉 *Primeiras 5 compras* = 1GB cada\n\n` +
+                `🚀 Sem limite de amigos que pode convidar!`
+            );
+            console.log(`🎁 Código de referência enviado: ${codigo} para ${remetente}`);
+            return;
+        }
+
         // === COMANDOS DE REFERÊNCIA E BÔNUS (TODOS USUÁRIOS) ===
         if (message.type === 'chat' && message.body.startsWith('.')) {
             const comando = message.body.toLowerCase().trim();
             const remetente = message.author || message.from;
 
-            // Detecção inteligente do comando .meucodigo (várias variações)
-            if (await detectarIntencaoMeuCodigo(message.body)) {
-                let codigo = null;
-                
-                // Verificar se já tem código
-                for (const [cod, dados] of Object.entries(codigosReferencia)) {
-                    if (dados.dono === remetente) {
-                        codigo = cod;
-                        break;
-                    }
-                }
-                
-                // Se não tem, criar novo
-                if (!codigo) {
-                    codigo = gerarCodigoReferencia(remetente);
-                    codigosReferencia[codigo] = {
-                        dono: remetente,
-                        nome: message._data.notifyName || 'N/A',
-                        criado: new Date().toISOString(),
-                        ativo: true
-                    };
-                    // Sistema de cache otimizado - sem salvamento em arquivos
-                }
-                
-                await message.reply(
-                    `🎁 *SEU CÓDIGO DE REFERÊNCIA*\n\n` +
-                    `📋 Código: *${codigo}*\n\n` +
-                    `🚀 *Como usar:*\n` +
-                    `• Compartilhe este código com amigos\n` +
-                    `• Quando eles fizerem primeira compra, você ganha 200MB\n` +
-                    `• A cada 5 compras deles, acumula 1GB\n` +
-                    `• Acumule 1GB+ para sacar bônus\n\n` +
-                    `💡 *Dica:* Diga aos amigos para usar *.convite ${codigo}* quando entrarem no grupo!`
-                );
-                return;
-            }
+            // === OUTROS COMANDOS COM PONTO ===
 
             // .convite CODIGO - Registrar referência
             if (comando.startsWith('.convite ')) {
