@@ -215,9 +215,10 @@ async function processarNovoMembro(grupoId, participantId) {
             return;
         }
 
-        // USAR MÉTODOS ALTERNATIVOS (group-join event tem problemas conhecidos)
-        console.log(`🔍 Event 'group-join' não disparou - usando métodos alternativos...`);
+        // SISTEMA AUTOMÁTICO DESATIVADO - Usuário deve usar código manual
+        console.log(`📢 Sistema automático desativado - novo membro deve usar código do convidador`);
 
+        /* SISTEMA AUTOMÁTICO COMENTADO - USUÁRIO PREFERIU MÉTODO MANUAL
         // MÉTODO ALTERNATIVO: Analisar mensagens recentes do grupo
         const referenciaCreada = await detectarConvidadorViaMensagens(grupoId, participantId);
         if (referenciaCreada) {
@@ -225,6 +226,7 @@ async function processarNovoMembro(grupoId, participantId) {
         } else {
             console.log(`ℹ️ Não foi possível detectar convidador - enviando apenas boas-vindas`);
         }
+        */
 
         // Registrar entrada do membro
         await registrarEntradaMembro(grupoId, participantId);
@@ -805,13 +807,17 @@ async function enviarBoasVindas(grupoId, participantId) {
 • *tabela* - Ver preços de pacotes
 • *pagamento* - Ver formas de pagamento
 • *.ranking* - Ver ranking do grupo
-• *.meucodigo* - Gerar código de referência
+• *.meucodigo* - Gerar seu código de referência
 
-🎁 *SISTEMA DE REFERÊNCIAS:*
-Você tem código de referência de alguém?
-Use: *.convite CÓDIGO* para ativar!
+🎁 *GANHE MEGABYTES GRÁTIS!*
+💎 Ganhe até *5GB GRATUITOS* convidando amigos!
+🔑 1. Digite *.meucodigo* para gerar seu código
+👥 2. Convide amigos para o grupo
+💰 3. Peça para usarem seu código: *.convite SEUCÓDIGO*
+🎯 4. Ganhe *200MB* a cada compra deles (primeiras 5 compras)
 
-✨ *IMPORTANTE:* Códigos de referência só funcionam para membros que entraram nos últimos 5 dias!
+⚠️ *TEM CÓDIGO DE ALGUÉM?*
+Use: *.convite CÓDIGO* para ativar a parceria!
 
 🚀 Vamos começar? Qualquer dúvida, pergunte no grupo!`;
         
@@ -1532,26 +1538,34 @@ Use: *.convite CÓDIGO* para ativar!
         tabela: `SUPER PROMOÇÃO  DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO - 04-05/09/2025
 
 📆 PACOTES DIÁRIOS
+512MB 💎 10MT 💵💽
 900MB 💎 15MT 💵💽
-1100MB 💎 17MT 💵💽
+1080MB 💎 17MT 💵💽
 1200MB 💎 20MT 💵💽
-2200MB 💎 34MT 💵💽
-3300MB 💎 51MT 💵💽
-4400MB 💎 68MT 💵💽
-5500MB 💎 85MT 💵💽
-10240MB 💎 170MT 💵💽 ➕ Bónus 1GB na próxima compra 🎁
-20480MB 💎 340MT 💵💽 ➕ Bónus 2GB na próxima compra 🎁
+2150MB 💎 34MT 💵💽
+3200MB 💎 51MT 💵💽
+4250MB 💎 68MT 💵💽
+5350MB 💎 85MT 💵💽
+10240MB 💎 160MT 💵💽
+20480MB 💎 320MT 💵💽
 
-📅 PACOTES SEMANAIS
+📅PACOTE DIÁRIO PREMIUM (3 Dias)
+2000 + 700MB 💎 44MT 💵💽
+3000 + 700MB 💎 66MT 💵💽
+4000 + 700MB 💎 88MT 💵💽
+5000 + 700MB 💎 109MT 💵💽
+6000 + 700MB 💎 133MT 💵💽
+7000 + 700MB 💎 149MT 💵💽
+10000 + 700MB 💎 219MT 💵💽
 
+📅 PACOTES SEMANAIS(5 Dias)
 3072 + 700MB 💎 105MT 💵💽
 5120 + 700MB 💎 155MT 💵💽
-10240 + 700MB 💎 210MT 💵💽
-15360 + 700MB 💎 290MT 💵💽
-20480 + 700MB 💎 360MT 💵💽
+10240 + 700MB 💎 300MT 💵💽
+15360 + 700MB 💎 455MT 💵💽
+20480 + 700MB 💎 600MT 💵💽
 
 📅 PACOTES MENSAIS
-
 12.8GB 💎 270MT 💵💽
 22.8GB 💎 435MT 💵💽
 32.8GB 💎 605MT 💵💽
@@ -1560,7 +1574,7 @@ Use: *.convite CÓDIGO* para ativar!
 
 
 PACOTES DIAMANTE MENSAIS
-Chamadas + SMS ilimitadas + 12GB 💎 460MT 💵
+Chamadas + SMS ilimitadas + 11GB 💎 460MT 💵
 Chamadas + SMS ilimitadas + 24GB 💎 820MT 💵
 Chamadas + SMS ilimitadas + 50GB 💎 1550MT 💵
 Chamadas + SMS ilimitadas + 100GB 💎 2250MT 💵
@@ -1582,8 +1596,6 @@ NOME: NATACHA ALICE`
         nome: 'Treinamento IA',
         tabela: `PROMOÇÃO DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO 
 📆 PACOTES DIÁRIOS 
-
-
 512MB 💎 10MT 💵💽
 850MB 💎 15MT 💵💽
 1024MB 💎 17MT 💵💽
@@ -1593,9 +1605,18 @@ NOME: NATACHA ALICE`
 4096MB 💎 68MT 💵💽
 5120MB 💎 85MT 💵💽
 10240MB 💎 170MT 💵💽
-20480MB 💎 340MT 💵💽 
+20480MB 💎 340MT 💵💽
 
-📅 PACOTES SEMANAIS
+📅PACOTE DIÁRIO PREMIUM (3 Dias)
+2000 + 700MB 💎 44MT 💵💽
+3000 + 700MB 💎 66MT 💵💽
+4000 + 700MB 💎 88MT 💵💽
+5000 + 700MB 💎 109MT 💵💽
+6000 + 700MB 💎 133MT 💵💽
+7000 + 700MB 💎 149MT 💵💽
+10000 + 700MB 💎 219MT 💵💽
+
+📅 PACOTES SEMANAIS(5 Dias)
 3072 + 700MB 💎 105MT 💵💽
 5120 + 700MB 💎 155MT 💵💽
 10240 + 700MB 💎 300MT 💵💽
@@ -2976,7 +2997,10 @@ client.on('group-join', async (notification) => {
                         const membroKey = `${chatId}_${participantId}`;
                         membrosProcessadosViaEvent.add(membroKey);
 
-                        // CRIAR REFERÊNCIA APENAS SE FOI ADMIN QUE ADICIONOU (NÃO INVITE LINK)
+                        // SISTEMA AUTOMÁTICO DESATIVADO - Novo membro deve usar código manual
+                        console.log(`📢 Sistema automático desativado - ${nomeParticipante} deve usar código do convidador`);
+
+                        /* SISTEMA AUTOMÁTICO COMENTADO - USUÁRIO PREFERIU MÉTODO MANUAL
                         if (notification.type === 'add') {
                             console.log(`🔗 Criando referência automática (admin adicionou)...`);
                             const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
@@ -2986,6 +3010,7 @@ client.on('group-join', async (notification) => {
                         } else {
                             console.log(`❓ Tipo de entrada desconhecido: ${notification.type}`);
                         }
+                        */
 
                         // Aguardar um pouco para evitar spam
                         setTimeout(async () => {
@@ -4320,13 +4345,130 @@ client.on('message', async (message) => {
             }
         }
 
+        // === FUNÇÃO PARA DETECTAR INTENÇÃO DE .MEUCODIGO ===
+        async function detectarIntencaoMeuCodigo(texto) {
+            // Primeiro, verificação básica por padrões (sem IA - economia)
+            const textoLimpo = texto.toLowerCase().trim().replace(/[^a-z]/g, '');
+
+            // Padrões mais comuns (sem usar IA para economizar)
+            const padroesDiretos = [
+                'meucodigo',
+                'meucódigo',
+                'meucodigodeferencia',
+                'meucódigodeferência',
+                'vermeucódigo',
+                'vermeucodigo',
+                'qualmeucódigo',
+                'qualomeucodigo',
+                'oqueémeucódigo',
+                'comoémeucódigo',
+                'qualminhacódigo',
+                'códigomeu',
+                'códigopessoal',
+                'minhacódigo',
+                'minhasenha',
+                'minhareferência'
+            ];
+
+            // Verificação direta (mais rápido)
+            for (const padrao of padroesDiretos) {
+                if (textoLimpo.includes(padrao)) {
+                    console.log(`🎯 DETECTADO: "${texto}" → padrão "${padrao}"`);
+                    return true;
+                }
+            }
+
+            // Se não encontrou padrão direto, usar IA apenas em casos específicos
+            if (texto.includes('codigo') || texto.includes('código') ||
+                texto.includes('referencia') || texto.includes('referência') ||
+                texto.includes('meu') || texto.includes('ver')) {
+
+                try {
+                    // Usar IA apenas quando necessário (economia de tokens)
+                    const prompt = `Responda apenas SIM ou NÃO. O usuário quer ver/gerar seu código de referência?
+Texto: "${texto}"
+
+Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codigo", ".meu codigo", "ver meu código", etc.`;
+
+                    const resposta = await ia.obterResposta(prompt, { maxTokens: 10 });
+                    const resultado = resposta.toLowerCase().includes('sim');
+
+                    if (resultado) {
+                        console.log(`🧠 IA DETECTOU: "${texto}" → comando meucodigo`);
+                    }
+
+                    return resultado;
+                } catch (error) {
+                    console.error('❌ Erro na detecção IA:', error);
+                    return false;
+                }
+            }
+
+            return false;
+        }
+
+        // === FUNÇÃO PARA DETECTAR INTENÇÃO DE COMPRA ===
+        async function detectarIntencaoCompra(texto) {
+            // Verificação básica por padrões (sem IA - economia máxima)
+            const textoLimpo = texto.toLowerCase().trim();
+
+            // Padrões diretos de intenção de compra
+            const padroesCompra = [
+                'posso pagar',
+                'pode pagar',
+                'posso comprar',
+                'pode comprar',
+                'tem megas',
+                'tem mega',
+                'tem internet',
+                'tem saldo',
+                'tem dados',
+                'admin disponivel',
+                'admin disponível',
+                'adm disponivel',
+                'adm disponível',
+                'tem alguem',
+                'tem alguém',
+                'alguém aí',
+                'alguem ai',
+                'quero comprar',
+                'quero pagar',
+                'preciso de',
+                'como pagar',
+                'como comprar',
+                'quanto custa',
+                'qual preço',
+                'preço',
+                'quanto é',
+                'valor',
+                'tabela',
+                'formas de pagamento',
+                'forma de pagamento',
+                'aceita',
+                'mpesa',
+                'emola',
+                'mkesh',
+                'pode atender'
+            ];
+
+            // Verificação direta (mais rápido, sem IA)
+            for (const padrao of padroesCompra) {
+                if (textoLimpo.includes(padrao)) {
+                    console.log(`🛒 COMPRA DETECTADA: "${texto}" → padrão "${padrao}"`);
+                    return true;
+                }
+            }
+
+            return false; // Sem usar IA para economia máxima
+        }
+
         // === COMANDOS DE REFERÊNCIA E BÔNUS (TODOS USUÁRIOS) ===
         if (message.type === 'chat' && message.body.startsWith('.')) {
             const comando = message.body.toLowerCase().trim();
             const remetente = message.author || message.from;
 
-            // .meucodigo - Gerar/ver código de referência
-            if (comando === '.meucodigo') {
+            // Detecção inteligente do comando .meucodigo (várias variações)
+            if (await detectarIntencaoMeuCodigo(message.body)) {
                 let codigo = null;
                 
                 // Verificar se já tem código
@@ -4656,6 +4798,13 @@ client.on('message', async (message) => {
         }
 
         if (message.type !== 'chat') {
+            return;
+        }
+
+        // === DETECÇÃO DE INTENÇÃO DE COMPRA ===
+        if (await detectarIntencaoCompra(message.body)) {
+            console.log(`🛒 Intenção de compra detectada de ${message.author || message.from}`);
+            await safeReply(message, client, 'Estou á disposição, para te atender com flexibilidade.');
             return;
         }
 
@@ -5013,6 +5162,87 @@ setInterval(async () => {
         console.error('❌ Erro na limpeza de cache:', error.message);
     }
 }, 6 * 60 * 60 * 1000); // A cada 6 horas
+
+// === SISTEMA DE MENSAGENS AUTOMÁTICAS DE INCENTIVO ===
+let mensagensEnviadas = new Set(); // Cache para evitar spam
+let contadorMensagensHoje = 0;
+const MAX_MENSAGENS_DIA = 20; // Máximo 20 mensagens por dia
+
+setInterval(async () => {
+    try {
+        // Resetar contador diário à meia-noite
+        const agora = new Date();
+        if (agora.getHours() === 0 && agora.getMinutes() === 0) {
+            contadorMensagensHoje = 0;
+            mensagensEnviadas.clear();
+            console.log('🔄 Contador de mensagens automáticas resetado');
+        }
+
+        // Verificar limite diário
+        if (contadorMensagensHoje >= MAX_MENSAGENS_DIA) {
+            return; // Não enviar mais mensagens hoje
+        }
+
+        // Verificar se cliente está conectado
+        if (!client || !client.getState || client.getState() !== 'CONNECTED') {
+            return;
+        }
+
+        // Obter todos os grupos configurados
+        const grupos = Object.keys(configGrupos || {});
+        if (grupos.length === 0) {
+            return;
+        }
+
+        // Selecionar grupo aleatório
+        const grupoId = grupos[Math.floor(Math.random() * grupos.length)];
+        const configGrupo = getConfiguracaoGrupo(grupoId);
+
+        if (!configGrupo || !configGrupo.ativo) {
+            return;
+        }
+
+        // Verificar se já enviou mensagem neste grupo nas últimas 2 horas
+        const chaveCache = `${grupoId}_${new Date().toISOString().split('T')[0]}_${Math.floor(Date.now() / (2 * 60 * 60 * 1000))}`;
+        if (mensagensEnviadas.has(chaveCache)) {
+            return; // Já enviou neste grupo nas últimas 2 horas
+        }
+
+        // Verificar se é horário comercial (8h-22h)
+        const hora = agora.getHours();
+        if (hora < 8 || hora > 22) {
+            return; // Não enviar fora do horário comercial
+        }
+
+        // Mensagem de incentivo
+        const mensagemIncentivo = `💎 *GANHE ATÉ 5GB GRATUITOS!* 💎
+
+🎯 *Como funciona:*
+🔑 1. Gere seu código com *.meucodigo*
+👥 2. Convide amigos para o grupo
+💰 3. Eles usam *.convite SEUCÓDIGO*
+🎁 4. Você ganha *200MB* por cada compra deles!
+
+✨ *Primeiras 5 compras* de cada amigo = *1GB cada*
+🚀 *Sem limite* de amigos que pode convidar!
+
+📱 Digite *.meucodigo* agora e comece a ganhar!
+
+⏰ *Oferta limitada - aproveite!*`;
+
+        // Enviar mensagem
+        await client.sendMessage(grupoId, mensagemIncentivo);
+
+        // Registrar envio
+        mensagensEnviadas.add(chaveCache);
+        contadorMensagensHoje++;
+
+        console.log(`📢 Mensagem automática enviada para ${configGrupo.nome} (${contadorMensagensHoje}/${MAX_MENSAGENS_DIA} hoje)`);
+
+    } catch (error) {
+        console.error('❌ Erro no sistema de mensagens automáticas:', error);
+    }
+}, 30 * 60 * 1000); // A cada 30 minutos
 
 process.on('uncaughtException', (error) => {
     console.error('❌ Erro não capturado:', error);
