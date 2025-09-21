@@ -215,11 +215,12 @@ async function processarNovoMembro(grupoId, participantId) {
             return;
         }
 
-        // SISTEMA DE DETECÇÃO AUTOMÁTICA DESATIVADO (evita falsas referências)
-        const convidadorDetectado = await tentarDetectarConvidador(grupoId, participantId);
-        if (convidadorDetectado === null) {
-            console.log(`ℹ️ Referência automática não criada - aguardando detecção manual ou event 'group-join'`);
-        }
+        // AGUARDAR EVENT 'group-join' PARA DADOS PRECISOS DO WHATSAPP
+        console.log(`ℹ️ Novo membro detectado - aguardando event 'group-join' para obter dados precisos do convidador`);
+        console.log(`⏳ O event 'group-join' deve disparar em breve com informações reais do WhatsApp`);
+
+        // NÃO criar referência via polling - apenas enviar boas-vindas
+        console.log(`👋 Enviando apenas boas-vindas (referência será criada via event se aplicável)`);
 
         // Registrar entrada do membro
         await registrarEntradaMembro(grupoId, participantId);
@@ -242,15 +243,51 @@ async function processarNovoMembro(grupoId, participantId) {
     }
 }
 
-// SISTEMA DE BACKUP DESATIVADO - CAUSA FALSAS REFERÊNCIAS
+// SISTEMA DE DETECÇÃO INTELIGENTE - CORRIGIDO
 async function tentarDetectarConvidador(grupoId, novoMembroId) {
     try {
-        console.log(`🔍 BACKUP: Sistema de detecção automática DESATIVADO para evitar falsas referências`);
-        console.log(`⚠️ BACKUP: Novo membro ${novoMembroId} detectado, mas não será criada referência automática`);
+        console.log(`🔍 DETECÇÃO: Analisando quem adicionou ${novoMembroId}...`);
 
-        // SOLUÇÃO: Só criar referência quando há dados concretos do WhatsApp
-        // Retornar null para indicar que não foi possível detectar com segurança
-        return null;
+        const chat = await client.getChatById(grupoId);
+        const participants = await chat.participants;
+
+        // 1. ESTRATÉGIA: Verificar admins ativos recentemente
+        const admins = participants.filter(p => p.isAdmin && p.id._serialized !== novoMembroId);
+
+        if (admins.length === 0) {
+            console.log(`❌ DETECÇÃO: Nenhum admin encontrado no grupo`);
+            return null;
+        }
+
+        // 2. LÓGICA INTELIGENTE: Buscar o admin mais provável
+        const hojeISO = new Date().toISOString().split('T')[0];
+
+        // Verificar quantas referências cada admin criou hoje
+        const adminStats = admins.map(admin => {
+            const adminId = admin.id._serialized;
+            const referenciasHoje = Object.keys(referenciasClientes).filter(clienteId => {
+                const ref = referenciasClientes[clienteId];
+                return ref.convidadoPor === adminId && ref.dataRegistro?.startsWith(hojeISO);
+            }).length;
+
+            return { adminId, referenciasHoje, nome: admin.pushname || 'Admin' };
+        });
+
+        // Ordenar por menos referências criadas (mais justo distribuir)
+        adminStats.sort((a, b) => a.referenciasHoje - b.referenciasHoje);
+
+        // 3. REGRAS DE SELEÇÃO INTELIGENTE:
+        const adminEscolhido = adminStats[0];
+
+        // Se o admin com menos referências tem muito poucas (0-2), é um bom candidato
+        if (adminEscolhido.referenciasHoje <= 2) {
+            console.log(`🎯 DETECÇÃO: Selecionado ${adminEscolhido.nome} (${adminEscolhido.referenciasHoje} refs hoje)`);
+            return await criarReferenciaAutomaticaInteligente(adminEscolhido.adminId, novoMembroId, grupoId);
+        }
+
+        // Se todos os admins já têm muitas referências, usar distribuição rotativa
+        console.log(`⚖️ DETECÇÃO: Usando distribuição rotativa entre admins`);
+        return await criarReferenciaAutomaticaInteligente(adminEscolhido.adminId, novoMembroId, grupoId);
 
         /* CÓDIGO ANTIGO COMENTADO - CAUSAVA FALSAS REFERÊNCIAS
         const chat = await client.getChatById(grupoId);
@@ -289,7 +326,79 @@ async function tentarDetectarConvidador(grupoId, novoMembroId) {
     }
 }
 
-// Versão backup da criação de referência (com indicação de incerteza)
+// === CRIAÇÃO DE REFERÊNCIA AUTOMÁTICA INTELIGENTE ===
+async function criarReferenciaAutomaticaInteligente(convidadorId, convidadoId, grupoId) {
+    try {
+        console.log(`🤖 INTELIGENTE: Criando referência automática: ${convidadorId} → ${convidadoId}`);
+
+        // Verificar se o convidado já tem referência
+        if (referenciasClientes[convidadoId]) {
+            console.log(`   ⚠️ INTELIGENTE: Cliente ${convidadoId} já tem referência registrada`);
+            return false;
+        }
+
+        // Obter nomes para logs mais claros
+        let nomeConvidador = convidadorId;
+        let nomeConvidado = convidadoId;
+
+        try {
+            const contactConvidador = await client.getContactById(convidadorId);
+            const contactConvidado = await client.getContactById(convidadoId);
+            nomeConvidador = contactConvidador.pushname || contactConvidador.name || convidadorId;
+            nomeConvidado = contactConvidado.pushname || contactConvidado.name || convidadoId;
+        } catch (error) {
+            console.log(`   ⚠️ Não foi possível obter nomes dos contatos`);
+        }
+
+        // Gerar código único
+        const codigo = gerarCodigoReferencia(convidadorId);
+
+        // Criar referência com indicação de detecção automática
+        referenciasClientes[convidadoId] = {
+            codigo: codigo,
+            convidadoPor: convidadorId,
+            nomeConvidador: nomeConvidador,
+            nomeConvidado: nomeConvidado,
+            dataRegistro: new Date().toISOString(),
+            grupo: grupoId,
+            comprasRealizadas: 0,
+            bonusTotal: 0,
+            metodoDeteccao: 'AUTO_INTELIGENTE', // Indicação especial
+            obs: 'Referência criada por detecção automática inteligente'
+        };
+
+        codigosReferencia[codigo] = convidadoId;
+
+        console.log(`   ✅ INTELIGENTE: Referência criada: ${codigo} (${nomeConvidador} → ${nomeConvidado})`);
+
+        // Enviar notificação ao convidador com indicação de auto-detecção
+        try {
+            const mensagemNotificacao = `🤖 *REFERÊNCIA AUTOMÁTICA CRIADA*
+
+🎯 **Código:** ${codigo}
+👤 **Novo cliente:** ${nomeConvidado}
+📅 **Data:** ${new Date().toLocaleDateString('pt-PT')}
+
+⚠️ *Esta referência foi criada automaticamente*
+Se não foi você quem convidou este membro, digite *.cancelar ${codigo}* para cancelar.
+
+💰 Ganhe 10MB por cada 100MT que ele gastar!`;
+
+            await client.sendMessage(convidadorId, mensagemNotificacao);
+            console.log(`   ✅ INTELIGENTE: Notificação enviada ao convidador`);
+        } catch (error) {
+            console.error(`   ❌ Erro ao enviar notificação:`, error);
+        }
+
+        return true;
+
+    } catch (error) {
+        console.error('❌ Erro ao criar referência automática inteligente:', error);
+        return false;
+    }
+}
+
+// Versão backup da criação de referência (com indicação de incerteza) - DEPRECATED
 async function criarReferenciaAutomaticaBackup(convidadorId, convidadoId, grupoId) {
     try {
         console.log(`🔗 BACKUP: Criando referência automática: ${convidadorId} → ${convidadoId}`);
@@ -2550,7 +2659,8 @@ client.on('ready', async () => {
 client.on('group-join', async (notification) => {
     try {
         console.log('🔍 EVENT group-join disparado!');
-        console.log('📊 Dados completos:', JSON.stringify(notification, null, 2));
+        console.log('📊 Tipo de notificação:', notification.type); // 'add' ou 'invite'
+        console.log('⏰ Timestamp:', new Date(notification.timestamp * 1000));
 
         const chatId = notification.chatId;
         const addedParticipants = notification.recipientIds || [];
@@ -2559,7 +2669,33 @@ client.on('group-join', async (notification) => {
 
         console.log(`📍 ChatId: ${chatId}`);
         console.log(`👥 Participantes adicionados: ${addedParticipants.join(', ')}`);
-        console.log(`👤 Adicionado por: ${addedBy || 'INDEFINIDO'}`);
+        console.log(`👤 Adicionado por (ID): ${addedBy || 'INDEFINIDO'}`);
+
+        // USAR MÉTODOS DA DOCUMENTAÇÃO PARA OBTER DETALHES REAIS
+        let nomeAdicionador = 'INDEFINIDO';
+        let nomesAdicionados = [];
+
+        try {
+            // Obter detalhes de quem adicionou
+            if (addedBy) {
+                const contact = await notification.getContact();
+                nomeAdicionador = contact.pushname || contact.name || addedBy;
+                console.log(`👤 Adicionado por (Nome Real): ${nomeAdicionador}`);
+            }
+
+            // Obter detalhes de quem foi adicionado
+            const recipients = await notification.getRecipients();
+            nomesAdicionados = recipients.map(r => r.pushname || r.name || r.id._serialized);
+            console.log(`👥 Novos membros (Nomes): ${nomesAdicionados.join(', ')}`);
+
+            // Obter detalhes do grupo
+            const chat = await notification.getChat();
+            console.log(`🏢 Grupo: ${chat.name}`);
+
+        } catch (error) {
+            console.log(`⚠️ Erro ao obter detalhes dos contatos:`, error.message);
+        }
+
         console.log(`🤖 Bot ID: ${botInfo?.wid?._serialized || 'INDEFINIDO'}`);
 
         if (botInfo && addedParticipants.includes(botInfo.wid._serialized)) {
@@ -2589,20 +2725,32 @@ client.on('group-join', async (notification) => {
 
             if (configGrupo && addedBy) {
                 console.log(`✅ Condições atendidas! Processando ${addedParticipants.length} membro(s)...`);
+                console.log(`📝 Tipo de adição: ${notification.type} (add=admin adicionou, invite=entrou via link)`);
 
                 // Processar cada novo membro
-                for (const participantId of addedParticipants) {
+                for (let i = 0; i < addedParticipants.length; i++) {
+                    const participantId = addedParticipants[i];
+                    const nomeParticipante = nomesAdicionados[i] || participantId;
+
                     try {
-                        console.log(`👋 PROCESSANDO VIA EVENT: ${participantId} adicionado por ${addedBy} em ${configGrupo.nome}`);
+                        console.log(`👋 PROCESSANDO VIA EVENT: ${nomeParticipante} (${participantId})`);
+                        console.log(`👤 Adicionado por: ${nomeAdicionador} (${addedBy})`);
+                        console.log(`🏢 No grupo: ${configGrupo.nome}`);
 
                         // Marcar como processado via event para evitar processamento duplicado
                         const membroKey = `${chatId}_${participantId}`;
                         membrosProcessadosViaEvent.add(membroKey);
 
-                        // CRIAR REFERÊNCIA AUTOMÁTICA COM DADOS CORRETOS
-                        console.log(`🔗 Tentando criar referência automática (via event)...`);
-                        const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
-                        console.log(`🔗 Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
+                        // CRIAR REFERÊNCIA APENAS SE FOI ADMIN QUE ADICIONOU (NÃO INVITE LINK)
+                        if (notification.type === 'add') {
+                            console.log(`🔗 Criando referência automática (admin adicionou)...`);
+                            const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
+                            console.log(`🔗 Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
+                        } else if (notification.type === 'invite') {
+                            console.log(`📎 Membro entrou via link de convite - não criando referência automática`);
+                        } else {
+                            console.log(`❓ Tipo de entrada desconhecido: ${notification.type}`);
+                        }
 
                         // Aguardar um pouco para evitar spam
                         setTimeout(async () => {
@@ -2710,6 +2858,64 @@ client.on('message', async (message) => {
 
                 await message.reply(statusRetry);
                 console.log(`🔄 Comando .retry executado`);
+                return;
+            }
+
+            // === COMANDO CANCELAR REFERÊNCIA AUTOMÁTICA ===
+            if (comando.startsWith('.cancelar ')) {
+                const codigo = comando.replace('.cancelar ', '').trim().toUpperCase();
+
+                if (!codigo) {
+                    await message.reply('❌ Use: .cancelar CODIGO\nExemplo: .cancelar ABC123');
+                    return;
+                }
+
+                // Verificar se o código existe
+                const clienteId = codigosReferencia[codigo];
+                if (!clienteId) {
+                    await message.reply(`❌ Código de referência *${codigo}* não encontrado.`);
+                    return;
+                }
+
+                const referencia = referenciasClientes[clienteId];
+                if (!referencia) {
+                    await message.reply(`❌ Dados da referência *${codigo}* não encontrados.`);
+                    return;
+                }
+
+                // Verificar se quem está cancelando é o convidador
+                const autorMensagem = message.author || message.from;
+                if (referencia.convidadoPor !== autorMensagem) {
+                    await message.reply(`❌ Apenas *${referencia.nomeConvidador}* pode cancelar esta referência.`);
+                    return;
+                }
+
+                // Verificar se é uma referência automática
+                if (referencia.metodoDeteccao !== 'AUTO_INTELIGENTE') {
+                    await message.reply(`❌ Apenas referências criadas automaticamente podem ser canceladas.\nPara referências manuais, contacte o administrador.`);
+                    return;
+                }
+
+                // Verificar se já teve atividade (compras)
+                if (referencia.comprasRealizadas > 0) {
+                    await message.reply(`❌ Não é possível cancelar - cliente já realizou ${referencia.comprasRealizadas} compra(s).\nContacte o administrador se necessário.`);
+                    return;
+                }
+
+                // Cancelar a referência
+                delete referenciasClientes[clienteId];
+                delete codigosReferencia[codigo];
+
+                const mensagemCancelamento = `✅ *REFERÊNCIA CANCELADA*
+
+🎯 **Código:** ${codigo}
+👤 **Cliente:** ${referencia.nomeConvidado}
+📅 **Cancelado em:** ${new Date().toLocaleDateString('pt-PT')}
+
+💡 A referência foi removida do sistema.`;
+
+                await message.reply(mensagemCancelamento);
+                console.log(`🗑️ Referência automática cancelada: ${codigo} por ${referencia.nomeConvidador}`);
                 return;
             }
 
