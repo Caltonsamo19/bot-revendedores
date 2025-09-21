@@ -6,7 +6,14 @@ class WhatsAppAI {
     this.openai = new OpenAI({ apiKey });
     this.comprovantesEmAberto = {};
     this.historicoMensagens = [];
-    this.maxHistorico = 200; // AUMENTADO: 200 mensagens para melhor histórico
+    this.maxHistorico = 100; // OTIMIZADO: Reduzido de 200 para 100 mensagens
+
+    // RATE LIMITING PARA OPENAI
+    this.rateLimiter = {
+      requests: [],
+      maxRequests: 10, // máximo 10 requests por minuto
+      windowMs: 60000 // janela de 1 minuto
+    };
     
     // Processamento de imagens desativado para otimização
     this.googleVisionEnabled = false;
@@ -17,6 +24,28 @@ class WhatsAppAI {
     }, 10 * 60 * 1000);
     
     console.log(`🧠 IA WhatsApp inicializada - Processamento apenas de TEXTO`);
+  }
+
+  // === RATE LIMITING PARA OPENAI ===
+  async checkRateLimit() {
+    const now = Date.now();
+
+    // Limpar requests antigos
+    this.rateLimiter.requests = this.rateLimiter.requests.filter(
+      timestamp => now - timestamp < this.rateLimiter.windowMs
+    );
+
+    // Verificar se excedeu o limite
+    if (this.rateLimiter.requests.length >= this.rateLimiter.maxRequests) {
+      const oldestRequest = Math.min(...this.rateLimiter.requests);
+      const waitTime = this.rateLimiter.windowMs - (now - oldestRequest);
+
+      console.log(`⏳ Rate limit atingido, aguardando ${Math.round(waitTime/1000)}s...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+
+    // Registrar nova request
+    this.rateLimiter.requests.push(now);
   }
 
   // === RECONSTRUIR REFERÊNCIAS QUEBRADAS ===
@@ -176,6 +205,9 @@ Se não conseguires extrair os dados:
 {"encontrado": false}`;
 
     try {
+      // Aplicar rate limiting
+      await this.checkRateLimit();
+
       const resposta = await this.openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
@@ -1288,6 +1320,9 @@ Se não conseguires ler a imagem ou extrair os dados:
 `;
 
     try {
+      // Aplicar rate limiting
+      await this.checkRateLimit();
+
       const resposta = await this.openai.chat.completions.create({
         model: "gpt-4o",
         messages: [

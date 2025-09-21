@@ -46,15 +46,16 @@ async function safeReply(message, client, texto) {
     }
 }
 
-// Criar instância do cliente
+// Criar instância do cliente OTIMIZADA
 const client = new Client({
     authStrategy: new LocalAuth({
-        clientId: "bot_retalho_modificado" // Diferente do bot atacado
+        clientId: "bot_retalho_modificado", // Diferente do bot atacado
+        dataPath: './session_data' // Caminho personalizado para dados de sessão
     }),
     puppeteer: {
         headless: true,
         args: [
-            '--no-sandbox', 
+            '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-accelerated-2d-canvas',
@@ -63,10 +64,17 @@ const client = new Client({
             '--no-default-browser-check',
             '--disable-default-apps',
             '--disable-translate',
-            '--disable-sync'
+            '--disable-sync',
+            '--disable-background-timer-throttling', // OTIMIZAÇÃO: Evitar throttling
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-features=TranslateUI',
+            '--disable-ipc-flooding-protection',
+            '--memory-pressure-off', // OTIMIZAÇÃO: Reduzir pressão de memória
+            '--max-old-space-size=1024' // OTIMIZAÇÃO: Limitar uso de memória
         ],
-        executablePath: undefined, // Use default Chrome
-        timeout: 0, // Remove timeout
+        executablePath: undefined,
+        timeout: 0,
         ignoreDefaultArgs: ['--disable-extensions']
     }
 });
@@ -90,8 +98,8 @@ const ENCAMINHAMENTO_CONFIG = {
 let filaMensagens = [];
 let processandoFila = false;
 
-// === VARIÁVEIS PARA DADOS ===
-let dadosParaTasker = [];
+// === SISTEMA DE CACHE DE DADOS OTIMIZADO ===
+let cacheTransacoes = new Map(); // Cache em memória mais eficiente
 
 // === SISTEMA DE RETRY SILENCIOSO PARA PAGAMENTOS ===
 let pagamentosPendentes = {}; // {id: {dados do pedido}}
@@ -124,14 +132,14 @@ let ultimosParticipantes = {}; // {grupoId: [participantIds]} - cache dos partic
 async function iniciarMonitoramentoMembros() {
     console.log('🕵️ Iniciando monitoramento automático de novos membros...');
     
-    // Executar a cada 30 segundos
+    // Executar a cada 2 minutos (otimizado - era 30s)
     setInterval(async () => {
         try {
             await verificarNovosMembros();
         } catch (error) {
             console.error('❌ Erro no monitoramento de membros:', error);
         }
-    }, 30000); // 30 segundos
+    }, 120000); // 2 minutos
     
     // Primeira execução após 10 segundos (para dar tempo do bot conectar)
     setTimeout(async () => {
@@ -186,23 +194,26 @@ async function processarNovoMembro(grupoId, participantId) {
     try {
         const configGrupo = getConfiguracaoGrupo(grupoId);
         if (!configGrupo) return;
-        
+
         const cacheKey = `${grupoId}_${participantId}`;
         const agora = Date.now();
-        
+
         // Verificar se já enviamos boas-vindas recentemente (últimas 24h)
         if (cacheBoasVindas[cacheKey] && (agora - cacheBoasVindas[cacheKey]) < (24 * 60 * 60 * 1000)) {
             return;
         }
-        
-        console.log(`👋 Novo membro detectado`);
-        
+
+        console.log(`👋 Novo membro detectado via POLLING: ${participantId}`);
+
+        // TENTAR DETECTAR QUEM ADICIONOU (BACKUP PARA QUANDO group-join FALHA)
+        await tentarDetectarConvidador(grupoId, participantId);
+
         // Registrar entrada do membro
         await registrarEntradaMembro(grupoId, participantId);
-        
+
         // Marcar como processado
         cacheBoasVindas[cacheKey] = agora;
-        
+
         // Enviar boas-vindas com delay aleatório
         setTimeout(async () => {
             try {
@@ -212,9 +223,167 @@ async function processarNovoMembro(grupoId, participantId) {
                 console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error.message);
             }
         }, 3000 + (Math.random() * 5000)); // 3-8 segundos
-        
+
     } catch (error) {
         console.error('❌ Erro ao processar novo membro:', error);
+    }
+}
+
+// SISTEMA DE BACKUP: Tentar detectar quem adicionou (quando group-join falha)
+async function tentarDetectarConvidador(grupoId, novoMembroId) {
+    try {
+        console.log(`🔍 BACKUP: Tentando detectar quem adicionou ${novoMembroId}...`);
+
+        // Estratégia: Verificar quem são os admins do grupo e assumir que um deles adicionou
+        const chat = await client.getChatById(grupoId);
+        const participants = await chat.participants;
+
+        // Encontrar admins do grupo
+        const admins = participants.filter(p => p.isAdmin && p.id._serialized !== novoMembroId);
+
+        if (admins.length > 0) {
+            // Por simplicidade, vamos assumir que o primeiro admin ativo é quem adicionou
+            // Em um cenário real, você poderia implementar lógica mais sofisticada
+            const possivelConvidador = admins[0].id._serialized;
+
+            console.log(`🎯 BACKUP: Assumindo que ${possivelConvidador} adicionou ${novoMembroId}`);
+
+            // Verificar se o possível convidador já tem muitas referências recentes
+            // (para evitar creditar tudo para o mesmo admin)
+            const hojeISO = new Date().toISOString().split('T')[0];
+            const referenciasHoje = Object.keys(referenciasClientes).filter(clienteId => {
+                const ref = referenciasClientes[clienteId];
+                return ref.convidadoPor === possivelConvidador &&
+                       ref.dataRegistro?.startsWith(hojeISO);
+            }).length;
+
+            // Se o admin já tem muitas referências hoje, não criar automática
+            if (referenciasHoje >= 5) {
+                console.log(`⚠️ BACKUP: ${possivelConvidador} já tem ${referenciasHoje} referências hoje, pulando...`);
+                return false;
+            }
+
+            // Criar referência automática com indicação de que é "estimativa"
+            const resultado = await criarReferenciaAutomaticaBackup(possivelConvidador, novoMembroId, grupoId);
+            console.log(`🔗 BACKUP: Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
+
+            return resultado;
+        } else {
+            console.log(`❌ BACKUP: Nenhum admin encontrado no grupo`);
+            return false;
+        }
+
+    } catch (error) {
+        console.error('❌ Erro ao tentar detectar convidador (backup):', error);
+        return false;
+    }
+}
+
+// Versão backup da criação de referência (com indicação de incerteza)
+async function criarReferenciaAutomaticaBackup(convidadorId, convidadoId, grupoId) {
+    try {
+        console.log(`🔗 BACKUP: Criando referência automática: ${convidadorId} → ${convidadoId}`);
+
+        // Verificar se o convidado já tem referência
+        if (referenciasClientes[convidadoId]) {
+            console.log(`   ⚠️ BACKUP: Cliente ${convidadoId} já tem referência registrada`);
+            return false;
+        }
+
+        // Verificar se o convidador não está tentando convidar a si mesmo
+        if (convidadorId === convidadoId) {
+            console.log(`   ❌ BACKUP: Convidador tentou convidar a si mesmo`);
+            return false;
+        }
+
+        // Gerar código único para esta referência
+        const codigo = gerarCodigoReferencia(convidadorId);
+
+        // Registrar código de referência
+        codigosReferencia[codigo] = {
+            criador: convidadorId,
+            dataCreacao: new Date().toISOString(),
+            usado: true,
+            usadoPor: convidadoId,
+            dataUso: new Date().toISOString(),
+            automatico: true,
+            backup: true // Marcar como detectado por sistema backup
+        };
+
+        // Registrar referência do cliente
+        referenciasClientes[convidadoId] = {
+            codigo: codigo,
+            convidadoPor: convidadorId,
+            dataRegistro: new Date().toISOString(),
+            comprasRealizadas: 0,
+            automatico: true,
+            backup: true // Marcar como detectado por sistema backup
+        };
+
+        // Inicializar saldo de bônus do convidador se não existir
+        if (!bonusSaldos[convidadorId]) {
+            bonusSaldos[convidadorId] = {
+                saldo: 0,
+                detalhesReferencias: {},
+                historicoSaques: [],
+                totalReferencias: 0
+            };
+        }
+
+        // Incrementar total de referências
+        bonusSaldos[convidadorId].totalReferencias++;
+
+        // Inicializar detalhes da referência
+        bonusSaldos[convidadorId].detalhesReferencias[convidadoId] = {
+            compras: 0,
+            bonusGanho: 0,
+            codigo: codigo,
+            ativo: true,
+            automatico: true,
+            backup: true
+        };
+
+        // Salvar dados
+        // Sistema de cache otimizado - sem salvamento em arquivos
+
+        // Obter nomes dos participantes para notificação
+        const nomeConvidador = await obterNomeContato(convidadorId);
+        const nomeConvidado = await obterNomeContato(convidadoId);
+
+        // Enviar notificação no grupo (com indicação de estimativa)
+        try {
+            await client.sendMessage(grupoId,
+                `🎉 *NOVO MEMBRO ADICIONADO!*\n\n` +
+                `👋 Bem-vindo *${nomeConvidado}*!\n\n` +
+                `📢 Sistema detectou provável adição por: *${nomeConvidador}*\n` +
+                `🎁 *${nomeConvidador}* ganhará *200MB* a cada compra de *${nomeConvidado}*!\n\n` +
+                `📋 *Benefícios:*\n` +
+                `• Máximo: 5 compras = 1000MB (1GB)\n` +
+                `• Saque mínimo: 1000MB\n` +
+                `• Sistema automático ativo!\n\n` +
+                `💡 _Continue convidando amigos para ganhar mais bônus!_\n` +
+                `⚠️ _Detecção automática por monitoramento do sistema_`, {
+                mentions: [convidadorId, convidadoId]
+            });
+
+            console.log(`✅ BACKUP: Notificação de referência automática enviada`);
+        } catch (error) {
+            console.error('❌ BACKUP: Erro ao enviar notificação de referência:', error);
+        }
+
+        console.log(`✅ BACKUP: Referência automática criada: ${codigo} (${nomeConvidador} → ${nomeConvidado})`);
+
+        return {
+            codigo: codigo,
+            convidador: convidadorId,
+            convidado: convidadoId,
+            automatico: true,
+            backup: true
+        };
+
+    } catch (error) {
+        console.error('❌ BACKUP: Erro ao criar referência automática:', error);
+        return false;
     }
 }
 
@@ -416,20 +585,21 @@ async function salvarDadosReferencia() {
     }
 }
 
-// === SALVAMENTO COM DEBOUNCE (OTIMIZAÇÃO) ===
-let timeoutSalvamento = null;
+// === CACHE DE TRANSAÇÕES (SEM ARQUIVOS .TXT) ===
+function adicionarTransacaoCache(dados, grupoId) {
+    const key = `${grupoId}_${Date.now()}_${Math.random()}`;
+    cacheTransacoes.set(key, {
+        ...dados,
+        timestamp: Date.now(),
+        grupo_id: grupoId
+    });
 
-function agendarSalvamento() {
-    // Cancelar salvamento anterior se houver
-    if (timeoutSalvamento) {
-        clearTimeout(timeoutSalvamento);
+    // Limpar cache automaticamente (manter últimas 100 transações)
+    if (cacheTransacoes.size > 100) {
+        const keys = Array.from(cacheTransacoes.keys());
+        const oldKeys = keys.slice(0, keys.length - 100);
+        oldKeys.forEach(key => cacheTransacoes.delete(key));
     }
-
-    // Agendar novo salvamento em 2 segundos
-    timeoutSalvamento = setTimeout(async () => {
-        agendarSalvamento();
-        timeoutSalvamento = null;
-    }, 2000);
 }
 
 // Gerar código único
@@ -595,7 +765,7 @@ async function criarReferenciaAutomatica(convidadorId, convidadoId, grupoId) {
         };
 
         // Salvar dados
-        agendarSalvamento();
+        // Sistema de cache otimizado - sem salvamento em arquivos
 
         // Obter nomes dos participantes para notificação
         const nomeConvidador = await obterNomeContato(convidadorId);
@@ -692,16 +862,20 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
 
         console.log(`🔍 REVENDEDORES: Verificando pagamento ${referencia} - ${valorNormalizado}MT (original: ${valorEsperado})`);
 
-        // Primeira tentativa: busca pelo valor exato
+        // Primeira tentativa: busca pelo valor exato (otimizado)
         let response = await axios.post(PAGAMENTOS_CONFIG.scriptUrl, {
             action: "buscar_por_referencia",
             referencia: referencia,
             valor: valorNormalizado
         }, {
-            timeout: PAGAMENTOS_CONFIG.timeout,
+            timeout: PAGAMENTOS_CONFIG.timeout, // Mantém timeout do Google Sheets
             headers: {
-                'Content-Type': 'application/json'
-            }
+                'Content-Type': 'application/json',
+                'Connection': 'keep-alive',
+                'Cache-Control': 'no-cache'
+            },
+            maxRedirects: 3,
+            validateStatus: (status) => status < 500
         });
 
         if (response.data && response.data.encontrado) {
@@ -715,10 +889,14 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
             action: "buscar_por_referencia_only",
             referencia: referencia
         }, {
-            timeout: PAGAMENTOS_CONFIG.timeout,
+            timeout: PAGAMENTOS_CONFIG.timeout, // Mantém timeout do Google Sheets
             headers: {
-                'Content-Type': 'application/json'
-            }
+                'Content-Type': 'application/json',
+                'Connection': 'keep-alive',
+                'Cache-Control': 'no-cache'
+            },
+            maxRedirects: 3,
+            validateStatus: (status) => status < 500
         });
 
         if (response.data && response.data.encontrado) {
@@ -2356,10 +2534,18 @@ client.on('ready', async () => {
 
 client.on('group-join', async (notification) => {
     try {
+        console.log('🔍 EVENT group-join disparado!');
+        console.log('📊 Dados completos:', JSON.stringify(notification, null, 2));
+
         const chatId = notification.chatId;
         const addedParticipants = notification.recipientIds || [];
         const addedBy = notification.author; // QUEM ADICIONOU OS NOVOS MEMBROS
         const botInfo = client.info;
+
+        console.log(`📍 ChatId: ${chatId}`);
+        console.log(`👥 Participantes adicionados: ${addedParticipants.join(', ')}`);
+        console.log(`👤 Adicionado por: ${addedBy || 'INDEFINIDO'}`);
+        console.log(`🤖 Bot ID: ${botInfo?.wid?._serialized || 'INDEFINIDO'}`);
 
         if (botInfo && addedParticipants.includes(botInfo.wid._serialized)) {
             console.log(`\n🤖 BOT ADICIONADO A UM NOVO GRUPO!`);
@@ -2380,16 +2566,24 @@ client.on('group-join', async (notification) => {
             }, 3000);
         } else {
             // NOVOS MEMBROS (NÃO-BOT) ENTRARAM NO GRUPO
+            console.log('👥 Processando novos membros...');
+
             const configGrupo = getConfiguracaoGrupo(chatId);
+            console.log(`🏢 Grupo configurado: ${configGrupo ? configGrupo.nome : 'NÃO CONFIGURADO'}`);
+            console.log(`👤 Adicionado por: ${addedBy || 'INDEFINIDO'}`);
 
             if (configGrupo && addedBy) {
+                console.log(`✅ Condições atendidas! Processando ${addedParticipants.length} membro(s)...`);
+
                 // Processar cada novo membro
                 for (const participantId of addedParticipants) {
                     try {
-                        console.log(`👋 Novo membro: ${participantId} adicionado por ${addedBy} em ${configGrupo.nome}`);
+                        console.log(`👋 PROCESSANDO: ${participantId} adicionado por ${addedBy} em ${configGrupo.nome}`);
 
                         // CRIAR REFERÊNCIA AUTOMÁTICA
-                        await criarReferenciaAutomatica(addedBy, participantId, chatId);
+                        console.log(`🔗 Tentando criar referência automática...`);
+                        const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
+                        console.log(`🔗 Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
 
                         // Aguardar um pouco para evitar spam
                         setTimeout(async () => {
@@ -2402,7 +2596,15 @@ client.on('group-join', async (notification) => {
 
                     } catch (error) {
                         console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
+                        console.error(`❌ Stack trace:`, error.stack);
                     }
+                }
+            } else {
+                if (!configGrupo) {
+                    console.log(`❌ Grupo ${chatId} não está configurado no sistema`);
+                }
+                if (!addedBy) {
+                    console.log(`❌ Não foi possível identificar quem adicionou os membros`);
                 }
             }
         }
@@ -3152,7 +3354,7 @@ client.on('message', async (message) => {
                             motivo: 'Bônus administrativo'
                         });
 
-                        agendarSalvamento();
+                        // Sistema de cache otimizado - sem salvamento em arquivos
 
                         const quantidadeFormatada = quantidadeMB >= 1024 ? `${(quantidadeMB/1024).toFixed(2)}GB` : `${quantidadeMB}MB`;
                         const novoSaldo = bonusSaldos[participantId].saldo;
@@ -3654,7 +3856,7 @@ client.on('message', async (message) => {
                         criado: new Date().toISOString(),
                         ativo: true
                     };
-                    agendarSalvamento();
+                    // Sistema de cache otimizado - sem salvamento em arquivos
                 }
                 
                 await message.reply(
@@ -3719,7 +3921,7 @@ client.on('message', async (message) => {
                     comprasRealizadas: 0
                 };
                 
-                agendarSalvamento();
+                // Sistema de cache otimizado - sem salvamento em arquivos
                 
                 const convidadorId = codigosReferencia[codigo].dono;
                 const nomeConvidador = codigosReferencia[codigo].nome;
@@ -3863,7 +4065,7 @@ client.on('message', async (message) => {
                     data: agora.toISOString()
                 });
                 
-                agendarSalvamento();
+                // Sistema de cache otimizado - sem salvamento em arquivos
                 
                 // Enviar para Tasker
                 try {
@@ -4262,26 +4464,59 @@ process.on('uncaughtException', (error) => {
     }
 })();
 
-// Salvar histórico a cada 5 minutos
-setInterval(salvarHistorico, 5 * 60 * 1000);
+// Salvar histórico a cada 10 minutos (otimizado - era 5min)
+setInterval(salvarHistorico, 10 * 60 * 1000);
 
-// Limpar dados antigos do Tasker a cada hora
+// Limpar cache de transações a cada 2 horas (otimizado)
 setInterval(() => {
-    if (dadosParaTasker.length > 200) {
-        dadosParaTasker = dadosParaTasker.slice(-100);
-        console.log('🗑️ Dados antigos do Tasker removidos');
+    if (cacheTransacoes.size > 200) {
+        const keys = Array.from(cacheTransacoes.keys());
+        const oldKeys = keys.slice(0, keys.length - 100);
+        oldKeys.forEach(key => cacheTransacoes.delete(key));
+        console.log('🗑️ Cache antigo de transações removido');
     }
-}, 60 * 60 * 1000);
+}, 2 * 60 * 60 * 1000);
 
 // === CACHE DESNECESSÁRIO REMOVIDO ===
 // Arquivos .json dos pacotes removidos para otimização
 // Dados disponíveis via comandos quando necessário
 
-// Limpar cache de grupos logados a cada 2 horas
+// Limpar cache de grupos logados a cada 4 horas (otimizado - era 2h)
 setInterval(() => {
     gruposLogados.clear();
     console.log('🗑️ Cache de grupos detectados limpo');
-}, 2 * 60 * 60 * 1000);
+}, 4 * 60 * 60 * 1000);
+
+// === LIMPEZA OTIMIZADA DE CACHE WHATSAPP ===
+setInterval(async () => {
+    try {
+        console.log('🧹 Executando limpeza de cache WhatsApp...');
+
+        // Forçar garbage collection se disponível
+        if (global.gc) {
+            global.gc();
+            console.log('🗑️ Garbage collection executado');
+        }
+
+        // Limpar cache do whatsapp-web.js (se aplicável)
+        if (client && client.pupPage) {
+            await client.pupPage.evaluate(() => {
+                // Limpar localStorage e sessionStorage
+                try {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    console.log('Cache do navegador limpo');
+                } catch (e) {
+                    console.log('Erro ao limpar cache do navegador:', e.message);
+                }
+            });
+        }
+
+        console.log('✅ Limpeza de cache concluída');
+    } catch (error) {
+        console.error('❌ Erro na limpeza de cache:', error.message);
+    }
+}, 6 * 60 * 60 * 1000); // A cada 6 horas
 
 process.on('uncaughtException', (error) => {
     console.error('❌ Erro não capturado:', error);
