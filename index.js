@@ -4412,6 +4412,26 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             // Verificação básica por padrões (sem IA - economia máxima)
             const textoLimpo = texto.toLowerCase().trim();
 
+            // Excluir comandos específicos conhecidos
+            const comandosExcluir = [
+                'tabela',
+                'pagamento',
+                '.ranking',
+                '.meucodigo',
+                '.convite',
+                '.cancelar',
+                '.debug',
+                '.ia',
+                '.retry'
+            ];
+
+            // Se a mensagem é exatamente um comando, não detectar como intenção de compra
+            for (const comando of comandosExcluir) {
+                if (textoLimpo === comando || textoLimpo.startsWith(comando + ' ')) {
+                    return false;
+                }
+            }
+
             // Padrões diretos de intenção de compra
             const padroesCompra = [
                 'posso pagar',
@@ -4801,13 +4821,6 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return;
         }
 
-        // === DETECÇÃO DE INTENÇÃO DE COMPRA ===
-        if (await detectarIntencaoCompra(message.body)) {
-            console.log(`🛒 Intenção de compra detectada de ${message.author || message.from}`);
-            await safeReply(message, client, 'Estou á disposição, para te atender com flexibilidade.');
-            return;
-        }
-
         // Comandos de tabela e pagamento
         if (/tabela/i.test(message.body)) {
             await safeReply(message, client, configGrupo.tabela);
@@ -5064,6 +5077,14 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 `❌ Não encontrei seu comprovante.\n\n` +
                 `📝 Envie primeiro o comprovante de pagamento.`
             );
+            return;
+        }
+
+        // === DETECÇÃO DE INTENÇÃO DE COMPRA (ÚLTIMA VERIFICAÇÃO) ===
+        // Só executa se nenhum comando específico foi processado
+        if (await detectarIntencaoCompra(message.body)) {
+            console.log(`🛒 Intenção de compra detectada de ${message.author || message.from}`);
+            await safeReply(message, client, 'Estou á disposição, para te atender com flexibilidade.');
             return;
         }
 
