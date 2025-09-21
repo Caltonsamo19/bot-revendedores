@@ -299,13 +299,27 @@ Se não conseguires extrair os dados:
     } else {
       console.log(`   ✅ Correspondência exata: ${valorNumerico}MT = ${pacoteExato.descricao} (${pacoteExato.quantidade}MB)`);
     }
-    
+
     if (pacoteExato) {
       return pacoteExato.quantidade; // Retorna em MB
     }
-    
-    // Se não encontrar correspondência, retornar valor numérico (não string)
-    console.log(`   ⚠️ Sem correspondência para ${valorNumerico}MT, retornando valor numérico`);
+
+    // NOVA FUNCIONALIDADE: Se não encontrar correspondência, procurar o maior pacote que caiba no valor pago
+    console.log(`   🔍 Valor ${valorNumerico}MT não encontrado, procurando maior pacote que caiba no valor...`);
+
+    // Filtrar pacotes que custam MENOS OU IGUAL ao valor pago e ordenar por preço (maior primeiro)
+    const pacotesValidos = precos
+      .filter(p => p.preco <= valorNumerico)
+      .sort((a, b) => b.preco - a.preco); // Ordenar do maior para o menor preço
+
+    if (pacotesValidos.length > 0) {
+      const melhorPacote = pacotesValidos[0]; // O mais caro que caiba no valor
+      console.log(`   💡 OTIMIZADO: Cliente paga ${valorNumerico}MT → Enviando pacote de ${melhorPacote.preco}MT = ${melhorPacote.descricao} (${melhorPacote.quantidade}MB)`);
+      return melhorPacote.quantidade; // Retorna em MB
+    }
+
+    // Se não encontrar nenhum pacote que caiba, retornar valor numérico como fallback
+    console.log(`   ⚠️ Nenhum pacote encontrado para ${valorNumerico}MT, retornando valor numérico`);
     console.log(`   📋 Preços disponíveis: ${precos.map(p => `${p.preco}MT=${p.descricao}`).join(', ')}`);
     return valorNumerico;
   }

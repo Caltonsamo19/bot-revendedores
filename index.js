@@ -128,6 +128,9 @@ const ARQUIVO_MEMBROS = './dados_membros_entrada.json';
 let cacheBoasVindas = {}; // {grupoId_participantId: timestamp}
 let ultimosParticipantes = {}; // {grupoId: [participantIds]} - cache dos participantes
 
+// === CACHE PARA RASTREAR MEMBROS JÁ PROCESSADOS VIA GROUP-JOIN ===
+let membrosProcessadosViaEvent = new Set(); // Evita processamento duplicado
+
 // Sistema automático de detecção de novos membros
 async function iniciarMonitoramentoMembros() {
     console.log('🕵️ Iniciando monitoramento automático de novos membros...');
@@ -205,8 +208,18 @@ async function processarNovoMembro(grupoId, participantId) {
 
         console.log(`👋 Novo membro detectado via POLLING: ${participantId}`);
 
-        // TENTAR DETECTAR QUEM ADICIONOU (BACKUP PARA QUANDO group-join FALHA)
-        await tentarDetectarConvidador(grupoId, participantId);
+        // Verificar se já foi processado via event 'group-join'
+        const membroKey = `${grupoId}_${participantId}`;
+        if (membrosProcessadosViaEvent.has(membroKey)) {
+            console.log(`✅ Membro ${participantId} já foi processado via event 'group-join' - pulando...`);
+            return;
+        }
+
+        // SISTEMA DE DETECÇÃO AUTOMÁTICA DESATIVADO (evita falsas referências)
+        const convidadorDetectado = await tentarDetectarConvidador(grupoId, participantId);
+        if (convidadorDetectado === null) {
+            console.log(`ℹ️ Referência automática não criada - aguardando detecção manual ou event 'group-join'`);
+        }
 
         // Registrar entrada do membro
         await registrarEntradaMembro(grupoId, participantId);
@@ -229,27 +242,25 @@ async function processarNovoMembro(grupoId, participantId) {
     }
 }
 
-// SISTEMA DE BACKUP: Tentar detectar quem adicionou (quando group-join falha)
+// SISTEMA DE BACKUP DESATIVADO - CAUSA FALSAS REFERÊNCIAS
 async function tentarDetectarConvidador(grupoId, novoMembroId) {
     try {
-        console.log(`🔍 BACKUP: Tentando detectar quem adicionou ${novoMembroId}...`);
+        console.log(`🔍 BACKUP: Sistema de detecção automática DESATIVADO para evitar falsas referências`);
+        console.log(`⚠️ BACKUP: Novo membro ${novoMembroId} detectado, mas não será criada referência automática`);
 
-        // Estratégia: Verificar quem são os admins do grupo e assumir que um deles adicionou
+        // SOLUÇÃO: Só criar referência quando há dados concretos do WhatsApp
+        // Retornar null para indicar que não foi possível detectar com segurança
+        return null;
+
+        /* CÓDIGO ANTIGO COMENTADO - CAUSAVA FALSAS REFERÊNCIAS
         const chat = await client.getChatById(grupoId);
         const participants = await chat.participants;
-
-        // Encontrar admins do grupo
         const admins = participants.filter(p => p.isAdmin && p.id._serialized !== novoMembroId);
 
         if (admins.length > 0) {
-            // Por simplicidade, vamos assumir que o primeiro admin ativo é quem adicionou
-            // Em um cenário real, você poderia implementar lógica mais sofisticada
             const possivelConvidador = admins[0].id._serialized;
-
             console.log(`🎯 BACKUP: Assumindo que ${possivelConvidador} adicionou ${novoMembroId}`);
 
-            // Verificar se o possível convidador já tem muitas referências recentes
-            // (para evitar creditar tudo para o mesmo admin)
             const hojeISO = new Date().toISOString().split('T')[0];
             const referenciasHoje = Object.keys(referenciasClientes).filter(clienteId => {
                 const ref = referenciasClientes[clienteId];
@@ -257,13 +268,11 @@ async function tentarDetectarConvidador(grupoId, novoMembroId) {
                        ref.dataRegistro?.startsWith(hojeISO);
             }).length;
 
-            // Se o admin já tem muitas referências hoje, não criar automática
             if (referenciasHoje >= 5) {
                 console.log(`⚠️ BACKUP: ${possivelConvidador} já tem ${referenciasHoje} referências hoje, pulando...`);
                 return false;
             }
 
-            // Criar referência automática com indicação de que é "estimativa"
             const resultado = await criarReferenciaAutomaticaBackup(possivelConvidador, novoMembroId, grupoId);
             console.log(`🔗 BACKUP: Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
 
@@ -272,10 +281,11 @@ async function tentarDetectarConvidador(grupoId, novoMembroId) {
             console.log(`❌ BACKUP: Nenhum admin encontrado no grupo`);
             return false;
         }
+        */
 
     } catch (error) {
         console.error('❌ Erro ao tentar detectar convidador (backup):', error);
-        return false;
+        return null;
     }
 }
 
@@ -2583,10 +2593,14 @@ client.on('group-join', async (notification) => {
                 // Processar cada novo membro
                 for (const participantId of addedParticipants) {
                     try {
-                        console.log(`👋 PROCESSANDO: ${participantId} adicionado por ${addedBy} em ${configGrupo.nome}`);
+                        console.log(`👋 PROCESSANDO VIA EVENT: ${participantId} adicionado por ${addedBy} em ${configGrupo.nome}`);
 
-                        // CRIAR REFERÊNCIA AUTOMÁTICA
-                        console.log(`🔗 Tentando criar referência automática...`);
+                        // Marcar como processado via event para evitar processamento duplicado
+                        const membroKey = `${chatId}_${participantId}`;
+                        membrosProcessadosViaEvent.add(membroKey);
+
+                        // CRIAR REFERÊNCIA AUTOMÁTICA COM DADOS CORRETOS
+                        console.log(`🔗 Tentando criar referência automática (via event)...`);
                         const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
                         console.log(`🔗 Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
 
@@ -4496,6 +4510,12 @@ setInterval(() => {
     gruposLogados.clear();
     console.log('🗑️ Cache de grupos detectados limpo');
 }, 4 * 60 * 60 * 1000);
+
+// Limpar cache de membros processados a cada 6 horas (evita crescimento infinito)
+setInterval(() => {
+    membrosProcessadosViaEvent.clear();
+    console.log('🗑️ Cache de membros processados via event limpo');
+}, 6 * 60 * 60 * 1000);
 
 // === LIMPEZA OTIMIZADA DE CACHE WHATSAPP ===
 setInterval(async () => {
