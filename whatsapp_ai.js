@@ -194,10 +194,14 @@ Se não conseguires extrair os dados:
       // Verificar se o GPT extraiu o valor correto usando fallback de regex
       if (resultado.encontrado && resultado.valor) {
         const valorRegex = this.extrairValorMPesa(textoExtraido);
+        console.log(`🔧 DEBUG: GPT extraiu valor: "${resultado.valor}", Regex encontrou: "${valorRegex}"`);
+
         if (valorRegex && parseFloat(valorRegex) !== parseFloat(resultado.valor)) {
           console.log(`⚠️ Correção de valor: GPT extraiu ${resultado.valor}MT, regex encontrou ${valorRegex}MT`);
           resultado.valor = valorRegex;
         }
+
+        console.log(`✅ DEBUG: Valor final após verificação: "${resultado.valor}"`);
       }
 
       return resultado;
@@ -1698,28 +1702,43 @@ Se não conseguires extrair, responde:
     if (!valor) return '0';
 
     let valorStr = valor.toString();
+    console.log(`🔧 DEBUG limparValor: entrada = "${valorStr}"`);
+
+    // Remover unidades monetárias
     valorStr = valorStr.replace(new RegExp('\\s*(MT|mt|meticais?|metical)\\s*', 'gi'), '');
     valorStr = valorStr.trim();
+    console.log(`🔧 DEBUG limparValor: após remover MT = "${valorStr}"`);
 
+    // Tratamento inteligente de vírgulas e pontos
     if (valorStr.includes(',') && valorStr.includes('.')) {
+      // Se tem ambos, vírgula é separador de milhares
       valorStr = valorStr.replace(/,/g, '');
     } else if (valorStr.includes(',')) {
       const parts = valorStr.split(',');
       if (parts.length === 2 && parts[1].length <= 2) {
+        // Vírgula é separador decimal
         valorStr = valorStr.replace(',', '.');
       } else {
+        // Vírgula é separador de milhares
         valorStr = valorStr.replace(/,/g, '');
       }
     }
 
-    const match = valorStr.match(new RegExp('\\d+\\.?\\d*'));
+    console.log(`🔧 DEBUG limparValor: após tratamento vírgulas = "${valorStr}"`);
+
+    // Extrair número
+    const match = valorStr.match(/\d+(\.\d+)?/);
     if (match) {
-      const numero = parseFloat(match[0]);
-      return numero.toString();
+      const numeroFinal = parseFloat(match[0]).toString();
+      console.log(`✅ DEBUG limparValor: resultado = "${numeroFinal}"`);
+      return numeroFinal;
     }
 
+    // Fallback: apenas dígitos
     const digitos = valorStr.replace(/[^\d]/g, '');
-    return digitos || '0';
+    const resultado = digitos || '0';
+    console.log(`❌ DEBUG limparValor: fallback = "${resultado}"`);
+    return resultado;
   }
 
   // === EXTRAIR NÚMERO (MANTIDO PARA COMPATIBILIDADE) ===

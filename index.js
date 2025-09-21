@@ -93,6 +93,13 @@ let processandoFila = false;
 // === VARIÁVEIS PARA DADOS ===
 let dadosParaTasker = [];
 
+// === SISTEMA DE RETRY SILENCIOSO PARA PAGAMENTOS ===
+let pagamentosPendentes = {}; // {id: {dados do pedido}}
+let timerRetryPagamentos = null;
+const ARQUIVO_PAGAMENTOS_PENDENTES = './pagamentos_pendentes.json';
+const RETRY_INTERVAL = 60000; // 60 segundos
+const RETRY_TIMEOUT = 30 * 60 * 1000; // 30 minutos
+
 // === SISTEMA DE REFERÊNCIAS E BÔNUS ===
 let codigosReferencia = {}; // codigo -> dados do dono
 let referenciasClientes = {}; // cliente -> dados da referencia
@@ -524,8 +531,25 @@ async function processarBonusCompra(remetenteCompra, valorCompra) {
 function normalizarValor(valor) {
     if (typeof valor === 'number') return valor;
     if (typeof valor === 'string') {
-        const valorLimpo = valor.replace(/[^\d]/g, '');
-        return parseInt(valorLimpo) || 0;
+        // Remover caracteres não numéricos exceto ponto e vírgula
+        let valorLimpo = valor.replace(/[^\d.,]/g, '');
+
+        // Converter vírgula para ponto se for separador decimal
+        if (valorLimpo.includes(',') && !valorLimpo.includes('.')) {
+            const partes = valorLimpo.split(',');
+            if (partes.length === 2 && partes[1].length <= 2) {
+                valorLimpo = partes[0] + '.' + partes[1];
+            } else {
+                valorLimpo = valorLimpo.replace(/,/g, '');
+            }
+        } else if (valorLimpo.includes(',')) {
+            // Se tem tanto vírgula quanto ponto, remover vírgulas (separadores de milhares)
+            valorLimpo = valorLimpo.replace(/,/g, '');
+        }
+
+        const numeroFinal = parseFloat(valorLimpo) || 0;
+        console.log(`🔧 normalizarValor: "${valor}" → "${valorLimpo}" → ${numeroFinal}`);
+        return numeroFinal;
     }
     return 0;
 }
@@ -548,7 +572,8 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
 
         console.log(`🔍 REVENDEDORES: Verificando pagamento ${referencia} - ${valorNormalizado}MT (original: ${valorEsperado})`);
 
-        const response = await axios.post(PAGAMENTOS_CONFIG.scriptUrl, {
+        // Primeira tentativa: busca pelo valor exato
+        let response = await axios.post(PAGAMENTOS_CONFIG.scriptUrl, {
             action: "buscar_por_referencia",
             referencia: referencia,
             valor: valorNormalizado
@@ -560,8 +585,35 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
         });
 
         if (response.data && response.data.encontrado) {
-            console.log(`✅ REVENDEDORES: Pagamento encontrado!`);
+            console.log(`✅ REVENDEDORES: Pagamento encontrado (valor exato)!`);
             return true;
+        }
+
+        // Segunda tentativa: busca apenas por referência (com tolerância de valor)
+        console.log(`🔍 REVENDEDORES: Tentando busca apenas por referência...`);
+        response = await axios.post(PAGAMENTOS_CONFIG.scriptUrl, {
+            action: "buscar_por_referencia_only",
+            referencia: referencia
+        }, {
+            timeout: PAGAMENTOS_CONFIG.timeout,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.data && response.data.encontrado) {
+            const valorEncontrado = parseFloat(response.data.valor || 0);
+            const diferenca = Math.abs(valorEncontrado - valorNormalizado);
+            const tolerancia = Math.max(1, valorNormalizado * 0.05); // 5% ou mín 1MT
+
+            console.log(`🔍 REVENDEDORES: Valor encontrado: ${valorEncontrado}MT vs esperado: ${valorNormalizado}MT (diff: ${diferenca.toFixed(2)}MT, tolerância: ${tolerancia.toFixed(2)}MT)`);
+
+            if (diferenca <= tolerancia) {
+                console.log(`✅ REVENDEDORES: Pagamento aceito com tolerância!`);
+                return true;
+            } else {
+                console.log(`❌ REVENDEDORES: Diferença muito grande entre valores`);
+            }
         }
 
         console.log(`❌ REVENDEDORES: Pagamento não encontrado`);
@@ -579,6 +631,184 @@ const ARQUIVO_HISTORICO = 'historico_compradores.json';
 
 // Cache de administradores dos grupos
 let adminCache = {};
+
+// === FUNÇÕES DO SISTEMA DE RETRY SILENCIOSO ===
+
+// Carregar pagamentos pendentes do arquivo
+async function carregarPagamentosPendentes() {
+    try {
+        const dados = await fs.readFile(ARQUIVO_PAGAMENTOS_PENDENTES, 'utf8');
+        pagamentosPendentes = JSON.parse(dados);
+        console.log(`💾 RETRY: ${Object.keys(pagamentosPendentes).length} pagamentos pendentes carregados`);
+    } catch (error) {
+        console.log(`💾 RETRY: Nenhum arquivo de pendências encontrado - iniciando limpo`);
+        pagamentosPendentes = {};
+    }
+}
+
+// Salvar pagamentos pendentes no arquivo
+async function salvarPagamentosPendentes() {
+    try {
+        await fs.writeFile(ARQUIVO_PAGAMENTOS_PENDENTES, JSON.stringify(pagamentosPendentes, null, 2));
+        console.log(`💾 RETRY: Pagamentos pendentes salvos - ${Object.keys(pagamentosPendentes).length} pendências`);
+    } catch (error) {
+        console.error(`❌ RETRY: Erro ao salvar pendências:`, error);
+    }
+}
+
+// Adicionar pagamento para retry
+async function adicionarPagamentoPendente(referencia, valorComprovante, dadosCompletos, message, resultadoIA) {
+    const id = `${referencia}_${Date.now()}`;
+    const agora = Date.now();
+
+    const pendencia = {
+        id: id,
+        referencia: referencia,
+        valorComprovante: valorComprovante,
+        dadosCompletos: dadosCompletos,
+        timestamp: agora,
+        expira: agora + RETRY_TIMEOUT,
+        tentativas: 0,
+        // Dados para resposta
+        chatId: message.from,
+        messageData: {
+            author: message.author || message.from,
+            notifyName: message._data?.notifyName || 'N/A'
+        },
+        resultadoIA: resultadoIA
+    };
+
+    pagamentosPendentes[id] = pendencia;
+    await salvarPagamentosPendentes();
+
+    console.log(`⏳ RETRY: Pagamento ${referencia} adicionado à fila de retry`);
+
+    // Iniciar timer se não existe
+    if (!timerRetryPagamentos) {
+        iniciarTimerRetryPagamentos();
+    }
+
+    return id;
+}
+
+// Remover pagamento pendente
+async function removerPagamentoPendente(id) {
+    if (pagamentosPendentes[id]) {
+        delete pagamentosPendentes[id];
+        await salvarPagamentosPendentes();
+        console.log(`✅ RETRY: Pagamento ${id} removido da fila`);
+    }
+}
+
+// Iniciar timer de verificação periódica
+function iniciarTimerRetryPagamentos() {
+    if (timerRetryPagamentos) {
+        clearInterval(timerRetryPagamentos);
+    }
+
+    console.log(`🔄 RETRY: Iniciando verificação a cada ${RETRY_INTERVAL/1000}s`);
+
+    timerRetryPagamentos = setInterval(async () => {
+        await verificarPagamentosPendentes();
+    }, RETRY_INTERVAL);
+}
+
+// Parar timer de verificação
+function pararTimerRetryPagamentos() {
+    if (timerRetryPagamentos) {
+        clearInterval(timerRetryPagamentos);
+        timerRetryPagamentos = null;
+        console.log(`⏹️ RETRY: Timer de verificação parado`);
+    }
+}
+
+// Verificar todos os pagamentos pendentes
+async function verificarPagamentosPendentes() {
+    const agora = Date.now();
+    const pendencias = Object.values(pagamentosPendentes);
+
+    if (pendencias.length === 0) {
+        pararTimerRetryPagamentos();
+        return;
+    }
+
+    console.log(`🔍 RETRY: Verificando ${pendencias.length} pagamentos pendentes...`);
+
+    for (const pendencia of pendencias) {
+        // Verificar se expirou
+        if (agora > pendencia.expira) {
+            console.log(`⏰ RETRY: Pagamento ${pendencia.referencia} expirou após 30min`);
+            await removerPagamentoPendente(pendencia.id);
+            continue;
+        }
+
+        // Verificar pagamento
+        pendencia.tentativas++;
+        console.log(`🔍 RETRY: Tentativa ${pendencia.tentativas} para ${pendencia.referencia}`);
+
+        const pagamentoConfirmado = await verificarPagamentoIndividual(pendencia.referencia, pendencia.valorComprovante);
+
+        if (pagamentoConfirmado) {
+            console.log(`✅ RETRY: Pagamento ${pendencia.referencia} confirmado! Processando...`);
+            await processarPagamentoConfirmado(pendencia);
+            await removerPagamentoPendente(pendencia.id);
+        }
+    }
+
+    // Se não há mais pendências, parar timer
+    if (Object.keys(pagamentosPendentes).length === 0) {
+        pararTimerRetryPagamentos();
+    }
+}
+
+// Processar pagamento confirmado após retry
+async function processarPagamentoConfirmado(pendencia) {
+    try {
+        const { dadosCompletos, chatId, messageData, resultadoIA } = pendencia;
+        const [referencia, megas, numero] = dadosCompletos.split('|');
+
+        // Enviar mensagem de confirmação
+        await client.sendMessage(chatId,
+            `✅ *PAGAMENTO CONFIRMADO!*\n\n` +
+            `💰 Referência: ${referencia}\n` +
+            `📊 Megas: ${megas} MB\n` +
+            `📱 Número: ${numero}\n` +
+            `💳 Valor: ${pendencia.valorComprovante}MT\n\n` +
+            `🎉 Pedido está sendo processado!\n` +
+            `⏰ ${new Date().toLocaleString('pt-BR')}`
+        );
+
+        // Processar bônus de referência
+        const bonusInfo = await processarBonusCompra(chatId, megas);
+
+        // Enviar para Tasker/Planilha
+        const resultadoEnvio = await enviarParaTasker(referencia, megas, numero, chatId, messageData.author);
+
+        // Verificar duplicatas
+        if (resultadoEnvio && resultadoEnvio.duplicado) {
+            await client.sendMessage(chatId,
+                `⚠️ *AVISO: PEDIDO DUPLICADO*\n\n` +
+                `Este pedido ${resultadoEnvio.status_existente === 'PROCESSADO' ? 'já foi processado' : 'está na fila'}.\n` +
+                `Status: ${resultadoEnvio.status_existente}`
+            );
+            return;
+        }
+
+        // Registrar comprador
+        await registrarComprador(chatId, numero, messageData.notifyName, megas);
+
+        // Encaminhamento se necessário
+        if (chatId === ENCAMINHAMENTO_CONFIG.grupoOrigem) {
+            const timestampMensagem = new Date().toLocaleString('pt-BR');
+            adicionarNaFila(dadosCompletos, messageData.author, 'Retry Confirmado', timestampMensagem);
+        }
+
+        console.log(`✅ RETRY: Pagamento ${pendencia.referencia} processado com sucesso`);
+
+    } catch (error) {
+        console.error(`❌ RETRY: Erro ao processar pagamento confirmado:`, error);
+    }
+}
 
 // Cache para evitar logs repetidos de grupos
 let gruposLogados = new Set();
@@ -1970,6 +2200,10 @@ client.on('ready', async () => {
     console.log('📊 Google Sheets configurado!');
     console.log(`🔗 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}`);
     console.log('🤖 Bot Retalho - Lógica simples igual ao Bot Atacado!');
+
+    // === INICIALIZAR SISTEMA DE RETRY SILENCIOSO ===
+    await carregarPagamentosPendentes();
+    console.log('🔄 Sistema de Retry Silencioso ATIVADO!');
     
     // === INICIALIZAR SISTEMA DE PACOTES APÓS WhatsApp CONECTAR ===
     if (process.env.SISTEMA_PACOTES_ENABLED === 'true') {
@@ -2102,6 +2336,35 @@ client.on('message', async (message) => {
                 const statusIA = ia.getStatusDetalhado();
                 await message.reply(statusIA);
                 console.log(`🧠 Comando .ia executado`);
+                return;
+            }
+
+            if (comando === '.retry') {
+                const pendenciasAtivas = Object.values(pagamentosPendentes);
+                let statusRetry = `🔄 *STATUS RETRY SILENCIOSO*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+                if (pendenciasAtivas.length === 0) {
+                    statusRetry += `✅ Nenhum pagamento pendente\n`;
+                    statusRetry += `⏹️ Timer: ${timerRetryPagamentos ? 'ATIVO' : 'PARADO'}\n`;
+                } else {
+                    statusRetry += `⏳ Pagamentos pendentes: ${pendenciasAtivas.length}\n\n`;
+
+                    pendenciasAtivas.forEach((pendencia, index) => {
+                        const tempoRestante = Math.max(0, Math.floor((pendencia.expira - Date.now()) / 60000));
+                        const tempoDecorrido = Math.floor((Date.now() - pendencia.timestamp) / 60000);
+
+                        statusRetry += `${index + 1}. ${pendencia.referencia}\n`;
+                        statusRetry += `   💰 Valor: ${pendencia.valorComprovante}MT\n`;
+                        statusRetry += `   🔄 Tentativas: ${pendencia.tentativas}\n`;
+                        statusRetry += `   ⏰ Há ${tempoDecorrido}min (${tempoRestante}min restantes)\n\n`;
+                    });
+
+                    statusRetry += `🔄 Timer: ${timerRetryPagamentos ? 'ATIVO' : 'PARADO'}\n`;
+                    statusRetry += `⏱️ Próxima verificação: ${RETRY_INTERVAL/1000}s\n`;
+                }
+
+                await message.reply(statusRetry);
+                console.log(`🔄 Comando .retry executado`);
                 return;
             }
 
@@ -3650,13 +3913,18 @@ client.on('message', async (message) => {
 
                 if (!pagamentoConfirmado) {
                     console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorComprovante}MT)`);
+
+                    // Adicionar à fila de retry silencioso
+                    await adicionarPagamentoPendente(referencia, valorComprovante, dadosCompletos, message, resultadoIA);
+
                     await message.reply(
-                        `⏳ *AGUARDANDO CONFIRMAÇÃO DO PAGAMENTO*\n\n` +
+                        `⏳ *AGUARDANDO MENSAGEM DE CONFIRMAÇÃO*\n\n` +
                         `💰 Referência: ${referencia}\n` +
                         `📊 Megas: ${megas} MB\n` +
                         `📱 Número: ${numero}\n` +
                         `💳 Valor: ${valorComprovante}MT\n\n` +
-                        `🔍 Aguardando confirmação do pagamento no sistema...\n` +
+                        `📨 A mensagem de confirmação ainda não foi recebida no sistema.\n` +
+                        `🔄 Verificação automática ativa - você será notificado quando confirmado!\n` +
                         `⏰ ${new Date().toLocaleString('pt-BR')}`
                     );
                     return;
@@ -3714,13 +3982,18 @@ client.on('message', async (message) => {
 
                 if (!pagamentoConfirmado) {
                     console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorComprovante}MT)`);
+
+                    // Adicionar à fila de retry silencioso
+                    await adicionarPagamentoPendente(referencia, valorComprovante, dadosCompletos, message, resultadoIA);
+
                     await message.reply(
-                        `⏳ *AGUARDANDO CONFIRMAÇÃO DO PAGAMENTO*\n\n` +
+                        `⏳ *AGUARDANDO MENSAGEM DE CONFIRMAÇÃO*\n\n` +
                         `💰 Referência: ${referencia}\n` +
                         `📊 Megas: ${megas} MB\n` +
                         `📱 Número: ${numero}\n` +
                         `💳 Valor: ${valorComprovante}MT\n\n` +
-                        `🔍 Aguardando confirmação do pagamento no sistema...\n` +
+                        `📨 A mensagem de confirmação ainda não foi recebida no sistema.\n` +
+                        `🔄 Verificação automática ativa - você será notificado quando confirmado!\n` +
                         `⏰ ${new Date().toLocaleString('pt-BR')}`
                     );
                     return;
