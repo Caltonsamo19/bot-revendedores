@@ -341,47 +341,72 @@ async function detectarConvidadorViaMensagens(grupoId, novoMembroId) {
         const limiteTempo = agora - (10 * 60 * 1000); // 10 minutos atrás
 
         // Buscar mensagens recentes
-        const mensagens = await chat.fetchMessages({ limit: 50 });
+        const mensagens = await chat.fetchMessages({ limit: 100 });
         console.log(`📜 Analisando ${mensagens.length} mensagens recentes...`);
 
         let convidadorDetectado = null;
         let confiabilidade = 0;
 
-        // Analisar mensagens em ordem cronológica reversa
+        // 1. PRIORIDADE MÁXIMA: Buscar mensagens de sistema do WhatsApp
         for (const mensagem of mensagens) {
             // Pular mensagens antigas
             if (mensagem.timestamp * 1000 < limiteTempo) {
                 continue;
             }
 
-            const autorMensagem = mensagem.author || mensagem.from;
-            const corpo = mensagem.body.toLowerCase();
+            // Buscar mensagens de sistema (aqueles placeholders cinzentos)
+            const isSistema = mensagem.type === 'notification' ||
+                             mensagem.type === 'group_notification' ||
+                             mensagem.type === 'GROUP_NOTIFICATION' ||
+                             mensagem.type === 'NOTIFICATION';
 
-            // Buscar padrões de convite nas mensagens
-            const padroesFrases = [
-                /vou adicionar/i,
-                /vou convidar/i,
-                /vou chamar/i,
-                /adicionei/i,
-                /convidei/i,
-                /chamei/i,
-                /entrem?\s+no\s+grupo/i,
-                /venham?\s+para\s+o\s+grupo/i,
-                /grupo\s+novo/i
-            ];
+            if (isSistema || (mensagem.body && (mensagem.body.includes('adicionou') || mensagem.body.includes('added')))) {
+                console.log(`🔔 NOTIFICAÇÃO SISTEMA:`, {
+                    type: mensagem.type,
+                    body: mensagem.body,
+                    author: mensagem.author,
+                    timestamp: new Date(mensagem.timestamp * 1000).toLocaleString()
+                });
 
-            // Verificar se mensagem contém padrões de convite
-            for (const padrao of padroesFrases) {
-                if (padrao.test(corpo)) {
-                    console.log(`💡 PADRÃO DETECTADO: "${corpo.substring(0, 50)}..." por ${autorMensagem}`);
+                // Tentar extrair quem adicionou da mensagem do sistema
+                if (mensagem.body) {
+                    const nomeNovoMembro = await obterNomeContato(novoMembroId);
 
-                    // Verificar se autor é admin do grupo
-                    const isAdmin = await isAdminGrupo(grupoId, autorMensagem);
-                    if (isAdmin) {
-                        convidadorDetectado = autorMensagem;
-                        confiabilidade = 85; // Alta confiabilidade para padrões + admin
-                        console.log(`🎯 DETECTADO: ${autorMensagem} (confiabilidade: ${confiabilidade}%)`);
-                        break;
+                    // Padrões mais abrangentes para detectar adição
+                    const padroesAdicao = [
+                        new RegExp(`([\\w\\s]+)\\s+(adicionou|added)\\s+.*${nomeNovoMembro.split(' ')[0]}`, 'i'),
+                        new RegExp(`([\\w\\s]+)\\s+(adicionou|added)\\s+.*${nomeNovoMembro}`, 'i'),
+                        new RegExp(`(.+)\\s+(adicionou|added)\\s+(.+)`, 'i') // Padrão genérico
+                    ];
+
+                    for (const regex of padroesAdicao) {
+                        const match = mensagem.body.match(regex);
+                        if (match) {
+                            const nomeConvidador = match[1].trim();
+                            console.log(`🎯 SISTEMA DETECTOU: "${nomeConvidador}" adicionou "${match[3] || nomeNovoMembro}"`);
+
+                            // Buscar ID do convidador pelos participantes
+                            const participants = chat.participants;
+                            for (const participant of participants) {
+                                const nomeParticipante = await obterNomeContato(participant.id._serialized);
+
+                                // Comparação flexível de nomes
+                                const nomeParticipanteLimpo = nomeParticipante.toLowerCase().trim();
+                                const nomeConvidadorLimpo = nomeConvidador.toLowerCase().trim();
+
+                                if ((nomeParticipanteLimpo.includes(nomeConvidadorLimpo) ||
+                                     nomeConvidadorLimpo.includes(nomeParticipanteLimpo)) &&
+                                    participant.isAdmin) {
+
+                                    convidadorDetectado = participant.id._serialized;
+                                    confiabilidade = 95; // Altíssima confiabilidade para mensagens do sistema
+                                    console.log(`🎯 CONFIRMADO VIA SISTEMA: ${nomeParticipante} (${convidadorDetectado})`);
+                                    break;
+                                }
+                            }
+
+                            if (convidadorDetectado) break;
+                        }
                     }
                 }
             }
@@ -389,11 +414,50 @@ async function detectarConvidadorViaMensagens(grupoId, novoMembroId) {
             if (convidadorDetectado) break;
         }
 
-        // Se não encontrou via padrões, usar distribuição inteligente
-        if (!convidadorDetectado || confiabilidade < 70) {
+        // 2. SEGUNDO MÉTODO: Buscar padrões de convite nas mensagens de usuários
+        if (!convidadorDetectado) {
+            for (const mensagem of mensagens) {
+                if (mensagem.timestamp * 1000 < limiteTempo) continue;
+
+                const autorMensagem = mensagem.author || mensagem.from;
+                const corpo = mensagem.body.toLowerCase();
+
+                // Buscar padrões de convite nas mensagens
+                const padroesFrases = [
+                    /vou adicionar/i,
+                    /vou convidar/i,
+                    /vou chamar/i,
+                    /adicionei/i,
+                    /convidei/i,
+                    /chamei/i,
+                    /entrem?\s+no\s+grupo/i,
+                    /venham?\s+para\s+o\s+grupo/i,
+                    /grupo\s+novo/i
+                ];
+
+                for (const padrao of padroesFrases) {
+                    if (padrao.test(corpo)) {
+                        console.log(`💡 PADRÃO DETECTADO: "${corpo.substring(0, 50)}..." por ${autorMensagem}`);
+
+                        const isAdmin = await isAdminGrupo(grupoId, autorMensagem);
+                        if (isAdmin) {
+                            convidadorDetectado = autorMensagem;
+                            confiabilidade = 75; // Boa confiabilidade para padrões + admin
+                            console.log(`🎯 DETECTADO VIA PADRÃO: ${autorMensagem} (confiabilidade: ${confiabilidade}%)`);
+                            break;
+                        }
+                    }
+                }
+
+                if (convidadorDetectado) break;
+            }
+        }
+
+        // 3. FALLBACK: Distribuição inteligente
+        if (!convidadorDetectado) {
             console.log(`🧠 Usando distribuição inteligente como backup...`);
             convidadorDetectado = await selecionarAdminComMenosReferencias(grupoId);
-            confiabilidade = 60; // Confiabilidade média para distribuição inteligente
+            confiabilidade = 50; // Confiabilidade média para distribuição inteligente
         }
 
         if (convidadorDetectado) {
@@ -426,6 +490,17 @@ async function detectarConvidadorViaMensagens(grupoId, novoMembroId) {
     } catch (error) {
         console.error('❌ Erro na análise de mensagens:', error);
         return false;
+    }
+}
+
+// === FUNÇÃO AUXILIAR PARA OBTER NOME DE CONTATO ===
+async function obterNomeContato(contactId) {
+    try {
+        const contact = await client.getContactById(contactId);
+        return contact.pushname || contact.name || contact.number || 'Desconhecido';
+    } catch (error) {
+        console.error(`❌ Erro ao obter nome do contato ${contactId}:`, error);
+        return 'Desconhecido';
     }
 }
 
@@ -2989,6 +3064,30 @@ client.on('message', async (message) => {
                 const statusIA = ia.getStatusDetalhado();
                 await message.reply(statusIA);
                 console.log(`🧠 Comando .ia executado`);
+                return;
+            }
+
+            // === COMANDO DEBUG MENSAGENS DE SISTEMA ===
+            if (comando === '.debug') {
+                try {
+                    const chat = await client.getChatById(message.from);
+                    const mensagens = await chat.fetchMessages({ limit: 20 });
+
+                    let debugInfo = `🔍 *DEBUG MENSAGENS (últimas 20)*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+                    mensagens.forEach((msg, index) => {
+                        const timestamp = new Date(msg.timestamp * 1000).toLocaleString();
+                        debugInfo += `${index + 1}. *Tipo:* ${msg.type}\n`;
+                        debugInfo += `   *Timestamp:* ${timestamp}\n`;
+                        debugInfo += `   *Author:* ${msg.author || 'Sistema'}\n`;
+                        debugInfo += `   *Body:* "${msg.body || 'N/A'}"\n\n`;
+                    });
+
+                    await message.reply(debugInfo);
+                    console.log(`🔍 Comando .debug executado`);
+                } catch (error) {
+                    await message.reply(`❌ Erro no debug: ${error.message}`);
+                }
                 return;
             }
 
