@@ -1703,8 +1703,9 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
     
     console.log(`📊 ENVIANDO PARA GOOGLE SHEETS [${grupoNome}]: ${linhaCompleta}`);
     
-    // Armazenar localmente (backup)
-    dadosParaTasker.push({
+    // Cache da transação
+    const transacaoKey = `${grupoId}_${Date.now()}_${numero}`;
+    cacheTransacoes.set(transacaoKey, {
         dados: linhaCompleta,
         grupo_id: grupoId,
         grupo: grupoNome,
@@ -1713,15 +1714,18 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
         enviado: false,
         metodo: 'pendente'
     });
-    
+
     // === TENTAR GOOGLE SHEETS PRIMEIRO ===
     const resultado = await enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoNome, autorMensagem);
-    
+
     if (resultado.sucesso) {
-        // Marcar como enviado
-        dadosParaTasker[dadosParaTasker.length - 1].enviado = true;
-        dadosParaTasker[dadosParaTasker.length - 1].metodo = 'google_sheets';
-        dadosParaTasker[dadosParaTasker.length - 1].row = resultado.row;
+        // Atualizar cache
+        if (cacheTransacoes.has(transacaoKey)) {
+            const transacao = cacheTransacoes.get(transacaoKey);
+            transacao.enviado = true;
+            transacao.metodo = 'google_sheets';
+            transacao.row = resultado.row;
+        }
         console.log(`✅ [${grupoNome}] Enviado para Google Sheets! Row: ${resultado.row}`);
 
         // === REGISTRAR COMPRA PENDENTE NO SISTEMA DE COMPRAS ===
@@ -1732,8 +1736,10 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
             await sistemaCompras.registrarCompraPendente(referencia, numero, valor, numeroRemetente, grupoId);
         }
     } else if (resultado.duplicado) {
-        // Remover da lista local já que é duplicado
-        dadosParaTasker.pop();
+        // Marcar como duplicado no cache
+        if (cacheTransacoes.has(transacaoKey)) {
+            cacheTransacoes.get(transacaoKey).status = 'duplicado';
+        }
         console.log(`🛑 [${grupoNome}] Pedido duplicado detectado: ${referencia}`);
 
         // Retornar informações do duplicado para o bot processar
@@ -1747,16 +1753,15 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
         // Fallback para WhatsApp se Google Sheets falhar
         console.log(`🔄 [${grupoNome}] Google Sheets falhou, usando WhatsApp backup...`);
         enviarViaWhatsAppTasker(linhaCompleta, grupoNome, autorMensagem);
-        dadosParaTasker[dadosParaTasker.length - 1].metodo = 'whatsapp_backup';
+        if (cacheTransacoes.has(transacaoKey)) {
+            cacheTransacoes.get(transacaoKey).metodo = 'whatsapp_backup';
+        }
     }
     
     // === BACKUP REMOVIDO - OTIMIZAÇÃO ===
     // Não salva mais arquivos .txt desnecessários
     
-    // Manter apenas últimos 100 registros
-    if (dadosParaTasker.length > 100) {
-        dadosParaTasker = dadosParaTasker.slice(-100);
-    }
+    // Cache já auto-limpa automaticamente
     
     return linhaCompleta;
 }
@@ -1784,12 +1789,12 @@ function enviarViaWhatsAppTasker(linhaCompleta, grupoNome, autorMensagem) {
 // async function salvarArquivoTasker() - REMOVIDA
 
 function obterDadosTasker() {
-    return dadosParaTasker;
+    return Array.from(cacheTransacoes.values());
 }
 
 function obterDadosTaskerHoje() {
     const hoje = new Date().toDateString();
-    return dadosParaTasker.filter(item => {
+    return Array.from(cacheTransacoes.values()).filter(item => {
         const dataItem = new Date(item.timestamp).toDateString();
         return dataItem === hoje;
     });
@@ -3547,7 +3552,7 @@ client.on('message', async (message) => {
                 let resposta = `📊 *STATUS DOS GRUPOS*\n⚠ NB: Válido apenas para Vodacom━━━━━━━━\n\n`;
                 
                 for (const [grupoId, config] of Object.entries(CONFIGURACAO_GRUPOS)) {
-                    const dadosGrupo = dadosParaTasker.filter(d => d.grupo_id === grupoId);
+                    const dadosGrupo = Array.from(cacheTransacoes.values()).filter(d => d.grupo_id === grupoId);
                     const hoje = dadosGrupo.filter(d => {
                         const dataItem = new Date(d.timestamp).toDateString();
                         return dataItem === new Date().toDateString();
@@ -3592,18 +3597,23 @@ client.on('message', async (message) => {
 
             if (comando.startsWith('.clear_grupo ')) {
                 const nomeGrupo = comando.replace('.clear_grupo ', '');
-                const antes = dadosParaTasker.length;
-                
-                dadosParaTasker = dadosParaTasker.filter(d => !d.grupo.toLowerCase().includes(nomeGrupo.toLowerCase()));
-                
-                const removidos = antes - dadosParaTasker.length;
+                const antes = cacheTransacoes.size;
+
+                // Remover transações do grupo específico
+                for (const [key, value] of cacheTransacoes.entries()) {
+                    if (value.grupo && value.grupo.toLowerCase().includes(nomeGrupo.toLowerCase())) {
+                        cacheTransacoes.delete(key);
+                    }
+                }
+
+                const removidos = antes - cacheTransacoes.size;
                 await message.reply(`🗑️ *${removidos} registros do grupo "${nomeGrupo}" removidos!*`);
                 return;
             }
 
             if (comando === '.clear_sheets') {
-                dadosParaTasker = [];
-                await message.reply('🗑️ *Dados do Google Sheets limpos!*');
+                cacheTransacoes.clear();
+                await message.reply('🗑️ *Cache de transações limpo!*');
                 return;
             }
 
