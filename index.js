@@ -496,17 +496,23 @@ async function processarBonusCompra(remetenteCompra, valorCompra) {
     
     // Enviar notificação de bônus por referência
     try {
-        const nomeComprador = message.from.includes('@g.us') ? await obterNomeContato(remetenteCompra) : 'Cliente';
+        const nomeComprador = await obterNomeContato(remetenteCompra);
+        const nomeConvidador = await obterNomeContato(convidador);
         const novoSaldo = bonusSaldos[convidador].saldo;
         const novoSaldoFormatado = novoSaldo >= 1024 ? `${(novoSaldo/1024).toFixed(2)}GB` : `${novoSaldo}MB`;
-        
-        await client.sendMessage(message.from, 
-            `🎉 *BÔNUS CREDITADO!*\n\n` +
-            `💎 @${convidador.replace('@c.us', '')}, recebeste *${bonusAtual}MB* de bônus!\n\n` +
-            `👤 *Comprador:* @${remetenteCompra.replace('@c.us', '')}\n` +
+
+        // Verificar se é referência automática ou manual
+        const isAutomatico = referencia.automatico;
+        const tipoReferencia = isAutomatico ? 'adicionou ao grupo' : `usou seu código ${referencia.codigo}`;
+
+        await client.sendMessage(message.from,
+            `🎉 *BÔNUS DE REFERÊNCIA CREDITADO!*\n\n` +
+            `💎 *${nomeConvidador}*, recebeste *${bonusAtual}MB* de bônus!\n\n` +
+            `👤 *Referenciado:* ${nomeComprador}\n` +
+            `📢 *Motivo:* ${nomeComprador} que você ${tipoReferencia} fez uma compra!\n` +
             `🛒 *Compra:* ${referencia.comprasRealizadas}ª de 5\n` +
             `💰 *Novo saldo:* ${novoSaldoFormatado}\n\n` +
-            `${novoSaldo >= 1024 ? '🚀 *Já podes sacar!* Use: *.sacar*' : '⏳ *Continua a convidar amigos!*'}`, {
+            `${novoSaldo >= 1024 ? '🚀 *Já podes sacar!* Use: *.sacar*' : '⏳ *Continua a convidar amigos para ganhar mais bônus!*'}`, {
             mentions: [convidador, remetenteCompra]
         });
     } catch (error) {
@@ -525,6 +531,120 @@ async function processarBonusCompra(remetenteCompra, valorCompra) {
         totalCompras: 5,
         novoSaldo: bonusSaldos[convidador].saldo
     };
+}
+
+// === CRIAR REFERÊNCIA AUTOMÁTICA ===
+async function criarReferenciaAutomatica(convidadorId, convidadoId, grupoId) {
+    try {
+        console.log(`🤝 Criando referência automática: ${convidadorId} → ${convidadoId}`);
+
+        // Verificar se o convidado já tem referência
+        if (referenciasClientes[convidadoId]) {
+            console.log(`   ⚠️ Cliente ${convidadoId} já tem referência registrada`);
+            return false;
+        }
+
+        // Verificar se o convidador não está tentando convidar a si mesmo
+        if (convidadorId === convidadoId) {
+            console.log(`   ❌ Convidador tentou convidar a si mesmo`);
+            return false;
+        }
+
+        // Gerar código único para esta referência (para compatibilidade com sistema antigo)
+        const codigo = gerarCodigoReferencia(convidadorId);
+
+        // Registrar código de referência
+        codigosReferencia[codigo] = {
+            criador: convidadorId,
+            dataCreacao: new Date().toISOString(),
+            usado: true,
+            usadoPor: convidadoId,
+            dataUso: new Date().toISOString(),
+            automatico: true // Marcar como referência automática
+        };
+
+        // Registrar referência do cliente
+        referenciasClientes[convidadoId] = {
+            codigo: codigo,
+            convidadoPor: convidadorId,
+            dataRegistro: new Date().toISOString(),
+            comprasRealizadas: 0,
+            automatico: true // Marcar como referência automática
+        };
+
+        // Inicializar saldo de bônus do convidador se não existir
+        if (!bonusSaldos[convidadorId]) {
+            bonusSaldos[convidadorId] = {
+                saldo: 0,
+                detalhesReferencias: {},
+                historicoSaques: [],
+                totalReferencias: 0
+            };
+        }
+
+        // Incrementar total de referências
+        bonusSaldos[convidadorId].totalReferencias++;
+
+        // Inicializar detalhes da referência
+        bonusSaldos[convidadorId].detalhesReferencias[convidadoId] = {
+            compras: 0,
+            bonusGanho: 0,
+            codigo: codigo,
+            ativo: true,
+            automatico: true
+        };
+
+        // Salvar dados
+        agendarSalvamento();
+
+        // Obter nomes dos participantes para notificação
+        const nomeConvidador = await obterNomeContato(convidadorId);
+        const nomeConvidado = await obterNomeContato(convidadoId);
+
+        // Enviar notificação no grupo
+        try {
+            await client.sendMessage(grupoId,
+                `🎉 *NOVO MEMBRO ADICIONADO!*\n\n` +
+                `👋 Bem-vindo *${nomeConvidado}*!\n\n` +
+                `📢 Adicionado por: *${nomeConvidador}*\n` +
+                `🎁 *${nomeConvidador}* ganhará *200MB* a cada compra de *${nomeConvidado}*!\n\n` +
+                `📋 *Benefícios:*\n` +
+                `• Máximo: 5 compras = 1000MB (1GB)\n` +
+                `• Saque mínimo: 1000MB\n` +
+                `• Sistema automático ativo!\n\n` +
+                `💡 _Continue convidando amigos para ganhar mais bônus!_`, {
+                mentions: [convidadorId, convidadoId]
+            });
+
+            console.log(`✅ Notificação de referência automática enviada`);
+        } catch (error) {
+            console.error('❌ Erro ao enviar notificação de referência:', error);
+        }
+
+        console.log(`✅ Referência automática criada: ${codigo} (${nomeConvidador} → ${nomeConvidado})`);
+
+        return {
+            codigo: codigo,
+            convidador: convidadorId,
+            convidado: convidadoId,
+            automatico: true
+        };
+
+    } catch (error) {
+        console.error('❌ Erro ao criar referência automática:', error);
+        return false;
+    }
+}
+
+// === OBTER NOME DO CONTATO ===
+async function obterNomeContato(contactId) {
+    try {
+        const contact = await client.getContactById(contactId);
+        return contact.name || contact.pushname || contactId.replace('@c.us', '');
+    } catch (error) {
+        console.error(`❌ Erro ao obter nome do contato ${contactId}:`, error);
+        return contactId.replace('@c.us', '');
+    }
 }
 
 // === FUNÇÃO PARA NORMALIZAR VALORES ===
@@ -2228,7 +2348,7 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .setboasvindas .getboasvindas .testboasvindas');
+    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .setboasvindas .getboasvindas .testboasvindas .testreferencia');
     
     // Iniciar monitoramento automático de novos membros
     await iniciarMonitoramentoMembros();
@@ -2238,19 +2358,20 @@ client.on('group-join', async (notification) => {
     try {
         const chatId = notification.chatId;
         const addedParticipants = notification.recipientIds || [];
+        const addedBy = notification.author; // QUEM ADICIONOU OS NOVOS MEMBROS
         const botInfo = client.info;
-        
+
         if (botInfo && addedParticipants.includes(botInfo.wid._serialized)) {
             console.log(`\n🤖 BOT ADICIONADO A UM NOVO GRUPO!`);
             await logGrupoInfo(chatId, 'BOT ADICIONADO');
-            
+
             setTimeout(async () => {
                 try {
                     const isMonitorado = CONFIGURACAO_GRUPOS.hasOwnProperty(chatId);
-                    const mensagem = isMonitorado ? 
+                    const mensagem = isMonitorado ?
                         `🤖 *BOT ATIVO E CONFIGURADO!*\n\nEste grupo está monitorado e o sistema automático já está funcionando.\n\n📋 Digite: *tabela* (ver preços)\n💳 Digite: *pagamento* (ver formas)` :
                         `🤖 *BOT CONECTADO!*\n\n⚙️ Este grupo ainda não está configurado.\n🔧 Contacte o administrador para ativação.\n\n📝 ID do grupo copiado no console do servidor.`;
-                    
+
                     await client.sendMessage(chatId, mensagem);
                     console.log(`✅ Mensagem de status enviada`);
                 } catch (error) {
@@ -2260,13 +2381,16 @@ client.on('group-join', async (notification) => {
         } else {
             // NOVOS MEMBROS (NÃO-BOT) ENTRARAM NO GRUPO
             const configGrupo = getConfiguracaoGrupo(chatId);
-            
-            if (configGrupo) {
+
+            if (configGrupo && addedBy) {
                 // Processar cada novo membro
                 for (const participantId of addedParticipants) {
                     try {
-                        console.log(`👋 Novo membro: ${participantId} em ${configGrupo.nome}`);
-                        
+                        console.log(`👋 Novo membro: ${participantId} adicionado por ${addedBy} em ${configGrupo.nome}`);
+
+                        // CRIAR REFERÊNCIA AUTOMÁTICA
+                        await criarReferenciaAutomatica(addedBy, participantId, chatId);
+
                         // Aguardar um pouco para evitar spam
                         setTimeout(async () => {
                             try {
@@ -2275,7 +2399,7 @@ client.on('group-join', async (notification) => {
                                 console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
                             }
                         }, 2000 + (Math.random() * 3000));
-                        
+
                     } catch (error) {
                         console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
                     }
@@ -2856,24 +2980,80 @@ client.on('message', async (message) => {
                     return;
                 }
                 
-                // .testboasvindas - Testar mensagem de boas-vindas (ADMIN APENAS)  
+                // .testboasvindas - Testar mensagem de boas-vindas (ADMIN APENAS)
                 if (comando === '.testboasvindas') {
                     if (!isAdmin) {
                         await message.reply('❌ Apenas administradores podem usar este comando!');
                         return;
                     }
-                    
+
                     try {
                         await message.reply('🧪 *TESTE DE BOAS-VINDAS*\n\nEnviando mensagem de teste...');
-                        
+
                         // Enviar boas-vindas para o próprio admin como teste
                         setTimeout(async () => {
                             await enviarBoasVindas(message.from, autorMensagem);
                         }, 1000);
-                        
+
                     } catch (error) {
                         console.error('❌ Erro no comando .testboasvindas:', error);
                         await message.reply(`❌ *ERRO*\n\nNão foi possível testar a mensagem\n\n📝 Erro: ${error.message}`);
+                    }
+                    return;
+                }
+
+                // .testreferencia - Testar sistema de referência automática (ADMIN APENAS)
+                if (comando === '.testreferencia') {
+                    if (!isAdmin) {
+                        await message.reply('❌ Apenas administradores podem usar este comando!');
+                        return;
+                    }
+
+                    try {
+                        await message.reply('🧪 *TESTE DE REFERÊNCIA AUTOMÁTICA*\n\nTestando criação de referência automática...');
+
+                        // Simular criação de referência automática usando o admin como convidador e um ID fictício como convidado
+                        const convidadorTest = autorMensagem;
+                        const convidadoTest = '258000000000@c.us'; // ID fictício para teste
+                        const grupoTest = message.from;
+
+                        setTimeout(async () => {
+                            try {
+                                const resultado = await criarReferenciaAutomatica(convidadorTest, convidadoTest, grupoTest);
+
+                                if (resultado) {
+                                    await message.reply(
+                                        `✅ *TESTE DE REFERÊNCIA - SUCESSO!*\n\n` +
+                                        `🎯 **Resultado do teste:**\n` +
+                                        `👤 Convidador: ${await obterNomeContato(convidadorTest)}\n` +
+                                        `👥 Convidado: ${convidadoTest.replace('@c.us', '')}\n` +
+                                        `🔗 Código gerado: ${resultado.codigo}\n` +
+                                        `🤖 Sistema: ${resultado.automatico ? 'Automático' : 'Manual'}\n\n` +
+                                        `📋 **Status:**\n` +
+                                        `✅ Referência criada com sucesso\n` +
+                                        `✅ Notificação enviada\n` +
+                                        `✅ Dados salvos\n\n` +
+                                        `💡 *Sistema de referência automática está funcionando!*`
+                                    );
+                                } else {
+                                    await message.reply(
+                                        `❌ *TESTE DE REFERÊNCIA - FALHOU!*\n\n` +
+                                        `⚠️ A criação de referência automática falhou.\n` +
+                                        `📝 Verifique os logs para mais detalhes.`
+                                    );
+                                }
+                            } catch (error) {
+                                await message.reply(
+                                    `❌ *ERRO NO TESTE DE REFERÊNCIA*\n\n` +
+                                    `🚨 Erro: ${error.message}\n\n` +
+                                    `📝 Verifique a implementação da função criarReferenciaAutomatica`
+                                );
+                            }
+                        }, 1000);
+
+                    } catch (error) {
+                        console.error('❌ Erro no comando .testreferencia:', error);
+                        await message.reply(`❌ *ERRO*\n\nNão foi possível executar o teste\n\n📝 Erro: ${error.message}`);
                     }
                     return;
                 }
