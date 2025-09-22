@@ -2,10 +2,7 @@ require('dotenv').config();
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs').promises;
-const axios = require('axios');
-
-// === IMPORTAR PERFORMANCE MONITOR ===
-const PerformanceMonitor = require('./performance_monitor');
+const axios = require('axios'); // npm install axios
 
 // === IMPORTAR A IA ===
 const WhatsAppAI = require('./whatsapp_ai');
@@ -15,54 +12,6 @@ const SistemaPacotes = require('./sistema_pacotes');
 
 // === IMPORTAR SISTEMA DE COMPRAS ===
 const SistemaCompras = require('./sistema_compras');
-
-// === INICIALIZAR PERFORMANCE MONITOR ===
-const perfMonitor = new PerformanceMonitor({
-    memoryThreshold: 200,
-    responseThreshold: 3000
-});
-
-// === CONFIGURAR AUTO-OTIMIZAÇÃO ===
-perfMonitor.on('highMemory', (data) => {
-    console.log(`⚠️ Alto uso de memória: ${data.memoryMB.toFixed(1)}MB`);
-    performAutoOptimization();
-});
-
-perfMonitor.on('slowResponse', (data) => {
-    console.log(`⚠️ Resposta lenta: ${data.responseTime}ms`);
-});
-
-perfMonitor.on('cleanup', () => {
-    console.log('🧹 Limpeza automática executada');
-});
-
-// === FUNÇÃO DE AUTO-OTIMIZAÇÃO ===
-async function performAutoOptimization() {
-    try {
-        if (cacheTransacoes.size > 1000) {
-            const oldSize = cacheTransacoes.size;
-            cacheTransacoes.clear();
-            console.log(`🗑️ Cache limpo: ${oldSize} → 0`);
-        }
-
-        if (filaMensagens.length > 100) {
-            filaMensagens = filaMensagens.slice(-50);
-            console.log('📨 Fila de mensagens otimizada');
-        }
-
-        if (ia && ia.historicoMensagens && ia.historicoMensagens.length > 50) {
-            ia.historicoMensagens = ia.historicoMensagens.slice(-25);
-            console.log('🧠 Histórico IA otimizado');
-        }
-
-        if (global.gc) {
-            global.gc();
-            console.log('♻️ Garbage collection forçado');
-        }
-    } catch (error) {
-        console.error('❌ Erro na auto-otimização:', error.message);
-    }
-}
 
 // === CONFIGURAÇÃO GOOGLE SHEETS - BOT RETALHO (SCRIPT PRÓPRIO) ===
 const GOOGLE_SHEETS_CONFIG = {
@@ -80,20 +29,18 @@ const PAGAMENTOS_CONFIG = {
     timeout: 30000
 };
 
-// Console logs reduzidos para otimização
+console.log(`📊 Google Sheets configurado`);
 
-// === FUNÇÃO HELPER OTIMIZADA PARA REPLY ===
+// Função helper para reply com fallback
 async function safeReply(message, client, texto) {
-    const startTime = Date.now();
     try {
         await message.reply(texto);
-        perfMonitor.recordRequest(Date.now() - startTime);
     } catch (error) {
+        console.log('⚠️ Erro no reply, usando sendMessage como fallback:', error.message);
         try {
             await client.sendMessage(message.from, texto);
-            perfMonitor.recordRequest(Date.now() - startTime);
         } catch (fallbackError) {
-            perfMonitor.recordRequest(Date.now() - startTime);
+            console.error('❌ Erro também no sendMessage fallback:', fallbackError.message);
             throw fallbackError;
         }
     }
@@ -188,14 +135,14 @@ let membrosProcessadosViaEvent = new Set(); // Evita processamento duplicado
 async function iniciarMonitoramentoMembros() {
     console.log('🕵️ Iniciando monitoramento automático de novos membros...');
     
-    // Executar a cada 5 minutos (mais otimizado)
+    // Executar a cada 2 minutos (otimizado - era 30s)
     setInterval(async () => {
         try {
             await verificarNovosMembros();
         } catch (error) {
-            // Log silencioso
+            console.error('❌ Erro no monitoramento de membros:', error);
         }
-    }, 300000); // 5 minutos
+    }, 120000); // 2 minutos
     
     // Primeira execução após 10 segundos (para dar tempo do bot conectar)
     setTimeout(async () => {
@@ -3111,17 +3058,46 @@ client.on('group-join', async (notification) => {
 });
 
 client.on('message', async (message) => {
-    const messageStartTime = Date.now();
     try {
         const isPrivado = !message.from.endsWith('@g.us');
         const autorMensagem = message.author || message.from;
         const isAdmin = isAdministrador(autorMensagem);
+        
+        // DEBUG DETALHADO DA MENSAGEM
+        if (message.body.startsWith('.addcomando') || message.body.startsWith('.comandos') || message.body.startsWith('.delcomando')) {
+            console.log(`🔍 DEBUG MENSAGEM ADMIN:`);
+            console.log(`   📱 message.from: ${message.from}`);
+            console.log(`   👤 message.author: ${message.author}`);
+            console.log(`   🆔 autorMensagem: ${autorMensagem}`);
+            
+            try {
+                const contact = await message.getContact();
+                console.log(`   📞 Contact info:`, {
+                    id: contact.id._serialized,
+                    number: contact.number,
+                    pushname: contact.pushname,
+                    name: contact.name,
+                    isMyContact: contact.isMyContact
+                });
+            } catch (err) {
+                console.log(`   ⚠️ Erro ao obter contato: ${err.message}`);
+            }
+        }
+        
+        console.log(`🔍 Debug: Verificando admin para ${autorMensagem}, resultado: ${isAdmin}`);
 
+        // === COMANDOS ADMINISTRATIVOS ===
+        // Verificar se é admin global OU admin do grupo
         let isAdminDoGrupo = false;
+        
+        // Só verificar admin do grupo se for mensagem de grupo
         if (message.from.endsWith('@g.us')) {
             isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
+            console.log(`🔍 Debug admin grupo: ${autorMensagem} é admin do grupo? ${isAdminDoGrupo}`);
         }
+        
         const isAdminQualquer = isAdmin || isAdminDoGrupo;
+        console.log(`🔍 Debug final: isAdminQualquer = ${isAdminQualquer} (global: ${isAdmin}, grupo: ${isAdminDoGrupo})`);
         
         if (isAdminQualquer) {
             const comando = message.body.toLowerCase().trim();
@@ -5268,12 +5244,7 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
         }
 
     } catch (error) {
-        perfMonitor.recordRequest(Date.now() - messageStartTime);
-        if (error.message && error.message.includes('timeout')) {
-            performAutoOptimization();
-        }
-    } finally {
-        perfMonitor.recordRequest(Date.now() - messageStartTime);
+        console.error('❌ Erro ao processar mensagem:', error);
     }
 });
 
@@ -5284,17 +5255,14 @@ client.on('disconnected', (reason) => {
 // Capturar erros não tratados
 process.on('unhandledRejection', (reason, promise) => {
     if (reason.message && reason.message.includes('Execution context was destroyed')) {
-        perfMonitor.log('⚠️ Contexto reiniciado');
+        console.log('⚠️ Contexto do Puppeteer reiniciado, continuando...');
     } else {
-        perfMonitor.log('❌ Promise rejeitada');
-        performAutoOptimization();
+        console.error('❌ Promise rejeitada:', reason);
     }
 });
 
 process.on('uncaughtException', (error) => {
-    perfMonitor.log('❌ Erro crítico detectado');
-    performAutoOptimization();
-    process.exit(1);
+    console.error('❌ Erro não capturado:', error.message);
 });
 
 // === INICIALIZAÇÃO ===
@@ -5305,9 +5273,9 @@ process.on('uncaughtException', (error) => {
     
     try {
         client.initialize();
-        perfMonitor.log('📱 Cliente WhatsApp inicializado');
+        console.log('📱 Cliente WhatsApp inicializado, aguardando conexão...');
     } catch (error) {
-        perfMonitor.log('❌ Erro na inicialização');
+        console.error('❌ Erro ao inicializar cliente:', error);
     }
 })();
 
@@ -5470,19 +5438,16 @@ process.on('SIGINT', async () => {
             salvarHistorico()
         ]);
 
+        console.log('✅ Dados salvos com sucesso!');
     } catch (error) {
-        perfMonitor.log('❌ Erro ao salvar dados');
+        console.error('❌ Erro ao salvar:', error);
     }
 
-    // === STATS FINAIS DE PERFORMANCE ===
-    const stats = perfMonitor.getStats();
-    perfMonitor.log(`📊 Performance Stats:`);
-    perfMonitor.log(`   Memória: ${stats.memoryMB}MB / Pico: ${stats.memoryPeakMB}MB`);
-    perfMonitor.log(`   Requests: ${stats.requests}`);
-    perfMonitor.log(`   Uptime: ${Math.round(stats.uptime/1000)}s`);
-    perfMonitor.log(`   Status: ${stats.isHealthy ? '✅ Saudável' : '⚠️ Atenção'}`);
-
-    perfMonitor.stop();
+    console.log('🧠 IA: ATIVA');
+    console.log('📊 Google Sheets: CONFIGURADO');
+    console.log(`🔗 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}`);
+    console.log('🤖 Bot Retalho - Funcionamento otimizado');
+    console.log(ia.getStatus());
     process.exit(0);
 });
 
