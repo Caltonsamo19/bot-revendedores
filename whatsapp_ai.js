@@ -1,21 +1,6 @@
 const { OpenAI } = require("openai");
 // Google Vision removido - processamento de imagens desativado
 
-// Controle de logs - desativar debug logs
-const DEBUG_MODE = process.env.DEBUG_MODE === 'true' || false;
-const originalConsoleLog = console.log;
-console.log = function(...args) {
-    const msg = args.join(' ');
-    // Manter apenas logs críticos
-    if (msg.includes('❌') || msg.includes('✅') || msg.includes('🚨') ||
-        msg.includes('IA WhatsApp inicializada') || msg.includes('Error') ||
-        msg.includes('erro') || msg.includes('Removidos') || msg.includes('CRÍTICO')) {
-        originalConsoleLog(...args);
-    } else if (DEBUG_MODE) {
-        originalConsoleLog(...args);
-    }
-};
-
 class WhatsAppAI {
   constructor(apiKey) {
     this.openai = new OpenAI({ apiKey });
@@ -33,10 +18,10 @@ class WhatsAppAI {
     // Processamento de imagens desativado para otimização
     this.googleVisionEnabled = false;
     
-    // Limpeza automática a cada 5 minutos (otimizado para comprovantes de 5min)
+    // Limpeza automática a cada 10 minutos
     setInterval(() => {
       this.limparComprovantesAntigos();
-    }, 5 * 60 * 1000);
+    }, 10 * 60 * 1000);
     
     console.log(`🧠 IA WhatsApp inicializada - Processamento apenas de TEXTO`);
   }
@@ -55,6 +40,7 @@ class WhatsAppAI {
       const oldestRequest = Math.min(...this.rateLimiter.requests);
       const waitTime = this.rateLimiter.windowMs - (now - oldestRequest);
 
+      console.log(`⏳ Rate limit atingido, aguardando ${Math.round(waitTime/1000)}s...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
 
@@ -64,6 +50,7 @@ class WhatsAppAI {
 
   // === RECONSTRUIR REFERÊNCIAS QUEBRADAS ===
   reconstruirReferenciasQuebradas(texto) {
+    console.log('🔧 Reconstruindo referências quebradas...');
     
     // Padrões comuns de referências M-Pesa/E-Mola quebradas
     const padroes = [
@@ -1834,10 +1821,10 @@ Se não conseguires extrair, responde:
   }
   // FIM DAS FUNÇÕES DE IMAGEM REMOVIDAS
 
-  // === LIMPEZA OTIMIZADA (5 MINUTOS) ===
+  // === LIMPEZA (MELHORADA) ===
   limparComprovantesAntigos() {
     const agora = Date.now();
-    const timeout = 5 * 60 * 1000; // OTIMIZADO: 5 minutos para economizar memória
+    const timeout = 45 * 60 * 1000; // AUMENTADO: 45 minutos
     let removidos = 0;
 
     Object.keys(this.comprovantesEmAberto).forEach(remetente => {
@@ -1849,7 +1836,7 @@ Se não conseguires extrair, responde:
     });
 
     if (removidos > 0) {
-      console.log(`🗑️ Removidos ${removidos} comprovantes antigos (>5min)`);
+      console.log(`🗑️ Removidos ${removidos} comprovantes antigos (>45min)`);
     }
   }
 

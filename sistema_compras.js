@@ -1,21 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
 
-// Controle de logs - desativar debug logs
-const DEBUG_MODE = process.env.DEBUG_MODE === 'true' || false;
-const originalConsoleLog = console.log;
-console.log = function(...args) {
-    const msg = args.join(' ');
-    // Manter apenas logs críticos
-    if (msg.includes('❌') || msg.includes('✅') || msg.includes('🚨') ||
-        msg.includes('Sistema de Compras inicializado') || msg.includes('Error') ||
-        msg.includes('erro') || msg.includes('CRÍTICO') || msg.includes('Backup')) {
-        originalConsoleLog(...args);
-    } else if (DEBUG_MODE) {
-        originalConsoleLog(...args);
-    }
-};
-
 class SistemaCompras {
     constructor() {
         console.log('🛒 Inicializando Sistema de Registro de Compras...');
@@ -43,22 +28,6 @@ class SistemaCompras {
         this.rankingSemanalPorGrupo = {}; // {grupoId: [{numero, megasSemana, comprasSemana, posicao}]}
         this.rankingDiarioPorGrupo = {}; // {grupoId: [{numero, megasDia, comprasDia, posicao}]}
         this.mensagensRanking = {}; // {grupoId: {messageId: string, ultimaAtualizacao: date, lideres: {dia: numero, semana: numero, geral: numero}}}
-
-        // Cache inteligente para otimizar salvamentos
-        this.cacheDados = {
-            lastSave: 0,
-            pendingChanges: false,
-            saveTimer: null,
-            minInterval: 30000 // Mínimo 30 segundos entre salvamentos
-        };
-
-        // Cache para rankings (evitar recalcular constantemente)
-        this.cacheRankings = {
-            lastUpdate: {},
-            data: {},
-            debounceTimer: null,
-            debounceInterval: 5000 // 5 segundos de debounce
-        };
         
         // Carregar dados existentes
         this.carregarDados();
@@ -69,6 +38,7 @@ class SistemaCompras {
     // === CARREGAR DADOS PERSISTIDOS ===
     async carregarDados() {
         try {
+            console.log('🔄 Iniciando carregamento de dados...');
 
             // Carregar histórico de compradores com backup automático
             try {
@@ -80,8 +50,8 @@ class SistemaCompras {
                     this.historicoCompradores = dadosParsados;
                     console.log(`✅ Histórico carregado com sucesso: ${Object.keys(this.historicoCompradores).length} compradores`);
 
-                    // BACKUP AUTOMÁTICO DESATIVADO - apenas carregamento inicial
-                    // await this.criarBackupHistorico();
+                    // Criar backup automático após carregamento bem-sucedido
+                    await this.criarBackupHistorico();
                 } else {
                     throw new Error('Dados inválidos no arquivo de histórico');
                 }
@@ -161,54 +131,28 @@ class SistemaCompras {
         }
     }
 
-    // === SALVAR DADOS COM CACHE INTELIGENTE ===
-    async salvarDados(forceSave = false) {
-        const now = Date.now();
-
-        // Marcar que há mudanças pendentes
-        this.cacheDados.pendingChanges = true;
-
-        // Se não forçou salvamento e ainda não passou o intervalo mínimo, agendar para depois
-        if (!forceSave && (now - this.cacheDados.lastSave) < this.cacheDados.minInterval) {
-            if (!this.cacheDados.saveTimer) {
-                this.cacheDados.saveTimer = setTimeout(() => {
-                    this.cacheDados.saveTimer = null;
-                    if (this.cacheDados.pendingChanges) {
-                        this.executarSalvamento();
-                    }
-                }, this.cacheDados.minInterval - (now - this.cacheDados.lastSave));
-            }
-            return;
-        }
-
-        await this.executarSalvamento();
-    }
-
-    // === EXECUTAR SALVAMENTO REAL ===
-    async executarSalvamento() {
+    // === SALVAR DADOS COM BACKUP AUTOMÁTICO ===
+    async salvarDados() {
         try {
-            // BACKUP AUTOMÁTICO DESATIVADO PARA PERFORMANCE
-            // Backup agora será manual ou agendado, não a cada compra
-            // if (Object.keys(this.historicoCompradores).length > 0) {
-            //     await this.criarBackupHistorico();
-            // }
+            console.log('💾 Salvando dados...');
 
-            // Salvar apenas dados essenciais (rankings desativados para performance)
+            // Criar backup antes de salvar (apenas para histórico principal)
+            if (Object.keys(this.historicoCompradores).length > 0) {
+                await this.criarBackupHistorico();
+            }
+
+            // Salvar arquivos principais com verificação
             const operacoesSalvamento = [
                 this.salvarArquivoSeguro(this.ARQUIVO_COMPRADORES, this.historicoCompradores),
-                this.salvarArquivoSeguro(this.ARQUIVO_COMPRAS_PENDENTES, this.comprasPendentes)
-                // RANKINGS DESATIVADOS PARA PERFORMANCE:
-                // this.salvarArquivoSeguro(this.ARQUIVO_RANKING_DIARIO, this.rankingPorGrupo),
-                // this.salvarArquivoSeguro(this.ARQUIVO_RANKING_SEMANAL, this.rankingSemanalPorGrupo),
-                // this.salvarArquivoSeguro(this.ARQUIVO_RANKING_DIARIO_MEGAS, this.rankingDiarioPorGrupo),
-                // this.salvarArquivoSeguro(this.ARQUIVO_MENSAGENS_RANKING, this.mensagensRanking)
+                this.salvarArquivoSeguro(this.ARQUIVO_COMPRAS_PENDENTES, this.comprasPendentes),
+                this.salvarArquivoSeguro(this.ARQUIVO_RANKING_DIARIO, this.rankingPorGrupo),
+                this.salvarArquivoSeguro(this.ARQUIVO_RANKING_SEMANAL, this.rankingSemanalPorGrupo),
+                this.salvarArquivoSeguro(this.ARQUIVO_RANKING_DIARIO_MEGAS, this.rankingDiarioPorGrupo),
+                this.salvarArquivoSeguro(this.ARQUIVO_MENSAGENS_RANKING, this.mensagensRanking)
             ];
 
             await Promise.all(operacoesSalvamento);
-
-            // Atualizar cache
-            this.cacheDados.lastSave = Date.now();
-            this.cacheDados.pendingChanges = false;
+            console.log('✅ Todos os dados salvos com sucesso!');
 
         } catch (error) {
             console.error('❌ COMPRAS: Erro crítico ao salvar dados:', error);
@@ -225,6 +169,7 @@ class SistemaCompras {
             // Verificar se os dados são válidos antes de salvar
             if (dadosJSON && dadosJSON !== 'null' && dadosJSON !== 'undefined') {
                 await fs.writeFile(caminho, dadosJSON);
+                console.log(`✅ Arquivo salvo: ${path.basename(caminho)}`);
             } else {
                 console.log(`⚠️ Dados inválidos não salvos: ${path.basename(caminho)}`);
             }
@@ -272,35 +217,6 @@ class SistemaCompras {
             await this.salvarArquivoSeguro(this.ARQUIVO_MENSAGENS_RANKING, this.mensagensRanking);
         } catch (error) {
             console.error('❌ Falha ao salvar mensagens de ranking:', error.message);
-        }
-    }
-
-    // === GARANTIR ESTRUTURA DE DADOS DO CLIENTE ===
-    garantirEstruturaDados(numero, grupoId) {
-        if (!this.historicoCompradores[numero]) {
-            this.historicoCompradores[numero] = {
-                comprasTotal: 0,
-                ultimaCompra: null,
-                megasTotal: 0,
-                grupos: {}
-            };
-        }
-
-        if (!this.historicoCompradores[numero].grupos) {
-            this.historicoCompradores[numero].grupos = {};
-        }
-
-        if (!this.historicoCompradores[numero].grupos[grupoId]) {
-            this.historicoCompradores[numero].grupos[grupoId] = {
-                compras: 0,
-                megas: 0,
-                comprasDia: 0,
-                megasDia: 0,
-                ultimaCompraDia: null,
-                comprasSemana: 0,
-                megasSemana: 0,
-                ultimaCompraSemana: null
-            };
         }
     }
 
@@ -402,15 +318,32 @@ class SistemaCompras {
             const hoje = agora.toISOString();
             const hojeDia = agora.toDateString(); // Para comparar apenas o dia
 
-            // Garantir estrutura de dados completa
-            this.garantirEstruturaDados(numero, grupoId);
-
-            // Inicializar datas se primeira compra
-            if (!this.historicoCompradores[numero].primeiraCompra) {
-                this.historicoCompradores[numero].primeiraCompra = hoje;
+            // Inicializar cliente se não existe
+            if (!this.historicoCompradores[numero]) {
+                this.historicoCompradores[numero] = {
+                    comprasTotal: 0,
+                    megasTotal: 0,
+                    ultimaCompra: hoje,
+                    primeiraCompra: hoje,
+                    grupos: {} // {grupoId: {compras: 0, megas: 0, comprasDia: 0, ultimaCompraDia: date}}
+                };
             }
 
             const cliente = this.historicoCompradores[numero];
+
+            // Inicializar dados do grupo se não existe
+            if (grupoId && !cliente.grupos[grupoId]) {
+                cliente.grupos[grupoId] = {
+                    compras: 0,
+                    megas: 0,
+                    comprasDia: 0,
+                    megasDia: 0,
+                    ultimaCompraDia: null,
+                    comprasSemana: 0,
+                    megasSemana: 0,
+                    ultimaCompraSemana: null
+                };
+            }
 
             // Atualizar contadores gerais
             cliente.comprasTotal++;
@@ -460,11 +393,12 @@ class SistemaCompras {
                 grupoData.ultimaCompraSemana = hoje;
             }
             
-            // SISTEMA DE RANKINGS DESATIVADO PARA PERFORMANCE
-            // Rankings consomem muito CPU/memória - desativado temporariamente
-            // if (grupoId) {
-            //     this.atualizarRankingsComDebounce(grupoId);
-            // }
+            // Atualizar ranking do grupo (diário e semanal)
+            if (grupoId) {
+                await this.atualizarRankingGrupo(grupoId);
+                await this.atualizarRankingSemanalGrupo(grupoId);
+                await this.atualizarRankingDiarioGrupo(grupoId);
+            }
 
             // SALVAMENTO AUTOMÁTICO APÓS CADA COMPRA CONFIRMADA
             await this.salvarDados();
@@ -567,47 +501,14 @@ class SistemaCompras {
         }
     }
 
-    // === ATUALIZAR RANKINGS COM DEBOUNCE (OTIMIZADO) ===
-    atualizarRankingsComDebounce(grupoId) {
-        // Cancelar timer anterior se existir
-        if (this.cacheRankings.debounceTimer) {
-            clearTimeout(this.cacheRankings.debounceTimer);
-        }
-
-        // Marcar grupo para atualização
-        if (!this.cacheRankings.pendingUpdates) {
-            this.cacheRankings.pendingUpdates = new Set();
-        }
-        this.cacheRankings.pendingUpdates.add(grupoId);
-
-        // Agendar atualização
-        this.cacheRankings.debounceTimer = setTimeout(async () => {
-            const gruposParaAtualizar = [...this.cacheRankings.pendingUpdates];
-            this.cacheRankings.pendingUpdates.clear();
-
-            // Atualizar todos os grupos pendentes
-            for (const grupo of gruposParaAtualizar) {
-                try {
-                    await this.atualizarRankingGrupo(grupo);
-                    await this.atualizarRankingSemanalGrupo(grupo);
-                    await this.atualizarRankingDiarioGrupo(grupo);
-                } catch (error) {
-                    console.error(`❌ Erro ao atualizar rankings do grupo ${grupo}:`, error.message);
-                }
-            }
-        }, this.cacheRankings.debounceInterval);
-    }
-
-    // === ATUALIZAR RANKING POR GRUPO === (DESATIVADO)
+    // === ATUALIZAR RANKING POR GRUPO ===
     async atualizarRankingGrupo(grupoId) {
-        // SISTEMA DE RANKINGS DESATIVADO PARA PERFORMANCE
-        return;
         try {
             if (!grupoId) return;
             
             // Criar array de ranking ordenado por megas do grupo
             const rankingGrupo = Object.entries(this.historicoCompradores)
-                .filter(([numero, dados]) => dados.grupos && dados.grupos[grupoId] && dados.grupos[grupoId].megas > 0)
+                .filter(([numero, dados]) => dados.grupos[grupoId] && dados.grupos[grupoId].megas > 0)
                 .map(([numero, dados]) => ({
                     numero: numero,
                     megas: dados.grupos[grupoId].megas,
@@ -843,17 +744,14 @@ class SistemaCompras {
         return Math.ceil((diasDecorridos + inicioAno.getDay() + 1) / 7);
     }
 
-    // === ATUALIZAR RANKING SEMANAL POR GRUPO === (DESATIVADO)
+    // === ATUALIZAR RANKING SEMANAL POR GRUPO ===
     async atualizarRankingSemanalGrupo(grupoId) {
-        // SISTEMA DE RANKINGS DESATIVADO PARA PERFORMANCE
-        return;
         try {
             if (!grupoId) return;
 
             // Criar array de ranking semanal ordenado por megas da semana
             const rankingSemanal = Object.entries(this.historicoCompradores)
                 .filter(([numero, dados]) =>
-                    dados.grupos &&
                     dados.grupos[grupoId] &&
                     dados.grupos[grupoId].megasSemana > 0
                 )
@@ -905,16 +803,20 @@ class SistemaCompras {
 
     // === OBTER POSIÇÃO SEMANAL DO CLIENTE ===
     async obterPosicaoClienteSemana(numero, grupoId) {
+        console.log(`🔍 DEBUG SEMANAL: Buscando ${numero} no grupo ${grupoId}`);
         if (!grupoId || !this.rankingSemanalPorGrupo[grupoId]) {
+            console.log(`❌ DEBUG SEMANAL: Grupo ${grupoId} não encontrado ou vazio`);
             return { posicao: 1, megasSemana: 0, comprasSemana: 0 };
         }
 
+        console.log(`📊 DEBUG SEMANAL: Ranking tem ${this.rankingSemanalPorGrupo[grupoId].length} participantes`);
         const posicao = this.rankingSemanalPorGrupo[grupoId].find(item => item.numero === numero);
         const resultado = posicao || {
             posicao: this.rankingSemanalPorGrupo[grupoId].length + 1,
             megasSemana: 0,
             comprasSemana: 0
         };
+        console.log(`📊 DEBUG SEMANAL: Resultado - ${resultado.posicao}º lugar (${resultado.megasSemana}MB)`);
         return resultado;
     }
 
@@ -996,17 +898,14 @@ class SistemaCompras {
 
     // === SISTEMA DE RANKING DIÁRIO ===
 
-    // === ATUALIZAR RANKING DIÁRIO POR GRUPO === (DESATIVADO)
+    // === ATUALIZAR RANKING DIÁRIO POR GRUPO ===
     async atualizarRankingDiarioGrupo(grupoId) {
-        // SISTEMA DE RANKINGS DESATIVADO PARA PERFORMANCE
-        return;
         try {
             if (!grupoId) return;
 
             // Criar array de ranking diário ordenado por megas do dia
             const rankingDiario = Object.entries(this.historicoCompradores)
                 .filter(([numero, dados]) =>
-                    dados.grupos &&
                     dados.grupos[grupoId] &&
                     dados.grupos[grupoId].megasDia > 0
                 )
@@ -1217,12 +1116,8 @@ class SistemaCompras {
         }
     }
 
-    // === CRIAR BACKUP DO HISTÓRICO === (DESATIVADO)
+    // === CRIAR BACKUP DO HISTÓRICO ===
     async criarBackupHistorico() {
-        // FUNÇÃO DE BACKUP DESATIVADA PARA PERFORMANCE
-        // Só será executada manualmente via forcarBackup()
-        return;
-
         try {
             if (Object.keys(this.historicoCompradores).length === 0) {
                 return; // Não criar backup de dados vazios
@@ -1345,34 +1240,10 @@ class SistemaCompras {
         }
     }
 
-    // === EXECUTAR BACKUP REAL (APENAS MANUAL) ===
-    async executarBackupReal() {
-        if (Object.keys(this.historicoCompradores).length === 0) {
-            return; // Não criar backup de dados vazios
-        }
-
-        await this.garantirPastaBackup();
-
-        const agora = new Date();
-        const timestamp = agora.toISOString().replace(/[:.]/g, '-').slice(0, -5);
-        const nomeArquivo = `historico_compradores_${timestamp}.json`;
-        const caminhoCompleto = path.join(this.PASTA_BACKUP, nomeArquivo);
-
-        // Salvar backup
-        await fs.writeFile(caminhoCompleto, JSON.stringify(this.historicoCompradores, null, 2));
-
-        const totalCompradores = Object.keys(this.historicoCompradores).length;
-        console.log(`💾 Backup manual criado: ${totalCompradores} compradores`);
-
-        // Limpar backups antigos (manter apenas 5)
-        await this.limparBackupsAntigos();
-    }
-
     // === FORÇAR BACKUP MANUAL (PARA COMANDOS ADMIN) ===
     async forcarBackup() {
         try {
-            // Executar backup real (pulando a função desativada)
-            await this.executarBackupReal();
+            await this.criarBackupHistorico();
             const totalCompradores = Object.keys(this.historicoCompradores).length;
             return {
                 success: true,

@@ -19,8 +19,8 @@ const GOOGLE_SHEETS_CONFIG = {
     planilhaUrl: 'https://docs.google.com/spreadsheets/d/1vIv1Y0Hiu6NHEG37ubbFoa_vfbEe6sAb9I4JH-P38BQ/edit',
     planilhaId: '1vIv1Y0Hiu6NHEG37ubbFoa_vfbEe6sAb9I4JH-P38BQ',
     timeout: 30000,
-    retryAttempts: 1, // REDUZIDO PARA PERFORMANCE
-    retryDelay: 1000   // REDUZIDO PARA PERFORMANCE
+    retryAttempts: 3,
+    retryDelay: 2000
 };
 
 // === CONFIGURAÇÃO DE PAGAMENTOS (MESMA PLANILHA DO BOT ATACADO) ===
@@ -29,36 +29,14 @@ const PAGAMENTOS_CONFIG = {
     timeout: 30000
 };
 
-// Controle de logs otimizado
-const DEBUG_MODE = process.env.DEBUG_MODE === 'true' || false;
-function debugLog(...args) {
-    if (DEBUG_MODE) console.log(...args);
-}
-
-// Desativar todos os console.log de debug substituindo por função vazia
-const originalConsoleLog = console.log;
-console.log = function(...args) {
-    // Manter apenas logs críticos (com emojis de erro/sucesso)
-    const msg = args.join(' ');
-    if (msg.includes('❌') || msg.includes('✅') || msg.includes('🚨') ||
-        msg.includes('error') || msg.includes('Error') || msg.includes('SUCCESS') ||
-        msg.includes('Bot revendedores') || msg.includes('WhatsApp conectado') ||
-        msg.includes('Cliente pronto')) {
-        originalConsoleLog(...args);
-    } else if (DEBUG_MODE) {
-        originalConsoleLog(...args);
-    }
-    // Caso contrário, ignora o log (economiza I/O e CPU)
-};
-
-console.log(`📊 Bot revendedores iniciando...`);
+console.log(`📊 Google Sheets configurado`);
 
 // Função helper para reply com fallback
 async function safeReply(message, client, texto) {
     try {
         await message.reply(texto);
     } catch (error) {
-        debugLog('⚠️ Erro no reply, usando sendMessage como fallback:', error.message);
+        console.log('⚠️ Erro no reply, usando sendMessage como fallback:', error.message);
         try {
             await client.sendMessage(message.from, texto);
         } catch (fallbackError) {
@@ -1363,10 +1341,10 @@ async function adicionarPagamentoPendente(referencia, valorComprovante, dadosCom
 
     console.log(`⏳ RETRY: Pagamento ${referencia} adicionado à fila de retry`);
 
-    // TIMER DE RETRY DESATIVADO PARA PERFORMANCE
-    // if (!timerRetryPagamentos) {
-    //     iniciarTimerRetryPagamentos();
-    // }
+    // Iniciar timer se não existe
+    if (!timerRetryPagamentos) {
+        iniciarTimerRetryPagamentos();
+    }
 
     return id;
 }
@@ -1380,20 +1358,17 @@ async function removerPagamentoPendente(id) {
     }
 }
 
-// FUNÇÃO DE RETRY DESATIVADA PARA PERFORMANCE
+// Iniciar timer de verificação periódica
 function iniciarTimerRetryPagamentos() {
-    // SISTEMA DE RETRY DESATIVADO TEMPORARIAMENTE
-    console.log(`⚠️ RETRY: Sistema desativado para melhor performance`);
-    return;
+    if (timerRetryPagamentos) {
+        clearInterval(timerRetryPagamentos);
+    }
 
-    // CÓDIGO ORIGINAL (DESATIVADO)
-    // if (timerRetryPagamentos) {
-    //     clearInterval(timerRetryPagamentos);
-    // }
-    // console.log(`🔄 RETRY: Iniciando verificação a cada ${RETRY_INTERVAL/1000}s`);
-    // timerRetryPagamentos = setInterval(async () => {
-    //     await verificarPagamentosPendentes();
-    // }, RETRY_INTERVAL);
+    console.log(`🔄 RETRY: Iniciando verificação a cada ${RETRY_INTERVAL/1000}s`);
+
+    timerRetryPagamentos = setInterval(async () => {
+        await verificarPagamentosPendentes();
+    }, RETRY_INTERVAL);
 }
 
 // Parar timer de verificação
@@ -4436,14 +4411,10 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return false;
         }
 
-        // === FUNÇÃO DESATIVADA PARA PERFORMANCE ===
+        // === FUNÇÃO PARA DETECTAR INTENÇÃO DE COMPRA ===
         async function detectarIntencaoCompra(texto) {
-            // FUNÇÃO DESATIVADA - RETORNA SEMPRE FALSE
-            return false;
-
-            // CÓDIGO ORIGINAL (DESATIVADO)
             // Verificação básica por padrões (sem IA - economia máxima)
-            // const textoLimpo = texto.toLowerCase().trim();
+            const textoLimpo = texto.toLowerCase().trim();
 
             // Excluir comandos específicos conhecidos
             const comandosExcluir = [
@@ -5115,8 +5086,8 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 if (!pagamentoConfirmado) {
                     console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorComprovante}MT)`);
 
-                    // SISTEMA DE RETRY DESATIVADO PARA PERFORMANCE
-                    // await adicionarPagamentoPendente(referencia, valorComprovante, dadosCompletos, message, resultadoIA);
+                    // Adicionar à fila de retry silencioso
+                    await adicionarPagamentoPendente(referencia, valorComprovante, dadosCompletos, message, resultadoIA);
 
                     await message.reply(
                         `⏳ *AGUARDANDO MENSAGEM DE CONFIRMAÇÃO*\n\n` +
@@ -5201,8 +5172,8 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 if (!pagamentoConfirmado) {
                     console.log(`❌ REVENDEDORES: Pagamento não confirmado para texto - ${referencia} (${valorComprovante}MT)`);
 
-                    // SISTEMA DE RETRY DESATIVADO PARA PERFORMANCE
-                    // await adicionarPagamentoPendente(referencia, valorComprovante, dadosCompletos, message, resultadoIA);
+                    // Adicionar à fila de retry silencioso
+                    await adicionarPagamentoPendente(referencia, valorComprovante, dadosCompletos, message, resultadoIA);
 
                     await message.reply(
                         `⏳ *AGUARDANDO MENSAGEM DE CONFIRMAÇÃO*\n\n` +
@@ -5264,13 +5235,13 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return;
         }
 
-        // === DETECÇÃO DE INTENÇÃO DE COMPRA DESATIVADA PARA PERFORMANCE ===
-        // Resposta automática "Estou á disposição" desativada
-        // if (await detectarIntencaoCompra(message.body)) {
-        //     console.log(`🛒 Intenção de compra detectada de ${message.author || message.from}`);
-        //     await safeReply(message, client, 'Estou á disposição, para te atender com flexibilidade.');
-        //     return;
-        // }
+        // === DETECÇÃO DE INTENÇÃO DE COMPRA (ÚLTIMA VERIFICAÇÃO) ===
+        // Só executa se nenhum comando específico foi processado
+        if (await detectarIntencaoCompra(message.body)) {
+            console.log(`🛒 Intenção de compra detectada de ${message.author || message.from}`);
+            await safeReply(message, client, 'Estou á disposição, para te atender com flexibilidade.');
+            return;
+        }
 
     } catch (error) {
         console.error('❌ Erro ao processar mensagem:', error);
