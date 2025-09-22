@@ -21,18 +21,55 @@ class SistemaCompras {
         // Garantir que a pasta de backup existe
         this.garantirPastaBackup();
         
-        // Dados em memória
-        this.historicoCompradores = {}; // {numero: {comprasTotal: 0, ultimaCompra: date, megasTotal: 0, grupos: {grupoId: {compras: 0, megas: 0, comprasDia: 0, megasDia: 0, ultimaCompraDia: date, comprasSemana: 0, megasSemana: 0, ultimaCompraSemana: date}}}}
-        this.comprasPendentes = {}; // {referencia: {numero, megas, timestamp, tentativas, grupoId}}
-        this.rankingPorGrupo = {}; // {grupoId: [{numero, megas, compras, posicao}]}
-        this.rankingSemanalPorGrupo = {}; // {grupoId: [{numero, megasSemana, comprasSemana, posicao}]}
-        this.rankingDiarioPorGrupo = {}; // {grupoId: [{numero, megasDia, comprasDia, posicao}]}
-        this.mensagensRanking = {}; // {grupoId: {messageId: string, ultimaAtualizacao: date, lideres: {dia: numero, semana: numero, geral: numero}}}
+        // Dados em memória OTIMIZADOS
+        this.historicoCompradores = new Map();
+        this.comprasPendentes = new Map();
+        this.rankingPorGrupo = new Map();
+        this.rankingSemanalPorGrupo = new Map();
+        this.rankingDiarioPorGrupo = new Map();
+        this.mensagensRanking = new Map();
+        this.ultimaLimpezaRankings = null;
+        this.cache = new Map();
+        this.isOptimizing = false;
         
         // Carregar dados existentes
         this.carregarDados();
-        
-        console.log('🛒 Sistema de Compras inicializado!');
+        this.iniciarOtimizacaoAutomatica();
+    }
+
+    iniciarOtimizacaoAutomatica() {
+        setInterval(() => {
+            this.otimizarSistema();
+        }, 10 * 60 * 1000);
+    }
+
+    otimizarSistema() {
+        if (this.isOptimizing) return;
+        this.isOptimizing = true;
+
+        try {
+            if (this.cache.size > 300) {
+                this.cache.clear();
+            }
+
+            const now = Date.now();
+            const umDiaAtras = now - 24 * 60 * 60 * 1000;
+
+            for (const [key, dados] of this.comprasPendentes) {
+                if (dados.timestamp < umDiaAtras) {
+                    this.comprasPendentes.delete(key);
+                }
+            }
+
+            if (this.historicoCompradores.size > 10000) {
+                const entries = Array.from(this.historicoCompradores.entries());
+                const recentEntries = entries.slice(-5000);
+                this.historicoCompradores.clear();
+                recentEntries.forEach(([k, v]) => this.historicoCompradores.set(k, v));
+            }
+        } finally {
+            this.isOptimizing = false;
+        }
     }
 
     // === CARREGAR DADOS PERSISTIDOS ===
@@ -395,6 +432,10 @@ class SistemaCompras {
             
             // Atualizar ranking do grupo (diário e semanal)
             if (grupoId) {
+                // Primeiro, verificar se precisa limpar rankings antigos
+                await this.verificarLimpezaRankingsAutomatica();
+
+                // Depois atualizar os rankings
                 await this.atualizarRankingGrupo(grupoId);
                 await this.atualizarRankingSemanalGrupo(grupoId);
                 await this.atualizarRankingDiarioGrupo(grupoId);
@@ -1500,17 +1541,26 @@ class SistemaCompras {
     // === LIMPEZA AUTOMÁTICA DE RANKINGS ANTIGOS ===
     async verificarLimpezaRankingsAutomatica() {
         try {
+            const agora = new Date();
+            const hojeStr = agora.toDateString();
+
+            // Verificar se já fizemos limpeza hoje (cache para performance)
+            if (this.ultimaLimpezaRankings === hojeStr) {
+                return; // Já foi feita hoje
+            }
+
             console.log('🔄 Verificando necessidade de limpeza automática de rankings...');
 
-            const agora = new Date();
-            const hojeDia = agora.toDateString();
             const inicioSemanaAtual = this.obterInicioSemana(agora);
 
             // Limpar rankings diários antigos
-            await this.limparRankingsDiariosAntigos(hojeDia);
+            await this.limparRankingsDiariosAntigos(hojeStr);
 
             // Limpar rankings semanais antigos
             await this.limparRankingsSemanaisAntigos(inicioSemanaAtual);
+
+            // Atualizar cache
+            this.ultimaLimpezaRankings = hojeStr;
 
             console.log('✅ Verificação de limpeza de rankings concluída');
 

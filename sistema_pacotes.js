@@ -26,13 +26,15 @@ class SistemaPacotes {
         this.ARQUIVO_CLIENTES = path.join(__dirname, 'dados_pacotes_clientes.json');
         this.ARQUIVO_HISTORICO = path.join(__dirname, 'historico_renovacoes.json');
         
-        // Controle de clientes ativos
-        this.clientesAtivos = {};
+        // Controle de clientes ativos OTIMIZADO
+        this.clientesAtivos = new Map();
         this.historicoRenovacoes = [];
-        
-        // Timer de verificação
+        this.cache = new Map();
+        this.isOptimizing = false;
+
+        // Timer de verificação OTIMIZADO
         this.timerVerificacao = null;
-        this.intervalVerificacao = parseInt(process.env.VERIFICACAO_INTERVAL) || 3600000; // 1 hora padrão
+        this.intervalVerificacao = parseInt(process.env.VERIFICACAO_INTERVAL) || 7200000; // 2 horas
         
         console.log(`📦 URLs Configuradas:`);
         console.log(`   📋 Pedidos (Retalho): ${this.PLANILHAS.PEDIDOS}`);
@@ -44,6 +46,39 @@ class SistemaPacotes {
         
         // Iniciar verificação automática
         this.iniciarVerificacaoAutomatica();
+        this.iniciarOtimizacaoAutomatica();
+    }
+
+    iniciarOtimizacaoAutomatica() {
+        setInterval(() => {
+            this.otimizarSistema();
+        }, 10 * 60 * 1000);
+    }
+
+    otimizarSistema() {
+        if (this.isOptimizing) return;
+        this.isOptimizing = true;
+
+        try {
+            if (this.cache.size > 200) {
+                this.cache.clear();
+            }
+
+            if (this.historicoRenovacoes.length > 1000) {
+                this.historicoRenovacoes = this.historicoRenovacoes.slice(-500);
+            }
+
+            if (this.clientesAtivos.size > 500) {
+                const now = Date.now();
+                for (const [key, cliente] of this.clientesAtivos) {
+                    if (now - (cliente.ultimaAtividade || 0) > 7 * 24 * 60 * 60 * 1000) {
+                        this.clientesAtivos.delete(key);
+                    }
+                }
+            }
+        } finally {
+            this.isOptimizing = false;
+        }
     }
     
     // === CARREGAR DADOS PERSISTIDOS ===

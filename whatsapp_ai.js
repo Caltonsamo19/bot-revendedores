@@ -1,29 +1,32 @@
 const { OpenAI } = require("openai");
-// Google Vision removido - processamento de imagens desativado
 
 class WhatsAppAI {
   constructor(apiKey) {
-    this.openai = new OpenAI({ apiKey });
-    this.comprovantesEmAberto = {};
+    this.openai = new OpenAI({
+      apiKey,
+      timeout: 15000,
+      maxRetries: 2
+    });
+    this.comprovantesEmAberto = new Map();
     this.historicoMensagens = [];
-    this.maxHistorico = 100; // OTIMIZADO: Reduzido de 200 para 100 mensagens
+    this.maxHistorico = 50;
+    this.cacheRespostas = new Map();
+    this.maxCacheSize = 100;
 
-    // RATE LIMITING PARA OPENAI
+    // RATE LIMITING OTIMIZADO
     this.rateLimiter = {
       requests: [],
-      maxRequests: 10, // máximo 10 requests por minuto
-      windowMs: 60000 // janela de 1 minuto
+      maxRequests: 8,
+      windowMs: 60000
     };
-    
-    // Processamento de imagens desativado para otimização
+
     this.googleVisionEnabled = false;
-    
-    // Limpeza automática a cada 10 minutos
+    this.isOptimizing = false;
+
+    // Limpeza mais agressiva a cada 5 minutos
     setInterval(() => {
-      this.limparComprovantesAntigos();
-    }, 10 * 60 * 1000);
-    
-    console.log(`🧠 IA WhatsApp inicializada - Processamento apenas de TEXTO`);
+      this.performOptimization();
+    }, 5 * 60 * 1000);
   }
 
   // === RATE LIMITING PARA OPENAI ===
@@ -161,9 +164,36 @@ class WhatsAppAI {
   // === GOOGLE VISION REMOVIDO PARA OTIMIZAÇÃO ===
   // Processamento de imagens desativado
 
+  // === CACHE E OTIMIZAÇÃO ===
+  performOptimization() {
+    if (this.isOptimizing) return;
+    this.isOptimizing = true;
+
+    try {
+      this.limparComprovantesAntigos();
+
+      if (this.cacheRespostas.size > this.maxCacheSize) {
+        const keys = Array.from(this.cacheRespostas.keys());
+        for (let i = 0; i < keys.length - this.maxCacheSize; i++) {
+          this.cacheRespostas.delete(keys[i]);
+        }
+      }
+
+      if (this.historicoMensagens.length > this.maxHistorico) {
+        this.historicoMensagens = this.historicoMensagens.slice(-this.maxHistorico);
+      }
+    } finally {
+      this.isOptimizing = false;
+    }
+  }
+
   // === INTERPRETAR COMPROVANTE COM GPT (TEXTO PURO) ===
   async interpretarComprovanteComGPT(textoExtraido) {
-    console.log('🧠 Interpretando texto extraído com GPT-4...');
+    const cacheKey = textoExtraido.substring(0, 100);
+
+    if (this.cacheRespostas.has(cacheKey)) {
+      return this.cacheRespostas.get(cacheKey);
+    }
     
     const prompt = `
 Analisa este texto extraído de um comprovante M-Pesa ou E-Mola de Moçambique:
@@ -239,8 +269,21 @@ Se não conseguires extrair os dados:
       return resultado;
 
     } catch (error) {
-      console.error('❌ Erro ao interpretar com GPT:', error.message);
-      throw error;
+      const referencia = this.extrairReferenciaMPesa(textoExtraido);
+      const valor = this.extrairValorMPesa(textoExtraido);
+
+      if (referencia && valor) {
+        const resultado = {
+          referencia,
+          valor,
+          encontrado: true,
+          metodo: 'fallback_regex'
+        };
+        this.cacheRespostas.set(cacheKey, resultado);
+        return resultado;
+      }
+
+      return { encontrado: false };
     }
   }
 

@@ -1,17 +1,18 @@
 {
   "name": "whatsapp-bot",
   "version": "1.0.0",
-  "description": "Bot WhatsApp com IA",
+  "description": "Bot WhatsApp com IA - OTIMIZADO",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node --max-old-space-size=512 --optimize-for-size index.js",
+    "start:dev": "node --inspect --max-old-space-size=512 index.js",
+    "clean": "node limpar_cache.js"
   },
   "dependencies": {
-    "@google-cloud/vision": "^4.3.3",
-    "axios": "^1.6.0",
-    "dotenv": "^16.3.1",
-    "openai": "^4.20.0",
+    "axios": "^1.12.2",
+    "dotenv": "^16.6.1",
+    "openai": "^4.104.0",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.34.0"
+    "whatsapp-web.js": "^1.34.1"
   }
 }
