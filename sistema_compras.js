@@ -1,6 +1,21 @@
 const fs = require('fs').promises;
 const path = require('path');
 
+// Controle de logs - desativar debug logs
+const DEBUG_MODE = process.env.DEBUG_MODE === 'true' || false;
+const originalConsoleLog = console.log;
+console.log = function(...args) {
+    const msg = args.join(' ');
+    // Manter apenas logs críticos
+    if (msg.includes('❌') || msg.includes('✅') || msg.includes('🚨') ||
+        msg.includes('Sistema de Compras inicializado') || msg.includes('Error') ||
+        msg.includes('erro') || msg.includes('CRÍTICO') || msg.includes('Backup')) {
+        originalConsoleLog(...args);
+    } else if (DEBUG_MODE) {
+        originalConsoleLog(...args);
+    }
+};
+
 class SistemaCompras {
     constructor() {
         console.log('🛒 Inicializando Sistema de Registro de Compras...');
@@ -65,8 +80,8 @@ class SistemaCompras {
                     this.historicoCompradores = dadosParsados;
                     console.log(`✅ Histórico carregado com sucesso: ${Object.keys(this.historicoCompradores).length} compradores`);
 
-                    // Criar backup automático após carregamento bem-sucedido
-                    await this.criarBackupHistorico();
+                    // BACKUP AUTOMÁTICO DESATIVADO - apenas carregamento inicial
+                    // await this.criarBackupHistorico();
                 } else {
                     throw new Error('Dados inválidos no arquivo de histórico');
                 }
@@ -172,19 +187,21 @@ class SistemaCompras {
     // === EXECUTAR SALVAMENTO REAL ===
     async executarSalvamento() {
         try {
-            // Criar backup antes de salvar (apenas para histórico principal)
-            if (Object.keys(this.historicoCompradores).length > 0) {
-                await this.criarBackupHistorico();
-            }
+            // BACKUP AUTOMÁTICO DESATIVADO PARA PERFORMANCE
+            // Backup agora será manual ou agendado, não a cada compra
+            // if (Object.keys(this.historicoCompradores).length > 0) {
+            //     await this.criarBackupHistorico();
+            // }
 
-            // Salvar arquivos principais com verificação
+            // Salvar apenas dados essenciais (rankings desativados para performance)
             const operacoesSalvamento = [
                 this.salvarArquivoSeguro(this.ARQUIVO_COMPRADORES, this.historicoCompradores),
-                this.salvarArquivoSeguro(this.ARQUIVO_COMPRAS_PENDENTES, this.comprasPendentes),
-                this.salvarArquivoSeguro(this.ARQUIVO_RANKING_DIARIO, this.rankingPorGrupo),
-                this.salvarArquivoSeguro(this.ARQUIVO_RANKING_SEMANAL, this.rankingSemanalPorGrupo),
-                this.salvarArquivoSeguro(this.ARQUIVO_RANKING_DIARIO_MEGAS, this.rankingDiarioPorGrupo),
-                this.salvarArquivoSeguro(this.ARQUIVO_MENSAGENS_RANKING, this.mensagensRanking)
+                this.salvarArquivoSeguro(this.ARQUIVO_COMPRAS_PENDENTES, this.comprasPendentes)
+                // RANKINGS DESATIVADOS PARA PERFORMANCE:
+                // this.salvarArquivoSeguro(this.ARQUIVO_RANKING_DIARIO, this.rankingPorGrupo),
+                // this.salvarArquivoSeguro(this.ARQUIVO_RANKING_SEMANAL, this.rankingSemanalPorGrupo),
+                // this.salvarArquivoSeguro(this.ARQUIVO_RANKING_DIARIO_MEGAS, this.rankingDiarioPorGrupo),
+                // this.salvarArquivoSeguro(this.ARQUIVO_MENSAGENS_RANKING, this.mensagensRanking)
             ];
 
             await Promise.all(operacoesSalvamento);
@@ -443,10 +460,11 @@ class SistemaCompras {
                 grupoData.ultimaCompraSemana = hoje;
             }
             
-            // Atualizar rankings após mudanças (com debounce)
-            if (grupoId) {
-                this.atualizarRankingsComDebounce(grupoId);
-            }
+            // SISTEMA DE RANKINGS DESATIVADO PARA PERFORMANCE
+            // Rankings consomem muito CPU/memória - desativado temporariamente
+            // if (grupoId) {
+            //     this.atualizarRankingsComDebounce(grupoId);
+            // }
 
             // SALVAMENTO AUTOMÁTICO APÓS CADA COMPRA CONFIRMADA
             await this.salvarDados();
@@ -580,8 +598,10 @@ class SistemaCompras {
         }, this.cacheRankings.debounceInterval);
     }
 
-    // === ATUALIZAR RANKING POR GRUPO ===
+    // === ATUALIZAR RANKING POR GRUPO === (DESATIVADO)
     async atualizarRankingGrupo(grupoId) {
+        // SISTEMA DE RANKINGS DESATIVADO PARA PERFORMANCE
+        return;
         try {
             if (!grupoId) return;
             
@@ -823,8 +843,10 @@ class SistemaCompras {
         return Math.ceil((diasDecorridos + inicioAno.getDay() + 1) / 7);
     }
 
-    // === ATUALIZAR RANKING SEMANAL POR GRUPO ===
+    // === ATUALIZAR RANKING SEMANAL POR GRUPO === (DESATIVADO)
     async atualizarRankingSemanalGrupo(grupoId) {
+        // SISTEMA DE RANKINGS DESATIVADO PARA PERFORMANCE
+        return;
         try {
             if (!grupoId) return;
 
@@ -974,8 +996,10 @@ class SistemaCompras {
 
     // === SISTEMA DE RANKING DIÁRIO ===
 
-    // === ATUALIZAR RANKING DIÁRIO POR GRUPO ===
+    // === ATUALIZAR RANKING DIÁRIO POR GRUPO === (DESATIVADO)
     async atualizarRankingDiarioGrupo(grupoId) {
+        // SISTEMA DE RANKINGS DESATIVADO PARA PERFORMANCE
+        return;
         try {
             if (!grupoId) return;
 
@@ -1193,8 +1217,12 @@ class SistemaCompras {
         }
     }
 
-    // === CRIAR BACKUP DO HISTÓRICO ===
+    // === CRIAR BACKUP DO HISTÓRICO === (DESATIVADO)
     async criarBackupHistorico() {
+        // FUNÇÃO DE BACKUP DESATIVADA PARA PERFORMANCE
+        // Só será executada manualmente via forcarBackup()
+        return;
+
         try {
             if (Object.keys(this.historicoCompradores).length === 0) {
                 return; // Não criar backup de dados vazios
@@ -1317,10 +1345,34 @@ class SistemaCompras {
         }
     }
 
+    // === EXECUTAR BACKUP REAL (APENAS MANUAL) ===
+    async executarBackupReal() {
+        if (Object.keys(this.historicoCompradores).length === 0) {
+            return; // Não criar backup de dados vazios
+        }
+
+        await this.garantirPastaBackup();
+
+        const agora = new Date();
+        const timestamp = agora.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        const nomeArquivo = `historico_compradores_${timestamp}.json`;
+        const caminhoCompleto = path.join(this.PASTA_BACKUP, nomeArquivo);
+
+        // Salvar backup
+        await fs.writeFile(caminhoCompleto, JSON.stringify(this.historicoCompradores, null, 2));
+
+        const totalCompradores = Object.keys(this.historicoCompradores).length;
+        console.log(`💾 Backup manual criado: ${totalCompradores} compradores`);
+
+        // Limpar backups antigos (manter apenas 5)
+        await this.limparBackupsAntigos();
+    }
+
     // === FORÇAR BACKUP MANUAL (PARA COMANDOS ADMIN) ===
     async forcarBackup() {
         try {
-            await this.criarBackupHistorico();
+            // Executar backup real (pulando a função desativada)
+            await this.executarBackupReal();
             const totalCompradores = Object.keys(this.historicoCompradores).length;
             return {
                 success: true,

@@ -1,6 +1,21 @@
 const { OpenAI } = require("openai");
 // Google Vision removido - processamento de imagens desativado
 
+// Controle de logs - desativar debug logs
+const DEBUG_MODE = process.env.DEBUG_MODE === 'true' || false;
+const originalConsoleLog = console.log;
+console.log = function(...args) {
+    const msg = args.join(' ');
+    // Manter apenas logs críticos
+    if (msg.includes('❌') || msg.includes('✅') || msg.includes('🚨') ||
+        msg.includes('IA WhatsApp inicializada') || msg.includes('Error') ||
+        msg.includes('erro') || msg.includes('Removidos') || msg.includes('CRÍTICO')) {
+        originalConsoleLog(...args);
+    } else if (DEBUG_MODE) {
+        originalConsoleLog(...args);
+    }
+};
+
 class WhatsAppAI {
   constructor(apiKey) {
     this.openai = new OpenAI({ apiKey });
@@ -18,10 +33,10 @@ class WhatsAppAI {
     // Processamento de imagens desativado para otimização
     this.googleVisionEnabled = false;
     
-    // Limpeza automática a cada 30 minutos (otimizado)
+    // Limpeza automática a cada 5 minutos (otimizado para comprovantes de 5min)
     setInterval(() => {
       this.limparComprovantesAntigos();
-    }, 30 * 60 * 1000);
+    }, 5 * 60 * 1000);
     
     console.log(`🧠 IA WhatsApp inicializada - Processamento apenas de TEXTO`);
   }
@@ -1819,10 +1834,10 @@ Se não conseguires extrair, responde:
   }
   // FIM DAS FUNÇÕES DE IMAGEM REMOVIDAS
 
-  // === LIMPEZA (MELHORADA) ===
+  // === LIMPEZA OTIMIZADA (5 MINUTOS) ===
   limparComprovantesAntigos() {
     const agora = Date.now();
-    const timeout = 45 * 60 * 1000; // AUMENTADO: 45 minutos
+    const timeout = 5 * 60 * 1000; // OTIMIZADO: 5 minutos para economizar memória
     let removidos = 0;
 
     Object.keys(this.comprovantesEmAberto).forEach(remetente => {
@@ -1834,7 +1849,7 @@ Se não conseguires extrair, responde:
     });
 
     if (removidos > 0) {
-      console.log(`🗑️ Removidos ${removidos} comprovantes antigos (>45min)`);
+      console.log(`🗑️ Removidos ${removidos} comprovantes antigos (>5min)`);
     }
   }
 

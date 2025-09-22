@@ -2,6 +2,19 @@ const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');
 
+const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
+const originalConsoleLog = console.log;
+console.log = function(...args) {
+    const msg = args.join(' ');
+    if (msg.includes('❌') || msg.includes('✅') || msg.includes('🚨') ||
+        msg.includes('error') || msg.includes('Error') || msg.includes('erro') ||
+        msg.includes('SUCCESS') || msg.includes('ERRO')) {
+        originalConsoleLog(...args);
+    } else if (DEBUG_MODE) {
+        originalConsoleLog(...args);
+    }
+};
+
 class SistemaPacotes {
     constructor() {
         console.log('📦 Inicializando Sistema de Pacotes Automáticos...');
