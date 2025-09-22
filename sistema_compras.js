@@ -36,6 +36,14 @@ class SistemaCompras {
             saveTimer: null,
             minInterval: 30000 // Mínimo 30 segundos entre salvamentos
         };
+
+        // Cache para rankings (evitar recalcular constantemente)
+        this.cacheRankings = {
+            lastUpdate: {},
+            data: {},
+            debounceTimer: null,
+            debounceInterval: 5000 // 5 segundos de debounce
+        };
         
         // Carregar dados existentes
         this.carregarDados();
@@ -250,6 +258,35 @@ class SistemaCompras {
         }
     }
 
+    // === GARANTIR ESTRUTURA DE DADOS DO CLIENTE ===
+    garantirEstruturaDados(numero, grupoId) {
+        if (!this.historicoCompradores[numero]) {
+            this.historicoCompradores[numero] = {
+                comprasTotal: 0,
+                ultimaCompra: null,
+                megasTotal: 0,
+                grupos: {}
+            };
+        }
+
+        if (!this.historicoCompradores[numero].grupos) {
+            this.historicoCompradores[numero].grupos = {};
+        }
+
+        if (!this.historicoCompradores[numero].grupos[grupoId]) {
+            this.historicoCompradores[numero].grupos[grupoId] = {
+                compras: 0,
+                megas: 0,
+                comprasDia: 0,
+                megasDia: 0,
+                ultimaCompraDia: null,
+                comprasSemana: 0,
+                megasSemana: 0,
+                ultimaCompraSemana: null
+            };
+        }
+    }
+
     // === REGISTRAR NOVA COMPRA (AGUARDANDO CONFIRMAÇÃO) ===
     async registrarCompraPendente(referencia, numero, megas, remetente = null, grupoId = null) {
         try {
@@ -348,32 +385,15 @@ class SistemaCompras {
             const hoje = agora.toISOString();
             const hojeDia = agora.toDateString(); // Para comparar apenas o dia
 
-            // Inicializar cliente se não existe
-            if (!this.historicoCompradores[numero]) {
-                this.historicoCompradores[numero] = {
-                    comprasTotal: 0,
-                    megasTotal: 0,
-                    ultimaCompra: hoje,
-                    primeiraCompra: hoje,
-                    grupos: {} // {grupoId: {compras: 0, megas: 0, comprasDia: 0, ultimaCompraDia: date}}
-                };
+            // Garantir estrutura de dados completa
+            this.garantirEstruturaDados(numero, grupoId);
+
+            // Inicializar datas se primeira compra
+            if (!this.historicoCompradores[numero].primeiraCompra) {
+                this.historicoCompradores[numero].primeiraCompra = hoje;
             }
 
             const cliente = this.historicoCompradores[numero];
-
-            // Inicializar dados do grupo se não existe
-            if (grupoId && !cliente.grupos[grupoId]) {
-                cliente.grupos[grupoId] = {
-                    compras: 0,
-                    megas: 0,
-                    comprasDia: 0,
-                    megasDia: 0,
-                    ultimaCompraDia: null,
-                    comprasSemana: 0,
-                    megasSemana: 0,
-                    ultimaCompraSemana: null
-                };
-            }
 
             // Atualizar contadores gerais
             cliente.comprasTotal++;
@@ -423,11 +443,9 @@ class SistemaCompras {
                 grupoData.ultimaCompraSemana = hoje;
             }
             
-            // Atualizar ranking do grupo (diário e semanal)
+            // Atualizar rankings após mudanças (com debounce)
             if (grupoId) {
-                await this.atualizarRankingGrupo(grupoId);
-                await this.atualizarRankingSemanalGrupo(grupoId);
-                await this.atualizarRankingDiarioGrupo(grupoId);
+                this.atualizarRankingsComDebounce(grupoId);
             }
 
             // SALVAMENTO AUTOMÁTICO APÓS CADA COMPRA CONFIRMADA
@@ -531,6 +549,37 @@ class SistemaCompras {
         }
     }
 
+    // === ATUALIZAR RANKINGS COM DEBOUNCE (OTIMIZADO) ===
+    atualizarRankingsComDebounce(grupoId) {
+        // Cancelar timer anterior se existir
+        if (this.cacheRankings.debounceTimer) {
+            clearTimeout(this.cacheRankings.debounceTimer);
+        }
+
+        // Marcar grupo para atualização
+        if (!this.cacheRankings.pendingUpdates) {
+            this.cacheRankings.pendingUpdates = new Set();
+        }
+        this.cacheRankings.pendingUpdates.add(grupoId);
+
+        // Agendar atualização
+        this.cacheRankings.debounceTimer = setTimeout(async () => {
+            const gruposParaAtualizar = [...this.cacheRankings.pendingUpdates];
+            this.cacheRankings.pendingUpdates.clear();
+
+            // Atualizar todos os grupos pendentes
+            for (const grupo of gruposParaAtualizar) {
+                try {
+                    await this.atualizarRankingGrupo(grupo);
+                    await this.atualizarRankingSemanalGrupo(grupo);
+                    await this.atualizarRankingDiarioGrupo(grupo);
+                } catch (error) {
+                    console.error(`❌ Erro ao atualizar rankings do grupo ${grupo}:`, error.message);
+                }
+            }
+        }, this.cacheRankings.debounceInterval);
+    }
+
     // === ATUALIZAR RANKING POR GRUPO ===
     async atualizarRankingGrupo(grupoId) {
         try {
@@ -538,7 +587,7 @@ class SistemaCompras {
             
             // Criar array de ranking ordenado por megas do grupo
             const rankingGrupo = Object.entries(this.historicoCompradores)
-                .filter(([numero, dados]) => dados.grupos[grupoId] && dados.grupos[grupoId].megas > 0)
+                .filter(([numero, dados]) => dados.grupos && dados.grupos[grupoId] && dados.grupos[grupoId].megas > 0)
                 .map(([numero, dados]) => ({
                     numero: numero,
                     megas: dados.grupos[grupoId].megas,
@@ -782,6 +831,7 @@ class SistemaCompras {
             // Criar array de ranking semanal ordenado por megas da semana
             const rankingSemanal = Object.entries(this.historicoCompradores)
                 .filter(([numero, dados]) =>
+                    dados.grupos &&
                     dados.grupos[grupoId] &&
                     dados.grupos[grupoId].megasSemana > 0
                 )
@@ -932,6 +982,7 @@ class SistemaCompras {
             // Criar array de ranking diário ordenado por megas do dia
             const rankingDiario = Object.entries(this.historicoCompradores)
                 .filter(([numero, dados]) =>
+                    dados.grupos &&
                     dados.grupos[grupoId] &&
                     dados.grupos[grupoId].megasDia > 0
                 )
