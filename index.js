@@ -4239,34 +4239,6 @@ client.on('message', async (message) => {
                 return;
             }
             
-            if (comando === '.ranking') {
-                if (!sistemaCompras) {
-                    await message.reply('❌ Sistema de compras não está ativo!');
-                    return;
-                }
-                
-                const estatisticas = await sistemaCompras.obterEstatisticas();
-                
-                if (estatisticas.ranking.length === 0) {
-                    await message.reply('🏆 *RANKING DIÁRIO*\n\n❌ Nenhuma compra registrada hoje.');
-                    return;
-                }
-                
-                let resposta = `🏆 *RANKING DIÁRIO DE COMPRAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-                
-                estatisticas.ranking.forEach((cliente, index) => {
-                    const megasFormatados = cliente.megasHoje >= 1024 ? `${(cliente.megasHoje/1024).toFixed(1)} GB` : `${cliente.megasHoje} MB`;
-                    const emoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅';
-                    resposta += `${emoji} **${index + 1}º lugar**\n`;
-                    resposta += `   📱 ${cliente.numero}\n`;
-                    resposta += `   📊 ${megasFormatados} (${cliente.comprasHoje} compras)\n\n`;
-                });
-                
-                resposta += `📅 *Ranking atualizado automaticamente a cada compra confirmada!*`;
-                
-                await message.reply(resposta);
-                return;
-            }
             
             if (comando.startsWith('.comprador ')) {
                 if (!sistemaCompras) {

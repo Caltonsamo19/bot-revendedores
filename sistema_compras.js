@@ -119,7 +119,8 @@ class SistemaCompras {
             // Migrar dados existentes para incluir contadores diários
             await this.migrarDadosExistentes();
 
-            // Reset automático removido - agora apenas manual via comando admin
+            // Verificar se precisa limpar rankings antigos
+            await this.verificarLimpezaRankingsAutomatica();
 
         } catch (error) {
             console.error('❌ COMPRAS: Erro crítico ao carregar dados:', error);
@@ -1493,6 +1494,114 @@ class SistemaCompras {
         } catch (error) {
             console.log('❌ Erro ao salvar message ID:', error);
             return { success: false, error: error.message };
+        }
+    }
+
+    // === LIMPEZA AUTOMÁTICA DE RANKINGS ANTIGOS ===
+    async verificarLimpezaRankingsAutomatica() {
+        try {
+            console.log('🔄 Verificando necessidade de limpeza automática de rankings...');
+
+            const agora = new Date();
+            const hojeDia = agora.toDateString();
+            const inicioSemanaAtual = this.obterInicioSemana(agora);
+
+            // Limpar rankings diários antigos
+            await this.limparRankingsDiariosAntigos(hojeDia);
+
+            // Limpar rankings semanais antigos
+            await this.limparRankingsSemanaisAntigos(inicioSemanaAtual);
+
+            console.log('✅ Verificação de limpeza de rankings concluída');
+
+        } catch (error) {
+            console.error('❌ Erro na limpeza automática de rankings:', error);
+        }
+    }
+
+    // === LIMPAR RANKINGS DIÁRIOS ANTIGOS ===
+    async limparRankingsDiariosAntigos(hojeDia) {
+        try {
+            let rankingsLimpos = 0;
+
+            for (const [grupoId, ranking] of Object.entries(this.rankingDiarioPorGrupo)) {
+                // Verificar se algum participante do ranking tem dados de um dia diferente
+                const rankingAtualizado = ranking.filter(participante => {
+                    const cliente = this.historicoCompradores[participante.numero];
+                    if (!cliente || !cliente.grupos[grupoId]) return false;
+
+                    const ultimaCompraDia = cliente.grupos[grupoId].ultimaCompraDia;
+                    if (!ultimaCompraDia) return false;
+
+                    const diaUltimaCompra = new Date(ultimaCompraDia).toDateString();
+                    return diaUltimaCompra === hojeDia && cliente.grupos[grupoId].megasDia > 0;
+                });
+
+                if (rankingAtualizado.length !== ranking.length) {
+                    console.log(`🗑️ Limpando ranking diário do grupo ${grupoId}: ${ranking.length} → ${rankingAtualizado.length}`);
+
+                    // Recalcular posições
+                    this.rankingDiarioPorGrupo[grupoId] = rankingAtualizado
+                        .sort((a, b) => b.megasDia - a.megasDia)
+                        .map((item, index) => ({
+                            ...item,
+                            posicao: index + 1
+                        }));
+
+                    rankingsLimpos++;
+                }
+            }
+
+            if (rankingsLimpos > 0) {
+                console.log(`🧹 ${rankingsLimpos} rankings diários foram limpos`);
+                await this.salvarDados();
+            }
+
+        } catch (error) {
+            console.error('❌ Erro ao limpar rankings diários:', error);
+        }
+    }
+
+    // === LIMPAR RANKINGS SEMANAIS ANTIGOS ===
+    async limparRankingsSemanaisAntigos(inicioSemanaAtual) {
+        try {
+            let rankingsLimpos = 0;
+
+            for (const [grupoId, ranking] of Object.entries(this.rankingSemanalPorGrupo)) {
+                // Verificar se algum participante do ranking tem dados de uma semana diferente
+                const rankingAtualizado = ranking.filter(participante => {
+                    const cliente = this.historicoCompradores[participante.numero];
+                    if (!cliente || !cliente.grupos[grupoId]) return false;
+
+                    const ultimaCompraSemana = cliente.grupos[grupoId].ultimaCompraSemana;
+                    if (!ultimaCompraSemana) return false;
+
+                    const inicioSemanaUltima = this.obterInicioSemana(new Date(ultimaCompraSemana));
+                    return inicioSemanaUltima.getTime() === inicioSemanaAtual.getTime() && cliente.grupos[grupoId].megasSemana > 0;
+                });
+
+                if (rankingAtualizado.length !== ranking.length) {
+                    console.log(`🗑️ Limpando ranking semanal do grupo ${grupoId}: ${ranking.length} → ${rankingAtualizado.length}`);
+
+                    // Recalcular posições
+                    this.rankingSemanalPorGrupo[grupoId] = rankingAtualizado
+                        .sort((a, b) => b.megasSemana - a.megasSemana)
+                        .map((item, index) => ({
+                            ...item,
+                            posicao: index + 1
+                        }));
+
+                    rankingsLimpos++;
+                }
+            }
+
+            if (rankingsLimpos > 0) {
+                console.log(`🧹 ${rankingsLimpos} rankings semanais foram limpos`);
+                await this.salvarDados();
+            }
+
+        } catch (error) {
+            console.error('❌ Erro ao limpar rankings semanais:', error);
         }
     }
 }
