@@ -28,6 +28,14 @@ class SistemaCompras {
         this.rankingSemanalPorGrupo = {}; // {grupoId: [{numero, megasSemana, comprasSemana, posicao}]}
         this.rankingDiarioPorGrupo = {}; // {grupoId: [{numero, megasDia, comprasDia, posicao}]}
         this.mensagensRanking = {}; // {grupoId: {messageId: string, ultimaAtualizacao: date, lideres: {dia: numero, semana: numero, geral: numero}}}
+
+        // Cache inteligente para otimizar salvamentos
+        this.cacheDados = {
+            lastSave: 0,
+            pendingChanges: false,
+            saveTimer: null,
+            minInterval: 30000 // Mínimo 30 segundos entre salvamentos
+        };
         
         // Carregar dados existentes
         this.carregarDados();
@@ -38,7 +46,6 @@ class SistemaCompras {
     // === CARREGAR DADOS PERSISTIDOS ===
     async carregarDados() {
         try {
-            console.log('🔄 Iniciando carregamento de dados...');
 
             // Carregar histórico de compradores com backup automático
             try {
@@ -131,11 +138,32 @@ class SistemaCompras {
         }
     }
 
-    // === SALVAR DADOS COM BACKUP AUTOMÁTICO ===
-    async salvarDados() {
-        try {
-            console.log('💾 Salvando dados...');
+    // === SALVAR DADOS COM CACHE INTELIGENTE ===
+    async salvarDados(forceSave = false) {
+        const now = Date.now();
 
+        // Marcar que há mudanças pendentes
+        this.cacheDados.pendingChanges = true;
+
+        // Se não forçou salvamento e ainda não passou o intervalo mínimo, agendar para depois
+        if (!forceSave && (now - this.cacheDados.lastSave) < this.cacheDados.minInterval) {
+            if (!this.cacheDados.saveTimer) {
+                this.cacheDados.saveTimer = setTimeout(() => {
+                    this.cacheDados.saveTimer = null;
+                    if (this.cacheDados.pendingChanges) {
+                        this.executarSalvamento();
+                    }
+                }, this.cacheDados.minInterval - (now - this.cacheDados.lastSave));
+            }
+            return;
+        }
+
+        await this.executarSalvamento();
+    }
+
+    // === EXECUTAR SALVAMENTO REAL ===
+    async executarSalvamento() {
+        try {
             // Criar backup antes de salvar (apenas para histórico principal)
             if (Object.keys(this.historicoCompradores).length > 0) {
                 await this.criarBackupHistorico();
@@ -152,7 +180,10 @@ class SistemaCompras {
             ];
 
             await Promise.all(operacoesSalvamento);
-            console.log('✅ Todos os dados salvos com sucesso!');
+
+            // Atualizar cache
+            this.cacheDados.lastSave = Date.now();
+            this.cacheDados.pendingChanges = false;
 
         } catch (error) {
             console.error('❌ COMPRAS: Erro crítico ao salvar dados:', error);
@@ -169,7 +200,6 @@ class SistemaCompras {
             // Verificar se os dados são válidos antes de salvar
             if (dadosJSON && dadosJSON !== 'null' && dadosJSON !== 'undefined') {
                 await fs.writeFile(caminho, dadosJSON);
-                console.log(`✅ Arquivo salvo: ${path.basename(caminho)}`);
             } else {
                 console.log(`⚠️ Dados inválidos não salvos: ${path.basename(caminho)}`);
             }
@@ -803,20 +833,16 @@ class SistemaCompras {
 
     // === OBTER POSIÇÃO SEMANAL DO CLIENTE ===
     async obterPosicaoClienteSemana(numero, grupoId) {
-        console.log(`🔍 DEBUG SEMANAL: Buscando ${numero} no grupo ${grupoId}`);
         if (!grupoId || !this.rankingSemanalPorGrupo[grupoId]) {
-            console.log(`❌ DEBUG SEMANAL: Grupo ${grupoId} não encontrado ou vazio`);
             return { posicao: 1, megasSemana: 0, comprasSemana: 0 };
         }
 
-        console.log(`📊 DEBUG SEMANAL: Ranking tem ${this.rankingSemanalPorGrupo[grupoId].length} participantes`);
         const posicao = this.rankingSemanalPorGrupo[grupoId].find(item => item.numero === numero);
         const resultado = posicao || {
             posicao: this.rankingSemanalPorGrupo[grupoId].length + 1,
             megasSemana: 0,
             comprasSemana: 0
         };
-        console.log(`📊 DEBUG SEMANAL: Resultado - ${resultado.posicao}º lugar (${resultado.megasSemana}MB)`);
         return resultado;
     }
 

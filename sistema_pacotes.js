@@ -32,12 +32,9 @@ class SistemaPacotes {
         
         // Timer de verificação
         this.timerVerificacao = null;
-        this.intervalVerificacao = parseInt(process.env.VERIFICACAO_INTERVAL) || 3600000; // 1 hora padrão
+        this.intervalVerificacao = parseInt(process.env.VERIFICACAO_INTERVAL) || 7200000; // 2 horas padrão (otimizado)
         
-        console.log(`📦 URLs Configuradas:`);
-        console.log(`   📋 Pedidos (Retalho): ${this.PLANILHAS.PEDIDOS}`);
-        console.log(`   💰 Pagamentos (Universal): ${this.PLANILHAS.PAGAMENTOS}`);
-        console.log(`   ⏱️ Verificação: ${this.intervalVerificacao/60000} min`);
+        console.log(`📦 Sistema de Pacotes inicializado - Verificação: ${this.intervalVerificacao/60000} min`);
         
         // Carregar dados persistidos
         this.carregarDados();

@@ -29,14 +29,20 @@ const PAGAMENTOS_CONFIG = {
     timeout: 30000
 };
 
-console.log(`📊 Google Sheets configurado`);
+// Controle de logs otimizado
+const DEBUG_MODE = process.env.DEBUG_MODE === 'true' || false;
+function debugLog(...args) {
+    if (DEBUG_MODE) console.log(...args);
+}
+
+console.log(`📊 Bot revendedores iniciando...`);
 
 // Função helper para reply com fallback
 async function safeReply(message, client, texto) {
     try {
         await message.reply(texto);
     } catch (error) {
-        console.log('⚠️ Erro no reply, usando sendMessage como fallback:', error.message);
+        debugLog('⚠️ Erro no reply, usando sendMessage como fallback:', error.message);
         try {
             await client.sendMessage(message.from, texto);
         } catch (fallbackError) {

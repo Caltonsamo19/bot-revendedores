@@ -18,10 +18,10 @@ class WhatsAppAI {
     // Processamento de imagens desativado para otimização
     this.googleVisionEnabled = false;
     
-    // Limpeza automática a cada 10 minutos
+    // Limpeza automática a cada 30 minutos (otimizado)
     setInterval(() => {
       this.limparComprovantesAntigos();
-    }, 10 * 60 * 1000);
+    }, 30 * 60 * 1000);
     
     console.log(`🧠 IA WhatsApp inicializada - Processamento apenas de TEXTO`);
   }
@@ -40,7 +40,6 @@ class WhatsAppAI {
       const oldestRequest = Math.min(...this.rateLimiter.requests);
       const waitTime = this.rateLimiter.windowMs - (now - oldestRequest);
 
-      console.log(`⏳ Rate limit atingido, aguardando ${Math.round(waitTime/1000)}s...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
 
@@ -50,7 +49,6 @@ class WhatsAppAI {
 
   // === RECONSTRUIR REFERÊNCIAS QUEBRADAS ===
   reconstruirReferenciasQuebradas(texto) {
-    console.log('🔧 Reconstruindo referências quebradas...');
     
     // Padrões comuns de referências M-Pesa/E-Mola quebradas
     const padroes = [
