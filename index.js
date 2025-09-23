@@ -423,15 +423,31 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
     }
 });
         
-        // Google Apps Script retorna texto simples: "Sucesso! REF|MEGAS|NUM [PENDENTE]"
-        const responseText = String(response.data || '');
-        console.log(`📥 Resposta Google Sheets: ${responseText}`);
+        // Google Apps Script pode retornar texto simples ou JSON
+        let responseText = '';
+        if (typeof response.data === 'object') {
+            responseText = JSON.stringify(response.data);
+            console.log(`📥 Resposta Google Sheets (JSON):`, response.data);
+        } else {
+            responseText = String(response.data || '');
+            console.log(`📥 Resposta Google Sheets: ${responseText}`);
+        }
 
-        if (responseText.includes('Sucesso!')) {
+        // Verificar se a resposta indica sucesso
+        const isSucesso = responseText.includes('Sucesso!') ||
+                         (typeof response.data === 'object' && response.data.status === 'success') ||
+                         (typeof response.data === 'object' && response.data.result === 'success') ||
+                         response.status === 200;
+
+        if (isSucesso) {
             console.log(`✅ Google Sheets: Dados enviados! | Grupo: ${grupoNome}`);
-            return { sucesso: true, row: 'N/A' };
-        } else if (responseText.includes('Erro:')) {
-            throw new Error(responseText);
+            const row = typeof response.data === 'object' && response.data.row ? response.data.row : 'N/A';
+            return { sucesso: true, row: row };
+        } else if (responseText.includes('Erro:') ||
+                  (typeof response.data === 'object' && response.data.error)) {
+            const errorMsg = typeof response.data === 'object' && response.data.error ?
+                           response.data.error : responseText;
+            throw new Error(errorMsg);
         } else {
             throw new Error(`Resposta inesperada: ${responseText}`);
         }
