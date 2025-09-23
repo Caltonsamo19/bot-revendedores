@@ -88,34 +88,53 @@ const MODERACAO_CONFIG = {
 const CONFIGURACAO_GRUPOS = {
     '258820749141-1441573529@g.us': {
         nome: 'Data Store - Vodacom',
-        tabela: `PROMOÇÃO DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO
+        tabela: `SUPER PROMOÇÃO  DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO - 04-05/09/2025
 
-🛜🔥 TABELA🔥🛜
+📆 PACOTES DIÁRIOS
+512MB 💎 10MT 💵💽
+900MB 💎 15MT 💵💽
+1080MB 💎 17MT 💵💽
+1200MB 💎 20MT 💵💽
+2150MB 💎 34MT 💵💽
+3200MB 💎 51MT 💵💽
+4250MB 💎 68MT 💵💽
+5350MB 💎 85MT 💵💽
+10240MB 💎 160MT 💵💽
+20480MB 💎 320MT 💵💽
 
-- DIÁRIOS
-- 1024MB  💎 16MT💵💽
-- 2048MB  💎 32MT💵💽
-- 3072MB  💎 48MT💵💽
-- 5120MB 💎  80MT💵💽
-- 10240MB 💎  160MT💵💽
+📅PACOTE DIÁRIO PREMIUM (3 Dias)
+2000 + 700MB 💎 44MT 💵💽
+3000 + 700MB 💎 66MT 💵💽
+4000 + 700MB 💎 88MT 💵💽
+5000 + 700MB 💎 109MT 💵💽
+6000 + 700MB 💎 133MT 💵💽
+7000 + 700MB 💎 149MT 💵💽
+10000 + 700MB 💎 219MT 💵💽
 
- MENSAIS
-- 12.8GB 💎 250MT💵💽
-- 22.8GB 💎 430MT💵💽
-- 32.8GB 💎 600MT💵💽
-- 52.8GB 💎 940MT💵💽
-- 102.8GB 💎 1785MT💵💽
+📅 PACOTES SEMANAIS(5 Dias)
+3072 + 700MB 💎 105MT 💵💽
+5120 + 700MB 💎 155MT 💵💽
+10240 + 700MB 💎 300MT 💵💽
+15360 + 700MB 💎 455MT 💵💽
+20480 + 700MB 💎 600MT 💵💽
 
-DIAMANTE SEMANAL
-- CHAMADAS + SMS ILIMITADAS + 8.5GB 💎 290MT💵 
+📅 PACOTES MENSAIS
+12.8GB 💎 270MT 💵💽
+22.8GB 💎 435MT 💵💽
+32.8GB 💎 605MT 💵💽
+52.8GB 💎 945MT 💵💽
+102.8GB 💎 1605MT 💵💽
 
-DIAMANTE MENSAL
-- CHAMADAS + SMS ILIMITADAS + 12GB 💎 460MT💵
-- CHAMADAS + SMS ILIMITADAS + 24GB 💎 820MT💵
-- CHAMADAS + SMS ILIMITADAS + 50GB 💎 1550MT💵
-- CHAMADAS + SMS ILIMITADAS + 100GB 💎 2250MT💵
 
-NB: SO PARA VODACOM⚠⚠⚠`,
+PACOTES DIAMANTE MENSAIS
+Chamadas + SMS ilimitadas + 11GB 💎 460MT 💵
+Chamadas + SMS ilimitadas + 24GB 💎 820MT 💵
+Chamadas + SMS ilimitadas + 50GB 💎 1550MT 💵
+Chamadas + SMS ilimitadas + 100GB 💎 2250MT 💵
+
+⚠ NB: Válido apenas para Vodacom
+
+`,
 
         pagamento: `FORMAS DE PAGAMENTO ATUALIZADAS
  
@@ -169,33 +188,76 @@ NOME:   Alice Armando Nhaquila📝
 
     '258840161370-1471468657@g.us': {
         nome: 'Venda Automática 24/7',
-        tabela: `___________________________
-TABEL ACTUALIZADA
+        tabela: `TABELA ATUALIZADA
+___________________________
 
- ..PACOTE DIÁRIO ( 24H) 
+ PACOTE DIÁRIO BÁSICO( 24H⏱) 
 1024MB    - 17,00 MT
+1200MB    - 20,00 MT
 2048MB   - 34,00 MT
-3072MB    - 51,00 MT
+2200MB    - 40,00 MT
+3096MB    - 51,00 MT
+4096MB    - 68,00 MT
 5120MB     - 85,00 MT
 6144MB    - 102,00 MT
+7168MB    - 119,00 MT
+8192MB    - 136,00 MT
+9144MB    - 153,00 MT
 10240MB  - 170,00 MT
 
-PACOTE SEMANAL (7 Dias)
-857MB - 30,00MT
-1.7GB - 45,00MT
-2.9GB - 95,00MT
-3.4GB - 110,00MT
-5.2GB - 160,00MT
+ PACOTE DIÁRIO PREMIUM ( 3 DIAS 🗓) 
+Megabyte Renováveis! 
+2000MB  - 44,00 MT
+3000MB  - 66,00 MT
+4000MB  - 88,00 MT
+5000MB - 109,00 MT
+6000MB  - 133,00 MT
+7000MB  - 149,00 MT
+10000MB  - 219,00 MT
 
-PACOTE MENSAL(30 dias)
-3GB    - 95,00MT
-5GB     - 180,00MT
-12.8GB    - 250,00MT
-22.8GB   - 400,00MT
-32.8GB   - 550,00MT
-51.2GB   - 950,00MT
-___________________________
-CHAMADAS TODAS REDES + SMS + NET:
+PACOTE SEMANAL BÁSICO (5 Dias🗓)
+Megabyte Renováveis!
+1700MB - 45,00MT
+2900MB - 80,00MT
+3400MB - 110,00MT
+5500MB - 150,00MT
+7800MB - 200,00MT
+11400MB - 300,00MT 
+
+ PACOTE SEMANAL PREMIUM ( 15 DIAS 🗓 ) 
+Megabyte Renováveis!
+3000MB - 100,00 MT
+5000MB - 149,00 MT
+8000MB - 201,00 MT
+10000MB - 231,00 MT
+20000MB - 352,00 MT
+
+PACOTE MENSAL PREMIUM (30 dias🗓)
+Megabyte Renováveis!
+3198MB   - 104,00MT
+5298MB   - 184,00MT
+8398MB   - 229,00MT
+10498MB   - 254,00MT
+12598MB   - 294,00MT
+15698MB   - 349,00MT
+18798MB   - 414,00MT
+20898MB   - 468,00MT
+25998MB   - 529,00MT
+
+PACOTE MENSAL EXCLUSIVO (30 dias🗓)
+Não pode ter xtuna crédito
+32.8GB   - 649,00MT
+51.2GB   - 1049,00MT
+60.2GB   - 124900MT
+80.2GB   - 1449,00MT
+100.2GB   - 1700,00MT
+
+🔴🔴 VODACOM
+➖Chamadas +SMS ILIMITADAS ➖p/todas as redes +GB➖
+
+➖ SEMANAL (7dias)➖
+280mt = Ilimitado+ 7.5GB
+
 Mensal(30dias):
 450MT - Ilimitado + 11.5GB.
 500MT - Ilimitado + 14.5GB.
@@ -203,26 +265,24 @@ Mensal(30dias):
 1000MT - Ilimitado + 37.5GB.
 1500MT - Ilimitado + 53.5GB
 2150MT - Ilimitado + 102.5GB
+
 PARA OS PACOTES MENSAIS, NÃO PODE TER TXUNA CRÉDITO.
-___________________________
-Serviços de Streamin
-PLANOS PREMIUM
 
-Netflix 
-AMADOR - 99MT | 7 dias 
-NOOB - 250MT | 30 dias 
-PREMIUM - 549MT | 35 dias 
-ELITE - 1499MT | 40 dias 
+🟠🟠 MOVITEL
+➖Chamadas +SMS ILIMITADAS ➖p/todas as redes +GB➖
 
-SPOTIFY 
-AMADOR - 149MT | 30 dias
-ELITE - 447MT | 3 meses 
-APPLE MUSIC 
+➖ SEMANAL (7dias)➖
+280mt = Ilimitado+ 7.1GB
 
-AMADOR - 199MT | 30 dias
-ELITE - 597MT | 3 meses 
+➖ MENSAL (30dias)➖ p./tds redes
+450mt = Ilimitado+ 9GB
+950mt = Ilimitado+ 23GB
+1450mt = Ilimitado+ 38GB
+1700mt = Ilimitado+ 46GB
+1900mt = Ilimitado+ 53GB
+2400mt = ilimitado+ 68GB
 
-Temos muito mais serviço…
+Importante 🚨: Envie o valor que consta na tabela!
 `,
 
         pagamento: `╭━━━┛ 💸  ＦＯＲＭＡＳ ＤＥ ＰＡＧＡＭＥＮＴＯ: 
@@ -238,8 +298,9 @@ Temos muito mais serviço…
 ┃     ▪ Envie o comprovativo em forma de mensagem e o número para receber rápido!
 ┃
 ┃┃
-╰━━━━━━━━━━━━━━━━━━━━━  
-       🚀 O futuro é agora. Vamos?`
+╰⚠ NB: Válido apenas para Vodacom━━━━━━  
+       🚀 O futuro é agora. Vamos?
+`
     },
     '120363023150137820@g.us': {
     nome: 'NET VODACOM ACESSÍVEL',
