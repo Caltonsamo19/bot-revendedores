@@ -11,7 +11,8 @@ const WhatsAppAI = require('./whatsapp_ai');
 const SistemaPacotes = require('./sistema_pacotes');
 
 // === IMPORTAR SISTEMA DE COMPRAS ===
-const SistemaCompras = require('./sistema_compras');
+// SISTEMA DE COMPRAS E RANKING DESATIVADO
+// const SistemaCompras = require('./sistema_compras');
 
 // === CONFIGURAÇÃO GOOGLE SHEETS - BOT RETALHO (SCRIPT PRÓPRIO) ===
 const GOOGLE_SHEETS_CONFIG = {
@@ -85,7 +86,8 @@ const ia = new WhatsAppAI(process.env.OPENAI_API_KEY);
 
 // === SISTEMA DE PACOTES (será inicializado após WhatsApp conectar) ===
 let sistemaPacotes = null;
-let sistemaCompras = null;
+// SISTEMA DE COMPRAS E RANKING DESATIVADO
+// let sistemaCompras = null;
 
 // Configuração para encaminhamento
 const ENCAMINHAMENTO_CONFIG = {
@@ -252,7 +254,7 @@ async function processarNovoMembro(grupoId, participantId) {
 // SISTEMA DE DETECÇÃO INTELIGENTE - CORRIGIDO
 async function tentarDetectarConvidador(grupoId, novoMembroId) {
     try {
-        console.log(`🔍 DETECÇÃO: Analisando quem adicionou ${novoMembroId}...`);
+        // console.log(`🔍 DETECÇÃO: Analisando quem adicionou ${novoMembroId}...`);
 
         const chat = await client.getChatById(grupoId);
         const participants = await chat.participants;
@@ -261,7 +263,7 @@ async function tentarDetectarConvidador(grupoId, novoMembroId) {
         const admins = participants.filter(p => p.isAdmin && p.id._serialized !== novoMembroId);
 
         if (admins.length === 0) {
-            console.log(`❌ DETECÇÃO: Nenhum admin encontrado no grupo`);
+            // console.log(`❌ DETECÇÃO: Nenhum admin encontrado no grupo`);
             return null;
         }
 
@@ -287,12 +289,12 @@ async function tentarDetectarConvidador(grupoId, novoMembroId) {
 
         // Se o admin com menos referências tem muito poucas (0-2), é um bom candidato
         if (adminEscolhido.referenciasHoje <= 2) {
-            console.log(`🎯 DETECÇÃO: Selecionado ${adminEscolhido.nome} (${adminEscolhido.referenciasHoje} refs hoje)`);
+            // console.log(`🎯 DETECÇÃO: Selecionado ${adminEscolhido.nome} (${adminEscolhido.referenciasHoje} refs hoje)`);
             return await criarReferenciaAutomaticaInteligente(adminEscolhido.adminId, novoMembroId, grupoId);
         }
 
         // Se todos os admins já têm muitas referências, usar distribuição rotativa
-        console.log(`⚖️ DETECÇÃO: Usando distribuição rotativa entre admins`);
+        // console.log(`⚖️ DETECÇÃO: Usando distribuição rotativa entre admins`);
         return await criarReferenciaAutomaticaInteligente(adminEscolhido.adminId, novoMembroId, grupoId);
 
         /* CÓDIGO ANTIGO COMENTADO - CAUSAVA FALSAS REFERÊNCIAS
@@ -321,7 +323,7 @@ async function tentarDetectarConvidador(grupoId, novoMembroId) {
 
             return resultado;
         } else {
-            console.log(`❌ BACKUP: Nenhum admin encontrado no grupo`);
+            // console.log(`❌ BACKUP: Nenhum admin encontrado no grupo`);
             return false;
         }
         */
@@ -335,7 +337,7 @@ async function tentarDetectarConvidador(grupoId, novoMembroId) {
 // === DETECÇÃO DE CONVIDADOR VIA ANÁLISE DE MENSAGENS ===
 async function detectarConvidadorViaMensagens(grupoId, novoMembroId) {
     try {
-        console.log(`🔍 ANÁLISE: Detectando convidador via mensagens para ${novoMembroId}...`);
+        // console.log(`🔍 ANÁLISE: Detectando convidador via mensagens para ${novoMembroId}...`);
 
         // Obter histórico de mensagens recentes do grupo (últimos 10 minutos)
         const chat = await client.getChatById(grupoId);
@@ -441,13 +443,10 @@ async function detectarConvidadorViaMensagens(grupoId, novoMembroId) {
                     if (padrao.test(corpo)) {
                         console.log(`💡 PADRÃO DETECTADO: "${corpo.substring(0, 50)}..." por ${autorMensagem}`);
 
-                        const isAdmin = await isAdminGrupo(grupoId, autorMensagem);
-                        if (isAdmin) {
-                            convidadorDetectado = autorMensagem;
-                            confiabilidade = 75; // Boa confiabilidade para padrões + admin
-                            console.log(`🎯 DETECTADO VIA PADRÃO: ${autorMensagem} (confiabilidade: ${confiabilidade}%)`);
-                            break;
-                        }
+                        convidadorDetectado = autorMensagem;
+                        confiabilidade = 75; // Boa confiabilidade para padrões
+                        console.log(`🎯 DETECTADO VIA PADRÃO: ${autorMensagem} (confiabilidade: ${confiabilidade}%)`);
+                        break;
                     }
                 }
 
@@ -515,11 +514,11 @@ async function selecionarAdminComMenosReferencias(grupoId) {
         // Filtrar apenas admins
         const admins = participants.filter(p => p.isAdmin);
         if (admins.length === 0) {
-            console.log(`❌ Nenhum admin encontrado no grupo`);
+            // console.log(`❌ Nenhum admin encontrado no grupo`);
             return null;
         }
 
-        console.log(`👥 DISTRIBUIÇÃO: Analisando ${admins.length} admins...`);
+        // console.log(`👥 DISTRIBUIÇÃO: Analisando ${admins.length} admins...`);
 
         // Contar referências criadas hoje por cada admin
         const hoje = new Date().toDateString();
@@ -544,7 +543,7 @@ async function selecionarAdminComMenosReferencias(grupoId) {
         let menorContador = Infinity;
 
         for (const [adminId, contador] of Object.entries(contadorReferencias)) {
-            console.log(`📊 Admin ${adminId}: ${contador} referências hoje`);
+            // console.log(`📊 Admin ${adminId}: ${contador} referências hoje`);
             if (contador < menorContador) {
                 menorContador = contador;
                 adminSelecionado = adminId;
@@ -552,7 +551,7 @@ async function selecionarAdminComMenosReferencias(grupoId) {
         }
 
         if (adminSelecionado) {
-            console.log(`🎯 SELECIONADO: ${adminSelecionado} (${menorContador} referências hoje)`);
+            // console.log(`🎯 SELECIONADO: ${adminSelecionado} (${menorContador} referências hoje)`);
         }
 
         return adminSelecionado;
@@ -774,69 +773,69 @@ async function salvarDadosMembros() {
     }
 }
 
-// Enviar mensagem de boas-vindas para novos membros
-async function enviarBoasVindas(grupoId, participantId) {
-    try {
-        console.log(`👋 Enviando boas-vindas`);
-        
-        // Registrar entrada do membro
-        await registrarEntradaMembro(grupoId, participantId);
-        
-        // Obter informações do participante
-        const contact = await client.getContactById(participantId);
-        const nomeUsuario = contact.name || contact.pushname || participantId.replace('@c.us', '');
-        
-        // Obter configuração do grupo
-        const configGrupo = getConfiguracaoGrupo(grupoId);
-        if (!configGrupo) {
-            console.log(`⚠️ Grupo não configurado`);
-            return false;
-        }
-        
-        // Usar mensagem personalizada do grupo ou padrão
-        let mensagemBoasVindas = configGrupo.boasVindas || `🎉 *BOAS-VINDAS AO GRUPO!*
+// FUNÇÃO DE BOAS-VINDAS DESATIVADA
+// async function enviarBoasVindas(grupoId, participantId) {
+//     try {
+//         console.log(`👋 Enviando boas-vindas`);
 
-👋 Olá @NOME, seja bem-vindo!
+//         // Registrar entrada do membro
+//         await registrarEntradaMembro(grupoId, participantId);
 
-🤖 *SISTEMA DE VENDAS 100% AUTOMÁTICO!*
-📱 1. Envie comprovante de pagamento aqui
-⚡ 2. Nosso sistema processa automaticamente
-📊 3. Participe do ranking diário de compradores
+//         // Obter informações do participante
+//         const contact = await client.getContactById(participantId);
+//         const nomeUsuario = contact.name || contact.pushname || participantId.replace('@c.us', '');
 
-💰 *COMANDOS ÚTEIS:*
-• *tabela* - Ver preços de pacotes
-• *pagamento* - Ver formas de pagamento
-• *.ranking* - Ver ranking do grupo
-• *.meucodigo* - Gerar seu código de referência
+//         // Obter configuração do grupo
+//         const configGrupo = getConfiguracaoGrupo(grupoId);
+//         if (!configGrupo) {
+//             console.log(`⚠️ Grupo não configurado`);
+//             return false;
+//         }
 
-🎁 *GANHE MEGABYTES GRÁTIS!*
-💎 Ganhe até *5GB GRATUITOS* convidando amigos!
-🔑 1. Digite *.meucodigo* para gerar seu código
-👥 2. Convide amigos para o grupo
-💰 3. Peça para usarem seu código: *.convite SEUCÓDIGO*
-🎯 4. Ganhe *200MB* a cada compra deles (primeiras 5 compras)
+//         // Usar mensagem personalizada do grupo ou padrão
+//         let mensagemBoasVindas = configGrupo.boasVindas || `🎉 *BOAS-VINDAS AO GRUPO!*
 
-⚠️ *TEM CÓDIGO DE ALGUÉM?*
-Use: *.convite CÓDIGO* para ativar a parceria!
+// 👋 Olá @NOME, seja bem-vindo!
 
-🚀 Vamos começar? Qualquer dúvida, pergunte no grupo!`;
-        
-        // Substituir placeholder @NOME pelo nome real
-        mensagemBoasVindas = mensagemBoasVindas.replace('@NOME', `@${participantId.replace('@c.us', '')}`);
-        
-        // Enviar mensagem com menção
-        await client.sendMessage(grupoId, mensagemBoasVindas, {
-            mentions: [participantId]
-        });
-        
-        console.log(`✅ Boas-vindas enviadas`);
-        return true;
-        
-    } catch (error) {
-        console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
-        return false;
-    }
-}
+// 🤖 *SISTEMA DE VENDAS 100% AUTOMÁTICO!*
+// 📱 1. Envie comprovante de pagamento aqui
+// ⚡ 2. Nosso sistema processa automaticamente
+// 📊 3. Participe do ranking diário de compradores
+
+// 💰 *COMANDOS ÚTEIS:*
+// • *tabela* - Ver preços de pacotes
+// • *pagamento* - Ver formas de pagamento
+// • *.ranking* - Ver ranking do grupo
+// • *.meucodigo* - Gerar seu código de referência
+
+// 🎁 *GANHE MEGABYTES GRÁTIS!*
+// 💎 Ganhe até *5GB GRATUITOS* convidando amigos!
+// 🔑 1. Digite *.meucodigo* para gerar seu código
+// 👥 2. Convide amigos para o grupo
+// 💰 3. Peça para usarem seu código: *.convite SEUCÓDIGO*
+// 🎯 4. Ganhe *200MB* a cada compra deles (primeiras 5 compras)
+
+// ⚠️ *TEM CÓDIGO DE ALGUÉM?*
+// Use: *.convite CÓDIGO* para ativar a parceria!
+
+// 🚀 Vamos começar? Qualquer dúvida, pergunte no grupo!`;
+
+//         // Substituir placeholder @NOME pelo nome real
+//         mensagemBoasVindas = mensagemBoasVindas.replace('@NOME', `@${participantId.replace('@c.us', '')}`);
+
+//         // Enviar mensagem com menção
+//         await client.sendMessage(grupoId, mensagemBoasVindas, {
+//             mentions: [participantId]
+//         });
+
+//         console.log(`✅ Boas-vindas enviadas`);
+//         return true;
+
+//     } catch (error) {
+//         console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
+//         return false;
+//     }
+// }
 
 // Verificar se usuário é elegível para usar código (últimos 5 dias)
 function isElegivelParaCodigo(participantId, grupoId) {
@@ -853,7 +852,7 @@ function isElegivelParaCodigo(participantId, grupoId) {
         const tempoNoGrupo = agora - dataEntrada;
         const elegivelTempo = tempoNoGrupo <= limite5Dias;
         
-        console.log(`🔍 Verificando elegibilidade - ${Math.floor(tempoNoGrupo / (24 * 60 * 60 * 1000))} dias no grupo`);
+        // console.log(`🔍 Verificando elegibilidade - ${Math.floor(tempoNoGrupo / (24 * 60 * 60 * 1000))} dias no grupo`);
         
         return elegivelTempo;
     } catch (error) {
@@ -1198,7 +1197,7 @@ function normalizarValor(valor) {
         }
 
         const numeroFinal = parseFloat(valorLimpo) || 0;
-        console.log(`🔧 normalizarValor: "${valor}" → "${valorLimpo}" → ${numeroFinal}`);
+        // console.log(`🔧 normalizarValor: "${valor}" → "${valorLimpo}" → ${numeroFinal}`);
         return numeroFinal;
     }
     return 0;
@@ -1220,7 +1219,7 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
     try {
         const valorNormalizado = normalizarValor(valorEsperado);
 
-        console.log(`🔍 REVENDEDORES: Verificando pagamento ${referencia} - ${valorNormalizado}MT (original: ${valorEsperado})`);
+        // console.log(`🔍 REVENDEDORES: Verificando pagamento ${referencia} - ${valorNormalizado}MT (original: ${valorEsperado})`);
 
         // Primeira tentativa: busca pelo valor exato (otimizado)
         let response = await axios.post(PAGAMENTOS_CONFIG.scriptUrl, {
@@ -1244,7 +1243,7 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
         }
 
         // Segunda tentativa: busca apenas por referência (com tolerância de valor)
-        console.log(`🔍 REVENDEDORES: Tentando busca apenas por referência...`);
+        // console.log(`🔍 REVENDEDORES: Tentando busca apenas por referência...`);
         response = await axios.post(PAGAMENTOS_CONFIG.scriptUrl, {
             action: "buscar_por_referencia_only",
             referencia: referencia
@@ -1264,7 +1263,7 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
             const diferenca = Math.abs(valorEncontrado - valorNormalizado);
             const tolerancia = Math.max(1, valorNormalizado * 0.05); // 5% ou mín 1MT
 
-            console.log(`🔍 REVENDEDORES: Valor encontrado: ${valorEncontrado}MT vs esperado: ${valorNormalizado}MT (diff: ${diferenca.toFixed(2)}MT, tolerância: ${tolerancia.toFixed(2)}MT)`);
+            // console.log(`🔍 REVENDEDORES: Valor encontrado: ${valorEncontrado}MT vs esperado: ${valorNormalizado}MT (diff: ${diferenca.toFixed(2)}MT, tolerância: ${tolerancia.toFixed(2)}MT)`);
 
             if (diferenca <= tolerancia) {
                 console.log(`✅ REVENDEDORES: Pagamento aceito com tolerância!`);
@@ -1390,7 +1389,7 @@ async function verificarPagamentosPendentes() {
         return;
     }
 
-    console.log(`🔍 RETRY: Verificando ${pendencias.length} pagamentos pendentes...`);
+    // console.log(`🔍 RETRY: Verificando ${pendencias.length} pagamentos pendentes...`);
 
     for (const pendencia of pendencias) {
         // Verificar se expirou
@@ -1402,7 +1401,7 @@ async function verificarPagamentosPendentes() {
 
         // Verificar pagamento
         pendencia.tentativas++;
-        console.log(`🔍 RETRY: Tentativa ${pendencia.tentativas} para ${pendencia.referencia}`);
+        // console.log(`🔍 RETRY: Tentativa ${pendencia.tentativas} para ${pendencia.referencia}`);
 
         const pagamentoConfirmado = await verificarPagamentoIndividual(pendencia.referencia, pendencia.valorComprovante);
 
@@ -2032,7 +2031,7 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
     
     try {
         console.log(`📊 Enviando para Google Sheets: ${referencia}`);
-        console.log(`🔍 Dados enviados:`, JSON.stringify(dados, null, 2));
+        // console.log(`🔍 Dados enviados:`, JSON.stringify(dados, null, 2));
         console.log(`🔗 URL destino:`, GOOGLE_SHEETS_CONFIG.scriptUrl);
         
        const response = await axios.post(GOOGLE_SHEETS_CONFIG.scriptUrl, dados, {
@@ -2121,12 +2120,12 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
         console.log(`✅ [${grupoNome}] Enviado para Google Sheets! Row: ${resultado.row}`);
 
         // === REGISTRAR COMPRA PENDENTE NO SISTEMA DE COMPRAS ===
-        if (sistemaCompras) {
-            // Extrair apenas o número do autorMensagem (remover @c.us se houver)
-            const numeroRemetente = autorMensagem.replace('@c.us', '');
-            console.log(`🔍 DEBUG COMPRA: autorMensagem="${autorMensagem}" | numeroRemetente="${numeroRemetente}" | numero="${numero}"`);
-            await sistemaCompras.registrarCompraPendente(referencia, numero, valor, numeroRemetente, grupoId);
-        }
+        // if (sistemaCompras) {
+        //     // Extrair apenas o número do autorMensagem (remover @c.us se houver)
+        //     const numeroRemetente = autorMensagem.replace('@c.us', '');
+        //     // console.log(`🔍 DEBUG COMPRA: autorMensagem="${autorMensagem}" | numeroRemetente="${numeroRemetente}" | numero="${numero}"`);
+        //     await sistemaCompras.registrarCompraPendente(referencia, numero, valor, numeroRemetente, grupoId);
+        // }
     } else if (resultado.duplicado) {
         // Marcar como duplicado no cache
         if (cacheTransacoes.has(transacaoKey)) {
@@ -2362,7 +2361,7 @@ function resolverIdReal(participantId, adminsEncontrados) {
 
 async function isAdminGrupo(chatId, participantId) {
     try {
-        console.log(`🔍 Verificando admin: chatId=${chatId}, participantId=${participantId}`);
+        // console.log(`🔍 Verificando admin: chatId=${chatId}, participantId=${participantId}`);
         
         if (adminCache[chatId] && adminCache[chatId].timestamp > Date.now() - 300000) {
             const { admins, mapeamentoLidToCus } = adminCache[chatId];
@@ -2370,11 +2369,11 @@ async function isAdminGrupo(chatId, participantId) {
             
             // Usar mapeamento para verificar se é admin
             const isAdmin = verificarAdminComMapeamento(participantId, admins, mapeamentoLidToCus);
-            console.log(`✅ Cache - ${participantId} é admin? ${isAdmin}`);
+            // console.log(`✅ Cache - ${participantId} é admin? ${isAdmin}`);
             return isAdmin;
         }
 
-        console.log(`🔄 Cache expirado/inexistente, buscando admins do grupo...`);
+        // console.log(`🔄 Cache expirado/inexistente, buscando admins do grupo...`);
         const chat = await client.getChatById(chatId);
         const participants = await chat.participants;
         const admins = participants.filter(p => p.isAdmin || p.isSuperAdmin);
@@ -2385,8 +2384,8 @@ async function isAdminGrupo(chatId, participantId) {
         const participantesLid = participants.filter(p => p.id._serialized.endsWith('@lid'));
         const participantesCus = participants.filter(p => p.id._serialized.endsWith('@c.us'));
         
-        console.log(`🔍 Participantes @lid: ${participantesLid.map(p => p.id._serialized).join(', ')}`);
-        console.log(`🔍 Participantes @c.us: ${participantesCus.map(p => p.id._serialized).join(', ')}`);
+        // console.log(`🔍 Participantes @lid: ${participantesLid.map(p => p.id._serialized).join(', ')}`);
+        // console.log(`🔍 Participantes @c.us: ${participantesCus.map(p => p.id._serialized).join(', ')}`);
         // console.log(`🎯 Procurando por: ${participantId}`);
         
         // ESTRATÉGIA ADICIONAL: Verificar se o participantId específico tem flag de admin
@@ -2446,7 +2445,7 @@ async function isAdminGrupo(chatId, participantId) {
                 
                 // ESTRATÉGIA 1: Comparar por número real do contato
                 if (contact.number) {
-                    console.log(`🔍 Procurando admin com número real: ${contact.number}`);
+                    // console.log(`🔍 Procurando admin com número real: ${contact.number}`);
                     
                     const adminPorNumeroReal = admins.find(admin => {
                         const numeroAdmin = admin.id._serialized.split('@')[0];
@@ -2454,7 +2453,7 @@ async function isAdminGrupo(chatId, participantId) {
                         const numeroLimpoAdmin = numeroAdmin.replace(/^258/, '');
                         const numeroLimpoContato = contact.number.replace(/^258/, '').replace(/^/, '');
                         
-                        console.log(`   🔍 Comparando "${numeroLimpoContato}" com admin "${numeroLimpoAdmin}"`);
+                        // console.log(`   🔍 Comparando "${numeroLimpoContato}" com admin "${numeroLimpoAdmin}"`);
                         return numeroLimpoAdmin === numeroLimpoContato || 
                                numeroAdmin === contact.number ||
                                numeroAdmin.endsWith(contact.number) ||
@@ -2463,29 +2462,29 @@ async function isAdminGrupo(chatId, participantId) {
                     
                     if (adminPorNumeroReal) {
                         mapeamentoLidToCus[participantId] = adminPorNumeroReal.id._serialized;
-                        console.log(`✅ SUCESSO! Mapeado por número real: ${participantId} -> ${adminPorNumeroReal.id._serialized}`);
+                        // console.log(`✅ SUCESSO! Mapeado por número real: ${participantId} -> ${adminPorNumeroReal.id._serialized}`);
                     } else {
-                        console.log(`❌ Nenhum admin encontrado com número real ${contact.number}`);
+                        // console.log(`❌ Nenhum admin encontrado com número real ${contact.number}`);
                     }
                 }
                 
                 // ESTRATÉGIA 2: Comparar com admins por número base do ID (fallback)
                 if (!mapeamentoLidToCus[participantId]) {
                     const numeroBase = participantId.split('@')[0];
-                    console.log(`🔍 Fallback - Procurando admin com número base: ${numeroBase}`);
+                    // console.log(`🔍 Fallback - Procurando admin com número base: ${numeroBase}`);
                     
                     const adminEncontrado = admins.find(admin => {
                         const numeroAdmin = admin.id._serialized.split('@')[0];
-                        console.log(`   🔍 Comparando ${numeroBase} com admin ${numeroAdmin}`);
+                        // console.log(`   🔍 Comparando ${numeroBase} com admin ${numeroAdmin}`);
                         return numeroAdmin === numeroBase;
                     });
                     
                     if (adminEncontrado) {
                         mapeamentoLidToCus[participantId] = adminEncontrado.id._serialized;
-                        console.log(`✅ SUCESSO! Mapeado por número base: ${participantId} -> ${adminEncontrado.id._serialized}`);
+                        // console.log(`✅ SUCESSO! Mapeado por número base: ${participantId} -> ${adminEncontrado.id._serialized}`);
                     } else {
-                        console.log(`❌ Nenhum admin encontrado com número ${numeroBase}`);
-                        console.log(`📋 Admins disponíveis: ${admins.map(a => a.id._serialized.split('@')[0]).join(', ')}`);
+                        // console.log(`❌ Nenhum admin encontrado com número ${numeroBase}`);
+                        // console.log(`📋 Admins disponíveis: ${admins.map(a => a.id._serialized.split('@')[0]).join(', ')}`);
                     }
                 }
                 
@@ -2496,7 +2495,7 @@ async function isAdminGrupo(chatId, participantId) {
         
         // Verificar se é admin usando mapeamento
         const isAdmin = verificarAdminComMapeamento(participantId, admins, mapeamentoLidToCus);
-        console.log(`✅ Resultado: ${participantId} é admin? ${isAdmin}`);
+        // console.log(`✅ Resultado: ${participantId} é admin? ${isAdmin}`);
         return isAdmin;
     } catch (error) {
         console.error('❌ Erro ao verificar admin do grupo:', error);
@@ -2512,7 +2511,7 @@ function criarMapeamentoAutomatico(participants, admins) {
     const participantesLid = participants.filter(p => p.id._serialized.endsWith('@lid'));
     const adminsIds = admins.map(a => a.id._serialized);
     
-    console.log(`🔍 Tentando mapear ${participantesLid.length} IDs @lid para ${adminsIds.length} admins @c.us...`);
+    // console.log(`🔍 Tentando mapear ${participantesLid.length} IDs @lid para ${adminsIds.length} admins @c.us...`);
     
     // Debug detalhado dos participantes
     if (participantesLid.length === 0) {
@@ -2527,11 +2526,11 @@ function criarMapeamentoAutomatico(participants, admins) {
     
     participantesLid.forEach(participante => {
         const lidId = participante.id._serialized;
-        console.log(`🔍 Analisando ${lidId}: isAdmin=${participante.isAdmin}, isSuperAdmin=${participante.isSuperAdmin}, nome=${participante.pushname}`);
+        // console.log(`🔍 Analisando ${lidId}: isAdmin=${participante.isAdmin}, isSuperAdmin=${participante.isSuperAdmin}, nome=${participante.pushname}`);
         
         // Estratégia 1: Verificar se o próprio participante @lid tem flag de admin
         if (participante.isAdmin || participante.isSuperAdmin) {
-            console.log(`✅ ${lidId} tem flag de admin direto!`);
+            // console.log(`✅ ${lidId} tem flag de admin direto!`);
             mapeamento[lidId] = 'ADMIN_DIRETO'; // Marcador especial
             return;
         }
@@ -2546,7 +2545,7 @@ function criarMapeamentoAutomatico(participants, admins) {
                 // console.log(`🎯 Mapeado por nome: ${lidId} -> ${adminCorrespondente.id._serialized}`);
                 return;
             } else {
-                console.log(`❌ Nenhum admin encontrado com nome "${participante.pushname}"`);
+                // console.log(`❌ Nenhum admin encontrado com nome "${participante.pushname}"`);
             }
         } else {
             console.log(`⚠️ ${lidId} não tem nome disponível para matching`);
@@ -2562,39 +2561,39 @@ function verificarAdminComMapeamento(participantId, admins, mapeamento) {
     
     // 1. Verificação direta (caso seja @c.us)
     if (adminsIds.includes(participantId)) {
-        console.log(`✅ ${participantId} é admin direto (@c.us)`);
+        // console.log(`✅ ${participantId} é admin direto (@c.us)`);
         return true;
     }
     
     // 2. Verificação via mapeamento (caso seja @lid)
     if (mapeamento[participantId]) {
         if (mapeamento[participantId] === 'ADMIN_DIRETO') {
-            console.log(`✅ ${participantId} é admin direto (@lid com flag)`);
+            // console.log(`✅ ${participantId} é admin direto (@lid com flag)`);
             return true;
         } else if (adminsIds.includes(mapeamento[participantId])) {
-            console.log(`✅ ${participantId} mapeado para admin ${mapeamento[participantId]}`);
+            // console.log(`✅ ${participantId} mapeado para admin ${mapeamento[participantId]}`);
             return true;
         }
     }
     
-    console.log(`❌ ${participantId} não é admin`);
+    // console.log(`❌ ${participantId} não é admin`);
     return false;
 }
 
 // Função para verificar se um ID corresponde a um admin
 function verificarSeEhAdmin(participantId, admins, todosParticipantes) {
-    console.log(`🔍 Procurando ${participantId} entre ${admins.length} admins...`);
+    // console.log(`🔍 Procurando ${participantId} entre ${admins.length} admins...`);
     
     // 1. Verificação direta por ID
     const adminDireto = admins.find(admin => admin.id._serialized === participantId);
     if (adminDireto) {
-        console.log(`✅ Encontrado por ID direto: ${adminDireto.id._serialized}`);
+        // console.log(`✅ Encontrado por ID direto: ${adminDireto.id._serialized}`);
         return true;
     }
     
     // 2. Para IDs @lid, tentar encontrar correspondência por pushname ou outras características
     if (participantId.endsWith('@lid')) {
-        console.log(`🔍 ${participantId} é ID @lid, procurando correspondência...`);
+        // console.log(`🔍 ${participantId} é ID @lid, procurando correspondência...`);
         
         // Buscar o participante pelo ID @lid
         const participante = todosParticipantes.find(p => p.id._serialized === participantId);
@@ -2608,7 +2607,7 @@ function verificarSeEhAdmin(participantId, admins, todosParticipantes) {
             
             // VERIFICAÇÃO DIRETA: Se o próprio participante @lid tem flag de admin
             if (participante.isAdmin || participante.isSuperAdmin) {
-                console.log(`✅ O próprio participante @lid TEM flag de admin!`);
+                // console.log(`✅ O próprio participante @lid TEM flag de admin!`);
                 return true;
             }
             
@@ -2623,7 +2622,7 @@ function verificarSeEhAdmin(participantId, admins, todosParticipantes) {
             });
             
             if (adminCorrespondente) {
-                console.log(`✅ Encontrado admin correspondente por pushname: ${adminCorrespondente.id._serialized}`);
+                // console.log(`✅ Encontrado admin correspondente por pushname: ${adminCorrespondente.id._serialized}`);
                 return true;
             }
         } else {
@@ -2631,7 +2630,7 @@ function verificarSeEhAdmin(participantId, admins, todosParticipantes) {
         }
     }
     
-    console.log(`❌ ${participantId} não é admin do grupo`);
+    // console.log(`❌ ${participantId} não é admin do grupo`);
     return false;
 }
 
@@ -2677,12 +2676,7 @@ async function aplicarModeracao(message, motivoDeteccao) {
             return;
         }
 
-        if (MODERACAO_CONFIG.excecoes.includes(authorId) || isAdministrador(authorId)) {
-            return;
-        }
-
-        const isAdmin = await isAdminGrupo(chatId, authorId);
-        if (isAdmin) {
+        if (MODERACAO_CONFIG.excecoes.includes(authorId)) {
             return;
         }
 
@@ -2707,9 +2701,9 @@ async function logGrupoInfo(chatId, evento = 'detectado') {
         const chat = await client.getChatById(chatId);
         const isGrupoMonitorado = CONFIGURACAO_GRUPOS.hasOwnProperty(chatId);
         
-        console.log(`\n🔍 ═══════════════════════════════════════`);
+        // console.log(`\n🔍 ═══════════════════════════════════════`);
         console.log(`📋 GRUPO ${evento.toUpperCase()}`);
-        console.log(`🔍 ═══════════════════════════════════════`);
+        // console.log(`🔍 ═══════════════════════════════════════`);
         console.log(`📛 Nome: ${chat.name}`);
         console.log(`🆔 ID: ${chatId}`);
         console.log(`👥 Participantes: ${chat.participants ? chat.participants.length : 'N/A'}`);
@@ -2717,7 +2711,7 @@ async function logGrupoInfo(chatId, evento = 'detectado') {
         console.log(`⏰ Data: ${new Date().toLocaleString('pt-BR')}`);
         
         if (!isGrupoMonitorado) {
-            console.log(`\n🔧 PARA ADICIONAR ESTE GRUPO:`);
+            // console.log(`\n🔧 PARA ADICIONAR ESTE GRUPO:`);
             console.log(`📝 Copie este código para CONFIGURACAO_GRUPOS:`);
             console.log(`\n'${chatId}': {`);
             console.log(`    nome: '${chat.name}',`);
@@ -2726,7 +2720,7 @@ async function logGrupoInfo(chatId, evento = 'detectado') {
             console.log(`},\n`);
         }
         
-        console.log(`🔍 ═══════════════════════════════════════\n`);
+        // console.log(`🔍 ═══════════════════════════════════════\n`);
         
         return {
             id: chatId,
@@ -2908,9 +2902,9 @@ client.on('ready', async () => {
         console.log('📦 Sistema de Pacotes Automáticos DESABILITADO (.env)');
     }
     
-    // === INICIALIZAR SISTEMA DE COMPRAS ===
-    sistemaCompras = new SistemaCompras();
-    console.log('🛒 Sistema de Registro de Compras ATIVADO');
+    // === SISTEMA DE COMPRAS DESATIVADO ===
+    // sistemaCompras = new SistemaCompras();
+    // console.log('🛒 Sistema de Registro de Compras ATIVADO');
     
     // Carregar dados de referência
     await carregarDadosReferencia();
@@ -2923,153 +2917,152 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .setboasvindas .getboasvindas .testboasvindas .testreferencia');
+    // console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .setboasvindas .getboasvindas .testboasvindas .testreferencia');
     
     // Iniciar monitoramento automático de novos membros
     await iniciarMonitoramentoMembros();
 });
 
-client.on('group-join', async (notification) => {
-    try {
-        console.log('🔍 EVENT group-join disparado!');
-        console.log('📊 Tipo de notificação:', notification.type); // 'add' ou 'invite'
-        console.log('⏰ Timestamp:', new Date(notification.timestamp * 1000));
+// FUNCIONALIDADE DE BOAS-VINDAS DESATIVADA
+// client.on('group-join', async (notification) => {
+//     try {
+//         // console.log('🔍 EVENT group-join disparado!');
+//         console.log('📊 Tipo de notificação:', notification.type); // 'add' ou 'invite'
+//         console.log('⏰ Timestamp:', new Date(notification.timestamp * 1000));
 
-        const chatId = notification.chatId;
-        const addedParticipants = notification.recipientIds || [];
-        const addedBy = notification.author; // QUEM ADICIONOU OS NOVOS MEMBROS
-        const botInfo = client.info;
+//         const chatId = notification.chatId;
+//         const addedParticipants = notification.recipientIds || [];
+//         const addedBy = notification.author; // QUEM ADICIONOU OS NOVOS MEMBROS
+//         const botInfo = client.info;
 
-        console.log(`📍 ChatId: ${chatId}`);
-        console.log(`👥 Participantes adicionados: ${addedParticipants.join(', ')}`);
-        console.log(`👤 Adicionado por (ID): ${addedBy || 'INDEFINIDO'}`);
+//         console.log(`📍 ChatId: ${chatId}`);
+//         console.log(`👥 Participantes adicionados: ${addedParticipants.join(', ')}`);
+//         console.log(`👤 Adicionado por (ID): ${addedBy || 'INDEFINIDO'}`);
 
-        // USAR MÉTODOS DA DOCUMENTAÇÃO PARA OBTER DETALHES REAIS
-        let nomeAdicionador = 'INDEFINIDO';
-        let nomesAdicionados = [];
+//         // USAR MÉTODOS DA DOCUMENTAÇÃO PARA OBTER DETALHES REAIS
+//         let nomeAdicionador = 'INDEFINIDO';
+//         let nomesAdicionados = [];
 
-        try {
-            // Obter detalhes de quem adicionou
-            if (addedBy) {
-                const contact = await notification.getContact();
-                nomeAdicionador = contact.pushname || contact.name || addedBy;
-                console.log(`👤 Adicionado por (Nome Real): ${nomeAdicionador}`);
-            }
+//         try {
+//             // Obter detalhes de quem adicionou
+//             if (addedBy) {
+//                 const contact = await notification.getContact();
+//                 nomeAdicionador = contact.pushname || contact.name || addedBy;
+//                 console.log(`👤 Adicionado por (Nome Real): ${nomeAdicionador}`);
+//             }
 
-            // Obter detalhes de quem foi adicionado
-            const recipients = await notification.getRecipients();
-            nomesAdicionados = recipients.map(r => r.pushname || r.name || r.id._serialized);
-            console.log(`👥 Novos membros (Nomes): ${nomesAdicionados.join(', ')}`);
+//             // Obter detalhes de quem foi adicionado
+//             const recipients = await notification.getRecipients();
+//             nomesAdicionados = recipients.map(r => r.pushname || r.name || r.id._serialized);
+//             console.log(`👥 Novos membros (Nomes): ${nomesAdicionados.join(', ')}`);
 
-            // Obter detalhes do grupo
-            const chat = await notification.getChat();
-            console.log(`🏢 Grupo: ${chat.name}`);
+//             // Obter detalhes do grupo
+//             const chat = await notification.getChat();
+//             console.log(`🏢 Grupo: ${chat.name}`);
 
-        } catch (error) {
-            console.log(`⚠️ Erro ao obter detalhes dos contatos:`, error.message);
-        }
+//         } catch (error) {
+//             console.log(`⚠️ Erro ao obter detalhes dos contatos:`, error.message);
+//         }
 
-        console.log(`🤖 Bot ID: ${botInfo?.wid?._serialized || 'INDEFINIDO'}`);
+//         console.log(`🤖 Bot ID: ${botInfo?.wid?._serialized || 'INDEFINIDO'}`);
 
-        if (botInfo && addedParticipants.includes(botInfo.wid._serialized)) {
-            console.log(`\n🤖 BOT ADICIONADO A UM NOVO GRUPO!`);
-            await logGrupoInfo(chatId, 'BOT ADICIONADO');
+//         if (botInfo && addedParticipants.includes(botInfo.wid._serialized)) {
+//             console.log(`\n🤖 BOT ADICIONADO A UM NOVO GRUPO!`);
+//             await logGrupoInfo(chatId, 'BOT ADICIONADO');
 
-            setTimeout(async () => {
-                try {
-                    const isMonitorado = CONFIGURACAO_GRUPOS.hasOwnProperty(chatId);
-                    const mensagem = isMonitorado ?
-                        `🤖 *BOT ATIVO E CONFIGURADO!*\n\nEste grupo está monitorado e o sistema automático já está funcionando.\n\n📋 Digite: *tabela* (ver preços)\n💳 Digite: *pagamento* (ver formas)` :
-                        `🤖 *BOT CONECTADO!*\n\n⚙️ Este grupo ainda não está configurado.\n🔧 Contacte o administrador para ativação.\n\n📝 ID do grupo copiado no console do servidor.`;
+//             setTimeout(async () => {
+//                 try {
+//                     const isMonitorado = CONFIGURACAO_GRUPOS.hasOwnProperty(chatId);
+//                     const mensagem = isMonitorado ?
+//                         `🤖 *BOT ATIVO E CONFIGURADO!*\n\nEste grupo está monitorado e o sistema automático já está funcionando.\n\n📋 Digite: *tabela* (ver preços)\n💳 Digite: *pagamento* (ver formas)` :
+//                         `🤖 *BOT CONECTADO!*\n\n⚙️ Este grupo ainda não está configurado.\n🔧 Contacte o administrador para ativação.\n\n📝 ID do grupo copiado no console do servidor.`;
 
-                    await client.sendMessage(chatId, mensagem);
-                    console.log(`✅ Mensagem de status enviada`);
-                } catch (error) {
-                    console.error('❌ Erro ao enviar mensagem de status:', error);
-                }
-            }, 3000);
-        } else {
-            // NOVOS MEMBROS (NÃO-BOT) ENTRARAM NO GRUPO
-            console.log('👥 Processando novos membros...');
+//                     await client.sendMessage(chatId, mensagem);
+//                     console.log(`✅ Mensagem de status enviada`);
+//                 } catch (error) {
+//                     console.error('❌ Erro ao enviar mensagem de status:', error);
+//                 }
+//             }, 3000);
+//         } else {
+//             // NOVOS MEMBROS (NÃO-BOT) ENTRARAM NO GRUPO
+//             console.log('👥 Processando novos membros...');
 
-            const configGrupo = getConfiguracaoGrupo(chatId);
-            console.log(`🏢 Grupo configurado: ${configGrupo ? configGrupo.nome : 'NÃO CONFIGURADO'}`);
-            console.log(`👤 Adicionado por: ${addedBy || 'INDEFINIDO'}`);
+//             const configGrupo = getConfiguracaoGrupo(chatId);
+//             console.log(`🏢 Grupo configurado: ${configGrupo ? configGrupo.nome : 'NÃO CONFIGURADO'}`);
+//             console.log(`👤 Adicionado por: ${addedBy || 'INDEFINIDO'}`);
 
-            if (configGrupo && addedBy) {
-                console.log(`✅ Condições atendidas! Processando ${addedParticipants.length} membro(s)...`);
-                console.log(`📝 Tipo de adição: ${notification.type} (add=admin adicionou, invite=entrou via link)`);
+//             if (configGrupo && addedBy) {
+//                 console.log(`✅ Condições atendidas! Processando ${addedParticipants.length} membro(s)...`);
+//                 // console.log(`📝 Tipo de adição: ${notification.type} (add=admin adicionou, invite=entrou via link)`);
 
-                // Processar cada novo membro
-                for (let i = 0; i < addedParticipants.length; i++) {
-                    const participantId = addedParticipants[i];
-                    const nomeParticipante = nomesAdicionados[i] || participantId;
+//                 // Processar cada novo membro
+//                 for (let i = 0; i < addedParticipants.length; i++) {
+//                     const participantId = addedParticipants[i];
+//                     const nomeParticipante = nomesAdicionados[i] || participantId;
 
-                    try {
-                        console.log(`👋 PROCESSANDO VIA EVENT: ${nomeParticipante} (${participantId})`);
-                        console.log(`👤 Adicionado por: ${nomeAdicionador} (${addedBy})`);
-                        console.log(`🏢 No grupo: ${configGrupo.nome}`);
+//                     try {
+//                         console.log(`👋 PROCESSANDO VIA EVENT: ${nomeParticipante} (${participantId})`);
+//                         console.log(`👤 Adicionado por: ${nomeAdicionador} (${addedBy})`);
+//                         console.log(`🏢 No grupo: ${configGrupo.nome}`);
 
-                        // Marcar como processado via event para evitar processamento duplicado
-                        const membroKey = `${chatId}_${participantId}`;
-                        membrosProcessadosViaEvent.add(membroKey);
+//                         // Marcar como processado via event para evitar processamento duplicado
+//                         const membroKey = `${chatId}_${participantId}`;
+//                         membrosProcessadosViaEvent.add(membroKey);
 
-                        // SISTEMA AUTOMÁTICO DESATIVADO - Novo membro deve usar código manual
-                        console.log(`📢 Sistema automático desativado - ${nomeParticipante} deve usar código do convidador`);
+//                         // SISTEMA AUTOMÁTICO DESATIVADO - Novo membro deve usar código manual
+//                         console.log(`📢 Sistema automático desativado - ${nomeParticipante} deve usar código do convidador`);
 
-                        /* SISTEMA AUTOMÁTICO COMENTADO - USUÁRIO PREFERIU MÉTODO MANUAL
-                        if (notification.type === 'add') {
-                            console.log(`🔗 Criando referência automática (admin adicionou)...`);
-                            const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
-                            console.log(`🔗 Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
-                        } else if (notification.type === 'invite') {
-                            console.log(`📎 Membro entrou via link de convite - não criando referência automática`);
-                        } else {
-                            console.log(`❓ Tipo de entrada desconhecido: ${notification.type}`);
-                        }
-                        */
+//                         /* SISTEMA AUTOMÁTICO COMENTADO - USUÁRIO PREFERIU MÉTODO MANUAL
+//                         if (notification.type === 'add') {
+//                             // console.log(`🔗 Criando referência automática (admin adicionou)...`);
+//                             const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
+//                             console.log(`🔗 Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
+//                         } else if (notification.type === 'invite') {
+//                             console.log(`📎 Membro entrou via link de convite - não criando referência automática`);
+//                         } else {
+//                             console.log(`❓ Tipo de entrada desconhecido: ${notification.type}`);
+//                         }
+//                         */
 
-                        // Aguardar um pouco para evitar spam
-                        setTimeout(async () => {
-                            try {
-                                await enviarBoasVindas(chatId, participantId);
-                            } catch (error) {
-                                console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
-                            }
-                        }, 2000 + (Math.random() * 3000));
+//                         // Aguardar um pouco para evitar spam
+//                         setTimeout(async () => {
+//                             try {
+//                                 await enviarBoasVindas(chatId, participantId);
+//                             } catch (error) {
+//                                 console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
+//                             }
+//                         }, 2000 + (Math.random() * 3000));
 
-                    } catch (error) {
-                        console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
-                        console.error(`❌ Stack trace:`, error.stack);
-                    }
-                }
-            } else {
-                if (!configGrupo) {
-                    console.log(`❌ Grupo ${chatId} não está configurado no sistema`);
-                }
-                if (!addedBy) {
-                    console.log(`❌ Não foi possível identificar quem adicionou os membros`);
-                }
-            }
-        }
-    } catch (error) {
-        console.error('❌ Erro no evento group-join:', error);
-    }
-});
+//                     } catch (error) {
+//                         console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
+//                         console.error(`❌ Stack trace:`, error.stack);
+//                     }
+//                 }
+//             } else {
+//                 if (!configGrupo) {
+//                     console.log(`❌ Grupo ${chatId} não está configurado no sistema`);
+//                 }
+//                 if (!addedBy) {
+//                     console.log(`❌ Não foi possível identificar quem adicionou os membros`);
+//                 }
+//             }
+//         }
+//     } catch (error) {
+//         console.error('❌ Erro no evento group-join:', error);
+//     }
+// });
 
 client.on('message', async (message) => {
     try {
         const isPrivado = !message.from.endsWith('@g.us');
         const autorMensagem = message.author || message.from;
-        const isAdmin = isAdministrador(autorMensagem);
-        
         // DEBUG DETALHADO DA MENSAGEM
         if (message.body.startsWith('.addcomando') || message.body.startsWith('.comandos') || message.body.startsWith('.delcomando')) {
-            console.log(`🔍 DEBUG MENSAGEM ADMIN:`);
+            // console.log(`🔍 DEBUG MENSAGEM ADMIN:`);
             console.log(`   📱 message.from: ${message.from}`);
             console.log(`   👤 message.author: ${message.author}`);
             console.log(`   🆔 autorMensagem: ${autorMensagem}`);
-            
+
             try {
                 const contact = await message.getContact();
                 console.log(`   📞 Contact info:`, {
@@ -3083,23 +3076,10 @@ client.on('message', async (message) => {
                 console.log(`   ⚠️ Erro ao obter contato: ${err.message}`);
             }
         }
-        
-        console.log(`🔍 Debug: Verificando admin para ${autorMensagem}, resultado: ${isAdmin}`);
 
         // === COMANDOS ADMINISTRATIVOS ===
-        // Verificar se é admin global OU admin do grupo
-        let isAdminDoGrupo = false;
-        
-        // Só verificar admin do grupo se for mensagem de grupo
-        if (message.from.endsWith('@g.us')) {
-            isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
-            console.log(`🔍 Debug admin grupo: ${autorMensagem} é admin do grupo? ${isAdminDoGrupo}`);
-        }
-        
-        const isAdminQualquer = isAdmin || isAdminDoGrupo;
-        console.log(`🔍 Debug final: isAdminQualquer = ${isAdminQualquer} (global: ${isAdmin}, grupo: ${isAdminDoGrupo})`);
-        
-        if (isAdminQualquer) {
+        // Removida verificação de admin - todos podem executar comandos
+        {
             const comando = message.body.toLowerCase().trim();
 
             if (comando === '.ia') {
@@ -3126,7 +3106,7 @@ client.on('message', async (message) => {
                     });
 
                     await message.reply(debugInfo);
-                    console.log(`🔍 Comando .debug executado`);
+                    // console.log(`🔍 Comando .debug executado`);
                 } catch (error) {
                     await message.reply(`❌ Erro no debug: ${error.message}`);
                 }
@@ -3310,9 +3290,9 @@ client.on('message', async (message) => {
                 
                 // .pacote DIAS REF NUMERO - Criar pacote
                 if (comando.startsWith('.pacote ')) {
-                    console.log(`🔧 DEBUG: Comando .pacote detectado!`);
-                    console.log(`🔧 DEBUG: sistemaPacotes = ${sistemaPacotes ? 'INICIALIZADO' : 'NULL'}`);
-                    console.log(`🔧 DEBUG: SISTEMA_PACOTES_ENABLED = ${process.env.SISTEMA_PACOTES_ENABLED}`);
+                    // console.log(`🔧 DEBUG: Comando .pacote detectado!`);
+                    // console.log(`🔧 DEBUG: sistemaPacotes = ${sistemaPacotes ? 'INICIALIZADO' : 'NULL'}`);
+                    // console.log(`🔧 DEBUG: SISTEMA_PACOTES_ENABLED = ${process.env.SISTEMA_PACOTES_ENABLED}`);
                     
                     if (!sistemaPacotes) {
                         await message.reply(`❌ *SISTEMA DE PACOTES DESABILITADO*\n\nO sistema de pacotes automáticos não está ativo neste servidor.\n\nVerifique as configurações de ambiente.`);
@@ -3356,10 +3336,6 @@ client.on('message', async (message) => {
 
                 // .pacotes_todos - Listar pacotes de TODOS os grupos (apenas admins globais)
                 if (comando === '.pacotes_todos') {
-                    if (!isAdministrador(autorMensagem)) {
-                        await message.reply('❌ *Acesso negado!* Apenas administradores globais podem ver pacotes de todos os grupos.');
-                        return;
-                    }
                     const lista = sistemaPacotes.listarClientesAtivos(null); // null = todos os grupos
                     await message.reply(lista);
                     return;
@@ -3419,8 +3395,8 @@ client.on('message', async (message) => {
                 }
             }
 
-            // === COMANDOS DO SISTEMA DE COMPRAS ===
-            if (sistemaCompras) {
+            // === COMANDOS DO SISTEMA DE COMPRAS DESATIVADOS ===
+            // if (sistemaCompras) {
                 // .ranking - Mostrar ranking completo de compradores
                 if (comando === '.ranking') {
                     try {
@@ -3608,7 +3584,7 @@ client.on('message', async (message) => {
                             return; // Falha silenciosa para segurança
                         }
 
-                        console.log(`🔄 RESET: Admin ${remetente} solicitou reset do ranking diário`);
+                        // console.log(`🔄 RESET: Admin ${remetente} solicitou reset do ranking diário`);
 
                         // Executar reset através do sistema de compras
                         const resultado = await sistemaCompras.resetarRankingGrupo(message.from);
@@ -3635,108 +3611,89 @@ client.on('message', async (message) => {
                     return;
                 }
                 
-                // .setboasvindas - Definir mensagem de boas-vindas personalizada (ADMIN APENAS)
-                if (comando.startsWith('.setboasvindas ')) {
-                    if (!isAdmin) {
-                        await message.reply('❌ Apenas administradores podem usar este comando!');
-                        return;
-                    }
-                    
-                    try {
-                        // Extrair a nova mensagem
-                        const novaMensagem = message.body.substring('.setboasvindas '.length).trim();
-                        
-                        if (novaMensagem.length === 0) {
-                            await message.reply(`❌ *ERRO*\n\nUso: .setboasvindas [mensagem]\n\n📝 *Placeholder disponível:*\n@NOME - será substituído pelo nome do novo membro\n\n*Exemplo:*\n.setboasvindas 🎉 Bem-vindo @NOME! Nosso sistema é 100% automático!`);
-                            return;
-                        }
-                        
-                        if (novaMensagem.length > 2000) {
-                            await message.reply(`❌ *MENSAGEM MUITO LONGA*\n\nMáximo: 2000 caracteres\nAtual: ${novaMensagem.length} caracteres`);
-                            return;
-                        }
-                        
-                        // Salvar no arquivo (simulação - na prática você salvaria em BD)
-                        console.log(`🔧 ADMIN ${remetente} definiu nova mensagem de boas-vindas para grupo ${message.from}`);
-                        
-                        const resposta = `✅ *MENSAGEM DE BOAS-VINDAS ATUALIZADA*\n\n` +
-                                        `👤 *Admin:* ${message._data.notifyName || 'Admin'}\n` +
-                                        `📱 *Grupo:* ${message.from}\n` +
-                                        `📝 *Caracteres:* ${novaMensagem.length}/2000\n\n` +
-                                        `📋 *Prévia da mensagem:*\n` +
-                                        `${novaMensagem.substring(0, 200)}${novaMensagem.length > 200 ? '...' : ''}\n\n` +
-                                        `✅ A nova mensagem será usada para próximos membros!\n` +
-                                        `💡 Use .testboasvindas para testar`;
-                        
-                        await message.reply(resposta);
-                        
-                    } catch (error) {
-                        console.error('❌ Erro no comando .setboasvindas:', error);
-                        await message.reply(`❌ *ERRO*\n\nNão foi possível atualizar a mensagem\n\n📝 Erro: ${error.message}`);
-                    }
-                    return;
-                }
+                // COMANDO DE BOAS-VINDAS DESATIVADO
+                // if (comando.startsWith('.setboasvindas ')) {
+                //     try {
+                //         // Extrair a nova mensagem
+                //         const novaMensagem = message.body.substring('.setboasvindas '.length).trim();
+
+                //         if (novaMensagem.length === 0) {
+                //             await message.reply(`❌ *ERRO*\n\nUso: .setboasvindas [mensagem]\n\n📝 *Placeholder disponível:*\n@NOME - será substituído pelo nome do novo membro\n\n*Exemplo:*\n.setboasvindas 🎉 Bem-vindo @NOME! Nosso sistema é 100% automático!`);
+                //             return;
+                //         }
+
+                //         if (novaMensagem.length > 2000) {
+                //             await message.reply(`❌ *MENSAGEM MUITO LONGA*\n\nMáximo: 2000 caracteres\nAtual: ${novaMensagem.length} caracteres`);
+                //             return;
+                //         }
+
+                //         // Salvar no arquivo (simulação - na prática você salvaria em BD)
+                //         // console.log(`🔧 ADMIN ${remetente} definiu nova mensagem de boas-vindas para grupo ${message.from}`);
+
+                //         const resposta = `✅ *MENSAGEM DE BOAS-VINDAS ATUALIZADA*\n\n` +
+                //                         `👤 *Admin:* ${message._data.notifyName || 'Admin'}\n` +
+                //                         `📱 *Grupo:* ${message.from}\n` +
+                //                         `📝 *Caracteres:* ${novaMensagem.length}/2000\n\n` +
+                //                         `📋 *Prévia da mensagem:*\n` +
+                //                         `${novaMensagem.substring(0, 200)}${novaMensagem.length > 200 ? '...' : ''}\n\n` +
+                //                         `✅ A nova mensagem será usada para próximos membros!\n` +
+                //                         `💡 Use .testboasvindas para testar`;
+
+                //         await message.reply(resposta);
+
+                //     } catch (error) {
+                //         console.error('❌ Erro no comando .setboasvindas:', error);
+                //         await message.reply(`❌ *ERRO*\n\nNão foi possível atualizar a mensagem\n\n📝 Erro: ${error.message}`);
+                //     }
+                //     return;
+                // }
                 
-                // .getboasvindas - Ver mensagem atual de boas-vindas (ADMIN APENAS)
-                if (comando === '.getboasvindas') {
-                    if (!isAdmin) {
-                        await message.reply('❌ Apenas administradores podem usar este comando!');
-                        return;
-                    }
-                    
-                    try {
-                        const configGrupo = getConfiguracaoGrupo(message.from);
-                        if (!configGrupo) {
-                            await message.reply('❌ Este grupo não está configurado!');
-                            return;
-                        }
-                        
-                        const mensagemAtual = configGrupo.boasVindas || 'Mensagem padrão (não personalizada)';
-                        
-                        const resposta = `📋 *MENSAGEM DE BOAS-VINDAS ATUAL*\n\n` +
-                                        `📱 *Grupo:* ${configGrupo.nome}\n` +
-                                        `📝 *Caracteres:* ${mensagemAtual.length}/2000\n\n` +
-                                        `📋 *Mensagem:*\n${mensagemAtual}\n\n` +
-                                        `💡 Use .setboasvindas para alterar\n` +
-                                        `🧪 Use .testboasvindas para testar`;
-                        
-                        await message.reply(resposta);
-                        
-                    } catch (error) {
-                        console.error('❌ Erro no comando .getboasvindas:', error);
-                        await message.reply(`❌ *ERRO*\n\nNão foi possível obter a mensagem\n\n📝 Erro: ${error.message}`);
-                    }
-                    return;
-                }
+                // COMANDO DE BOAS-VINDAS DESATIVADO
+                // if (comando === '.getboasvindas') {
+                //     try {
+                //         const configGrupo = getConfiguracaoGrupo(message.from);
+                //         if (!configGrupo) {
+                //             await message.reply('❌ Este grupo não está configurado!');
+                //             return;
+                //         }
+
+                //         const mensagemAtual = configGrupo.boasVindas || 'Mensagem padrão (não personalizada)';
+
+                //         const resposta = `📋 *MENSAGEM DE BOAS-VINDAS ATUAL*\n\n` +
+                //                         `📱 *Grupo:* ${configGrupo.nome}\n` +
+                //                         `📝 *Caracteres:* ${mensagemAtual.length}/2000\n\n` +
+                //                         `📋 *Mensagem:*\n${mensagemAtual}\n\n` +
+                //                         `💡 Use .setboasvindas para alterar\n` +
+                //                         `🧪 Use .testboasvindas para testar`;
+
+                //         await message.reply(resposta);
+
+                //     } catch (error) {
+                //         console.error('❌ Erro no comando .getboasvindas:', error);
+                //         await message.reply(`❌ *ERRO*\n\nNão foi possível obter a mensagem\n\n📝 Erro: ${error.message}`);
+                //     }
+                //     return;
+                // }
                 
-                // .testboasvindas - Testar mensagem de boas-vindas (ADMIN APENAS)
-                if (comando === '.testboasvindas') {
-                    if (!isAdmin) {
-                        await message.reply('❌ Apenas administradores podem usar este comando!');
-                        return;
-                    }
+                // COMANDO DE BOAS-VINDAS DESATIVADO
+                // if (comando === '.testboasvindas') {
+                //     try {
+                //         await message.reply('🧪 *TESTE DE BOAS-VINDAS*\n\nEnviando mensagem de teste...');
 
-                    try {
-                        await message.reply('🧪 *TESTE DE BOAS-VINDAS*\n\nEnviando mensagem de teste...');
+                //         // Enviar boas-vindas para o próprio admin como teste
+                //         setTimeout(async () => {
+                //             await enviarBoasVindas(message.from, autorMensagem);
+                //         }, 1000);
 
-                        // Enviar boas-vindas para o próprio admin como teste
-                        setTimeout(async () => {
-                            await enviarBoasVindas(message.from, autorMensagem);
-                        }, 1000);
-
-                    } catch (error) {
-                        console.error('❌ Erro no comando .testboasvindas:', error);
-                        await message.reply(`❌ *ERRO*\n\nNão foi possível testar a mensagem\n\n📝 Erro: ${error.message}`);
-                    }
-                    return;
-                }
+                //     } catch (error) {
+                //         console.error('❌ Erro no comando .testboasvindas:', error);
+                //         await message.reply(`❌ *ERRO*\n\nNão foi possível testar a mensagem\n\n📝 Erro: ${error.message}`);
+                //     }
+                //     return;
+                // }
 
                 // .testreferencia - Testar sistema de referência automática (ADMIN APENAS)
                 if (comando === '.testreferencia') {
-                    if (!isAdmin) {
-                        await message.reply('❌ Apenas administradores podem usar este comando!');
-                        return;
-                    }
 
                     try {
                         await message.reply('🧪 *TESTE DE REFERÊNCIA AUTOMÁTICA*\n\nTestando criação de referência automática...');
@@ -3790,12 +3747,12 @@ client.on('message', async (message) => {
                 // .bonus NUMERO QUANTIDADE - Dar bônus manual (ADMIN APENAS)
                 if (comando.startsWith('.bonus ')) {
                     try {
-                        console.log(`🔍 Debug .bonus: autorMensagem = ${autorMensagem}`);
+                        // console.log(`🔍 Debug .bonus: autorMensagem = ${autorMensagem}`);
                         // Verificar permissão de admin
                         const admins = ['258861645968', '258123456789', '258852118624']; // Lista de admins
                         const numeroAdmin = autorMensagem.replace('@c.us', '');
                         if (!admins.includes(numeroAdmin)) {
-                            console.log(`❌ Admin não autorizado: ${autorMensagem} (${numeroAdmin})`);
+                            // console.log(`❌ Admin não autorizado: ${autorMensagem} (${numeroAdmin})`);
                             return; // Falha silenciosa para segurança
                         }
 
@@ -3989,7 +3946,7 @@ client.on('message', async (message) => {
                     );
                     
                     await message.reply(`✅ *Comando criado com sucesso!*\n\n🔧 **Comando:** \`${comandoParsado.nome}\`\n📝 **Resposta:** ${comandoParsado.resposta.substring(0, 100)}${comandoParsado.resposta.length > 100 ? '...' : ''}\n\n💡 **Para usar:** Digite apenas \`${comandoParsado.nome}\``);
-                    console.log(`✅ Admin ${message.author || message.from} criou comando '${comandoParsado.nome}' no grupo ${message.from}`);
+                    // console.log(`✅ Admin ${message.author || message.from} criou comando '${comandoParsado.nome}' no grupo ${message.from}`);
                 } catch (error) {
                     await message.reply(`❌ **Erro ao criar comando**\n\nTente novamente ou contacte o desenvolvedor.`);
                     console.error('❌ Erro ao adicionar comando customizado:', error);
@@ -4038,7 +3995,7 @@ client.on('message', async (message) => {
                     
                     if (removido) {
                         await message.reply(`✅ *Comando removido!*\n\n🗑️ **Comando:** \`${nomeComando}\`\n\n📝 **Para ver restantes:** \`.comandos\``);
-                        console.log(`✅ Admin ${message.author || message.from} removeu comando '${nomeComando}' do grupo ${message.from}`);
+                        // console.log(`✅ Admin ${message.author || message.from} removeu comando '${nomeComando}' do grupo ${message.from}`);
                     } else {
                         await message.reply(`❌ *Comando não encontrado!*\n\n🔍 **Comando:** \`${nomeComando}\`\n📝 **Ver comandos:** \`.comandos\``);
                     }
@@ -4210,71 +4167,72 @@ client.on('message', async (message) => {
                 await message.reply(resposta);
                 return;
             }
+            // } // Fechamento do bloco sistemaCompras comentado
 
             // === COMANDOS DO SISTEMA DE COMPRAS ===
             
-            if (comando === '.compras_stats') {
-                if (!sistemaCompras) {
-                    await message.reply('❌ Sistema de compras não está ativo!');
-                    return;
-                }
-                
-                const estatisticas = await sistemaCompras.obterEstatisticas();
-                
-                let resposta = `🛒 *ESTATÍSTICAS DE COMPRAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-                resposta += `📊 Total de compradores: ${estatisticas.totalCompradores}\n`;
-                resposta += `📅 Compradores hoje: ${estatisticas.compradoresHoje}\n`;
-                resposta += `⏳ Compras pendentes: ${estatisticas.comprasPendentes}\n`;
-                resposta += `💾 Total de megas hoje: ${estatisticas.totalMegasHoje >= 1024 ? (estatisticas.totalMegasHoje/1024).toFixed(1) + ' GB' : estatisticas.totalMegasHoje + ' MB'}\n\n`;
-                
-                if (estatisticas.ranking.length > 0) {
-                    resposta += `🏆 *TOP 5 RANKING HOJE:*\n`;
-                    estatisticas.ranking.slice(0, 5).forEach((cliente, index) => {
-                        const megasFormatados = cliente.megasHoje >= 1024 ? `${(cliente.megasHoje/1024).toFixed(1)} GB` : `${cliente.megasHoje} MB`;
-                        resposta += `${index + 1}º ${cliente.numero} - ${megasFormatados} (${cliente.comprasHoje}x)\n`;
-                    });
-                }
-                
-                await message.reply(resposta);
-                return;
-            }
-            
-            
-            if (comando.startsWith('.comprador ')) {
-                if (!sistemaCompras) {
-                    await message.reply('❌ Sistema de compras não está ativo!');
-                    return;
-                }
-                
-                const numero = comando.replace('.comprador ', '').trim();
-                
-                if (!/^\d{9}$/.test(numero)) {
-                    await message.reply('❌ Use: *.comprador 849123456*');
-                    return;
-                }
-                
-                const cliente = sistemaCompras.historicoCompradores[numero];
-                
-                if (!cliente) {
-                    await message.reply(`❌ Cliente *${numero}* não encontrado no sistema de compras.`);
-                    return;
-                }
-                
-                const posicao = await sistemaCompras.obterPosicaoCliente(numero);
-                const megasHojeFormatados = cliente.megasHoje >= 1024 ? `${(cliente.megasHoje/1024).toFixed(1)} GB` : `${cliente.megasHoje} MB`;
-                const megasTotalFormatados = cliente.megasTotal >= 1024 ? `${(cliente.megasTotal/1024).toFixed(1)} GB` : `${cliente.megasTotal} MB`;
-                
-                let resposta = `👤 *PERFIL DO COMPRADOR*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-                resposta += `📱 **Número:** ${numero}\n`;
-                resposta += `🏆 **Posição hoje:** ${posicao.posicao}º lugar\n`;
-                resposta += `📊 **Hoje:** ${megasHojeFormatados} (${cliente.comprasHoje} compras)\n`;
-                resposta += `💎 **Total geral:** ${megasTotalFormatados} (${cliente.totalCompras} compras)\n`;
-                resposta += `📅 **Primeira compra:** ${new Date(cliente.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
-                resposta += `⏰ **Última compra:** ${new Date(cliente.ultimaCompra).toLocaleDateString('pt-BR')}\n`;
-                
-                await message.reply(resposta);
-                return;
-            }
+            // if (comando === '.compras_stats') {
+            //     if (!sistemaCompras) {
+            //         await message.reply('❌ Sistema de compras não está ativo!');
+            //         return;
+            //     }
+            //
+            //     const estatisticas = await sistemaCompras.obterEstatisticas();
+            //
+            //     let resposta = `🛒 *ESTATÍSTICAS DE COMPRAS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+            //     resposta += `📊 Total de compradores: ${estatisticas.totalCompradores}\n`;
+            //     resposta += `📅 Compradores hoje: ${estatisticas.compradoresHoje}\n`;
+            //     resposta += `⏳ Compras pendentes: ${estatisticas.comprasPendentes}\n`;
+            //     resposta += `💾 Total de megas hoje: ${estatisticas.totalMegasHoje >= 1024 ? (estatisticas.totalMegasHoje/1024).toFixed(1) + ' GB' : estatisticas.totalMegasHoje + ' MB'}\n\n`;
+            //
+            //     if (estatisticas.ranking.length > 0) {
+            //         resposta += `🏆 *TOP 5 RANKING HOJE:*\n`;
+            //         estatisticas.ranking.slice(0, 5).forEach((cliente, index) => {
+            //             const megasFormatados = cliente.megasHoje >= 1024 ? `${(cliente.megasHoje/1024).toFixed(1)} GB` : `${cliente.megasHoje} MB`;
+            //             resposta += `${index + 1}º ${cliente.numero} - ${megasFormatados} (${cliente.comprasHoje}x)\n`;
+            //         });
+            //     }
+            //
+            //     await message.reply(resposta);
+            //     return;
+            // }
+            //
+            //
+            // if (comando.startsWith('.comprador ')) {
+            //     if (!sistemaCompras) {
+            //         await message.reply('❌ Sistema de compras não está ativo!');
+            //         return;
+            //     }
+            //
+            //     const numero = comando.replace('.comprador ', '').trim();
+            //
+            //     if (!/^\d{9}$/.test(numero)) {
+            //         await message.reply('❌ Use: *.comprador 849123456*');
+            //         return;
+            //     }
+            //
+            //     const cliente = sistemaCompras.historicoCompradores[numero];
+            //
+            //     if (!cliente) {
+            //         await message.reply(`❌ Cliente *${numero}* não encontrado no sistema de compras.`);
+            //         return;
+            //     }
+            //
+            //     const posicao = await sistemaCompras.obterPosicaoCliente(numero);
+            //     const megasHojeFormatados = cliente.megasHoje >= 1024 ? `${(cliente.megasHoje/1024).toFixed(1)} GB` : `${cliente.megasHoje} MB`;
+            //     const megasTotalFormatados = cliente.megasTotal >= 1024 ? `${(cliente.megasTotal/1024).toFixed(1)} GB` : `${cliente.megasTotal} MB`;
+            //
+            //     let resposta = `👤 *PERFIL DO COMPRADOR*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+            //     resposta += `📱 **Número:** ${numero}\n`;
+            //     resposta += `🏆 **Posição hoje:** ${posicao.posicao}º lugar\n`;
+            //     resposta += `📊 **Hoje:** ${megasHojeFormatados} (${cliente.comprasHoje} compras)\n`;
+            //     resposta += `💎 **Total geral:** ${megasTotalFormatados} (${cliente.totalCompras} compras)\n`;
+            //     resposta += `📅 **Primeira compra:** ${new Date(cliente.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
+            //     resposta += `⏰ **Última compra:** ${new Date(cliente.ultimaCompra).toLocaleDateString('pt-BR')}\n`;
+            //
+            //     await message.reply(resposta);
+            //     return;
+            // }
 
             // === NOVOS COMANDOS PARA DETECÇÃO DE GRUPOS ===
             if (comando === '.grupos') {
@@ -4910,12 +4868,8 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 message.body.startsWith('.resetranking')
             );
 
-            // Verificar se é admin executando comando
-            const autorModeracaoMsg = message.author || message.from;
-            const isAdminExecutando = await isAdminGrupo(message.from, autorModeracaoMsg) || isAdministrador(autorModeracaoMsg);
-
-            // Pular moderação para comandos administrativos executados por admins
-            if (!isComandoAdmin || !isAdminExecutando) {
+            // Pular moderação para comandos administrativos
+            if (!isComandoAdmin) {
                 const analise = contemConteudoSuspeito(message.body);
                 
                 if (analise.suspeito) {
@@ -4953,9 +4907,9 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return;
         }
 
-        // === DETECÇÃO DE PERGUNTA POR NÚMERO (NÃO-ADMIN) ===
-        if (!isAdmin && detectarPerguntaPorNumero(message.body)) {
-            console.log(`📱 Pergunta por número detectada de não-admin`);
+        // === DETECÇÃO DE PERGUNTA POR NÚMERO ===
+        if (detectarPerguntaPorNumero(message.body)) {
+            // console.log(`📱 Pergunta por número detectada de não-admin`);
             await message.reply(
                 `📱 *Para solicitar número ou suporte:*\n\n` +
                 `💳 *Primeiro faça o pagamento:*\n\n` +
@@ -4979,57 +4933,57 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
         }
 
         // === MONITORAMENTO DE CONFIRMAÇÕES DO BOT SECUNDÁRIO ===
-        if (sistemaCompras && message.body.includes('✅') && message.body.includes('Transação Concluída Com Sucesso')) {
-            // Extrair referência do padrão: "🔖 *Referência:* CI22H8QJSDQ"
-            const regexReferencia = /🔖\s*\*?Referência:\*?\s*([A-Za-z0-9._-]+)/i;
-            const matchReferencia = message.body.match(regexReferencia);
-            
-            // Extrair número do padrão: "📱 *Número:* 842362318"
-            const regexNumero = /📱\s*\*?Número:\*?\s*(\d{9})/i;
-            const matchNumero = message.body.match(regexNumero);
-            
-            if (matchReferencia && matchNumero) {
-                const referenciaConfirmada = matchReferencia[1]; // Manter case original
-                const numeroConfirmado = matchNumero[1];
-                console.log(`🛒 CONFIRMAÇÃO BOT: Detectada transação concluída - Ref: ${referenciaConfirmada} | Número: ${numeroConfirmado}`);
-                console.log(`🔍 CONFIRMAÇÃO BOT: Tipo detectado: ${/emola|e-mola/i.test(message.body) ? 'EMOLA' : /mpesa|m-pesa/i.test(message.body) ? 'MPESA' : 'DESCONHECIDO'}`);
-                
-                // Processar confirmação
-                const resultadoConfirmacao = await sistemaCompras.processarConfirmacao(referenciaConfirmada, numeroConfirmado);
-                
-                if (resultadoConfirmacao) {
-                    console.log(`✅ COMPRAS: Confirmação processada - ${resultadoConfirmacao.numero} | ${resultadoConfirmacao.megas}MB`);
-                    
-                    // Enviar mensagem de parabenização com menção clicável
-                    if (resultadoConfirmacao.mensagem && resultadoConfirmacao.contactId) {
-                        try {
-                            // Obter nome do contato para substituir o placeholder
-                            const contact = await client.getContactById(resultadoConfirmacao.contactId);
-                            
-                            // Prioridade: nome salvo > pushname (nome do perfil) > name > número
-                            const nomeExibicao = contact.name || contact.pushname || contact.number;
-                            const numeroLimpo = contact.id.user; // Número sem @ e sem +
-                            
-                            // Substituir placeholder pelo número (formato correto para menções clickáveis)
-                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${numeroLimpo}`);
-                            
-                            // Enviar com menção clicável
-                            await client.sendMessage(message.from, mensagemFinal, { 
-                                mentions: [resultadoConfirmacao.contactId] 
-                            });
-                        } catch (error) {
-                            console.error('❌ Erro ao enviar parabenização com menção:', error);
-                            // Fallback: enviar sem menção clicável
-                            const mensagemFallback = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${resultadoConfirmacao.numeroComprador}`);
-                            await message.reply(mensagemFallback);
-                        }
-                    }
-                } else {
-                    console.log(`⚠️ COMPRAS: Confirmação ${referenciaConfirmada} não encontrada ou já processada`);
-                }
-                return;
-            }
-        }
+        // if (sistemaCompras && message.body.includes('✅') && message.body.includes('Transação Concluída Com Sucesso')) {
+        //     // Extrair referência do padrão: "🔖 *Referência:* CI22H8QJSDQ"
+        //     const regexReferencia = /🔖\s*\*?Referência:\*?\s*([A-Za-z0-9._-]+)/i;
+        //     const matchReferencia = message.body.match(regexReferencia);
+        //
+        //     // Extrair número do padrão: "📱 *Número:* 842362318"
+        //     const regexNumero = /📱\s*\*?Número:\*?\s*(\d{9})/i;
+        //     const matchNumero = message.body.match(regexNumero);
+        //
+        //     if (matchReferencia && matchNumero) {
+        //         const referenciaConfirmada = matchReferencia[1]; // Manter case original
+        //         const numeroConfirmado = matchNumero[1];
+        //         console.log(`🛒 CONFIRMAÇÃO BOT: Detectada transação concluída - Ref: ${referenciaConfirmada} | Número: ${numeroConfirmado}`);
+        //         // console.log(`🔍 CONFIRMAÇÃO BOT: Tipo detectado: ${/emola|e-mola/i.test(message.body) ? 'EMOLA' : /mpesa|m-pesa/i.test(message.body) ? 'MPESA' : 'DESCONHECIDO'}`);
+        //
+        //         // Processar confirmação
+        //         const resultadoConfirmacao = await sistemaCompras.processarConfirmacao(referenciaConfirmada, numeroConfirmado);
+        //
+        //         if (resultadoConfirmacao) {
+        //             console.log(`✅ COMPRAS: Confirmação processada - ${resultadoConfirmacao.numero} | ${resultadoConfirmacao.megas}MB`);
+        //
+        //             // Enviar mensagem de parabenização com menção clicável
+        //             if (resultadoConfirmacao.mensagem && resultadoConfirmacao.contactId) {
+        //                 try {
+        //                     // Obter nome do contato para substituir o placeholder
+        //                     const contact = await client.getContactById(resultadoConfirmacao.contactId);
+        //
+        //                     // Prioridade: nome salvo > pushname (nome do perfil) > name > número
+        //                     const nomeExibicao = contact.name || contact.pushname || contact.number;
+        //                     const numeroLimpo = contact.id.user; // Número sem @ e sem +
+        //
+        //                     // Substituir placeholder pelo número (formato correto para menções clickáveis)
+        //                     const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${numeroLimpo}`);
+        //
+        //                     // Enviar com menção clicável
+        //                     await client.sendMessage(message.from, mensagemFinal, {
+        //                         mentions: [resultadoConfirmacao.contactId]
+        //                     });
+        //                 } catch (error) {
+        //                     console.error('❌ Erro ao enviar parabenização com menção:', error);
+        //                     // Fallback: enviar sem menção clicável
+        //                     const mensagemFallback = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${resultadoConfirmacao.numeroComprador}`);
+        //                     await message.reply(mensagemFallback);
+        //                 }
+        //             }
+        //         } else {
+        //             console.log(`⚠️ COMPRAS: Confirmação ${referenciaConfirmada} não encontrada ou já processada`);
+        //         }
+        //         return;
+        //     }
+        // }
 
         // === PROCESSAMENTO COM IA (LÓGICA SIMPLES IGUAL AO BOT ATACADO) ===
         const remetente = message.author || message.from;
@@ -5269,7 +5223,7 @@ process.on('uncaughtException', (error) => {
 (async function inicializar() {
     console.log('🚀 Iniciando bot...');
     await carregarComandosCustomizados();
-    console.log('🔧 Comandos carregados, inicializando cliente WhatsApp...');
+    // console.log('🔧 Comandos carregados, inicializando cliente WhatsApp...');
     
     try {
         client.initialize();
