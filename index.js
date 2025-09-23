@@ -241,98 +241,109 @@ Temos muito mais serviço…
 ╰━━━━━━━━━━━━━━━━━━━━━  
        🚀 O futuro é agora. Vamos?`
     },
-    '120363228868368923@g.us': {
-    nome: 'VENDA DE MEGAS',
-    tabela: `𝗧𝗮𝗯𝗲𝗹𝗮 𝗮𝗰𝘁𝘂𝗮𝗹𝗶𝘇𝗮do 𝗱𝗲 𝘃𝗼𝗱𝗮𝗰𝗼𝗺
+    '120363023150137820@g.us': {
+    nome: 'NET VODACOM ACESSÍVEL',
+    tabela: `🚨📱 INTERNET VODACOM COM OS MELHORES PREÇOS!
+Mega Promoção da NET DA VODACOM ACESSÍVEL — Conecte-se já! 🚀
+
+📅 PACOTES DIÁRIOS (24h de validade)
+
+✅ 1GB - 17MT
+✅ 2GB - 34MT
+✅ 3GB - 51MT
+✅ 4GB - 68MT
+✅ 5GB - 85MT
+✅ 6GB - 102MT
+✅ 7GB - 119MT
+✅ 8GB - 136MT
+✅ 9GB - 153MT
+✅ 10GB - 170MT
 
 
-𝗗𝗶𝗮𝗿𝗶𝗼
-✅PODE TER TXUNA CRÉDITO
+📅 PACOTES SEMANAIS 
+⚠ Vai receber 100MB por dia durante 7 dias, totalizando +0.7GB
+
+✅ 2GB – 55MT
+✅ 3GB – 75MT
+✅ 5GB – 130MT
+✅ 10GB – 220MT
 
 
-𝟭024M𝗕__𝟭𝟴 𝗠𝗧
-𝟮048M𝗕__𝟯6𝗠𝗧
-𝟯072MB ___ 𝟱4𝗠𝗧
-𝟰096MB__𝟳0𝗠𝗧
-𝟱120M𝗕 ___ 𝟵𝟬𝗠𝗧
-𝟭0240MB___𝟭8𝟬𝗠𝗧
 
-𝗦𝗲𝗺𝗮𝗻𝗮𝗹
-❎ NÃO PODE TER TXUNA CRÉDITO
+📅 PACOTES MENSAIS 
+⚠ Não deve ter txuna crédito ⚠
 
-𝟰5𝗠𝗧__𝟭𝟳41M𝗕
-80𝗠𝗧__𝟮𝟵70M𝗕
-90𝗠𝗧__𝟯𝟰82M𝗕
-𝟭40𝗠𝗧___𝟱325M𝗕
-𝟭80𝗠𝗧___𝟳270M𝗕
+✅ 5GB – 165MT
+✅ 10GB – 280MT
+✅ 20GB – 480MT
+✅ 30GB – 760MT
+✅ 50GB – 960MT
+✅ 100GB – 1940MT
+✅ 200GB – 3420MT
 
-𝐌𝐞𝐧𝐬𝐚𝐥
-❎ NÃO PODE TER TXUNA CRÉDITO
+FORMAS DE PAGAMENTO💰💶
 
-𝟲057M𝗕__𝟮𝟬𝟬𝗠𝗧
-𝟴057MB__𝟮𝟯𝟬𝗠𝗧
-𝟭𝟬057MB___𝟮6𝟬𝗠𝗧
-𝟮𝟬057M𝗕___𝟰𝟱𝟬𝗠𝗧
+📌 M-PESA:  858891101
+   Nome:  ISAC DA LURDES
 
-𝗗𝗶𝗮𝗺𝗮𝗻𝘁𝗲 𝗱𝗲 𝗩𝗼𝗱𝗮𝗰𝗼𝗺
-❎ NÃO PODE TER TXUNA CRÉDITO
+📌 E-MOLA: 866291101
+    Nome:   ISAC LURDES 
 
-𝗠𝗲𝗻𝘀𝗮𝗹 (𝟯𝟬𝗗𝗶𝗮𝘀)
-⿡𝟰50𝗠𝘁 =𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟭𝟭𝗚𝗕+𝗦𝗠𝗦
-⿢𝟱50 =𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟭𝟱𝗚𝗕+𝗦𝗠𝗦
-⿣𝟳50=𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟮𝟱𝗚𝗕+𝗦𝗠𝗦
-⿤𝟭050=𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟰𝟮𝗚𝗕+𝗦𝗠𝗦
-
+🚀 O futuro é agora! Vamos? 🔥🛒
 `,
-    pagamento: `💳 FORMAS/ PAGAMENTOS :⤵
-- 📲 𝗘-𝗠𝗢𝗟𝗔: 868440408:
-- *JOSE TOMAS*
-- 📲 𝗠-𝗣𝗘𝗦𝗔 850189315:
-- *JOSE TOMÁS*
+    pagamento: `FORMAS DE PAGAMENTO💰💶
 
-📩 Envie o seu comprovantivo no grupo, juntamente com o número que vai receber os dados.`
-},'120363418801452164@g.us': {
+📌 M-PESA:  858891101
+   Nome:  ISAC DA LURDES
+
+📌 E-MOLA: 866291101
+    Nome:  ISAC LURDES 
+
+📮 Após a transferência enviei o comprovante em forma do cópia junto com seu número.
+ 
+> 1. 🚨Não mande comprovativo em formato de imagem 📸🚨
+
+> 2.  🚨 Não mande valor que não têm na tabela🚨
+
+🚀 O futuro é agora! Vamos? 🔥🛒
+`
+},'120363022366545020@g.us': {
         nome: 'Megas VIP',
         tabela: `🚨📢MEGABYTES DA VODACOM📢🚨
 
 📦PACOTE DIÁRIO📦
 
 🛜512MB = 10MT
+🛜768MB = 16MT
 🛜1024MB = 18MT
+🛜1280MB = 26MT
 🛜2048MB = 36MT
 🛜3072MB = 54MT
 🛜4096MB = 72MT
 🛜5120MB = 90MT
+🛜6144MB = 108MB
+🛜7168MB = 126MB
+🛜8192MB = 144MB
+🛜9216MB = 162MB
 🛜10240MB = 180MT
-🛜20480MB = 360MT
 
-  
 PACOTE SEMANAL🛒📦
-⚠Não deve ter txuna crédito⚠
+⚠ Vai receber 100MB por dia durante 6 dias, totalizando +0.6GB. ⚠
 
+🛜2.0GB = 65MT
+🛜3.0GB = 85MT
+🛜5.0GB = 130MT
+🛜7.0GB = 175MT 
+🛜10.0GB = 265MT
+🛜14.0GB = 362MT
+━━━━━━━━━━━━━━━━━━━━
+🚨Para pacote MENSAL é só entrar em contato com o número abaixo 👇👇🚨
 
-🛜2.9GB = 85MT
-🛜3.4GB = 95MT
-🛜5.2GB = 145MT
-🛜7.1GB = 195MT 
-🛜10.7GB = 295MT
-🛜14.3GB = 395MT
-
-
-
-📦PACOTE MENSAL📦
-⚠Não deve ter txuna crédito⚠
-
-📊2.8GB = 95MT
-📊3.8GB = 125MT
-📊4.8GB = 145MT
-📊5.8GB = 165MT
-📊6.8GB = 195MT
-📊7.8GB = 215MT
-📊10.8GB = 285MT
-📊12.8GB = 345MT
-📊20.8GB = 565MT
-
+https://wa.me/258865627840?text=%20Quero%20pacote%20mensal?%20
+━━━━━━━━━━━━━━━━━━━━
+🚨Para pacote ILIMITADO é só entrar em contato com o número abaixo 👇👇🚨
+https://wa.me/258865627840?text=%20Quero%20pacote%20ilimitado?%20
+━━━━━━━━━━━━━━━━━━━━
 
 FORMA DE PAGAMENTO:
 💳💸
@@ -342,6 +353,7 @@ e-Mola: 865627840 📱
 - Alexandre Uanela 
 
 Adquira já os teus megas com segurança, confiança e rapidez!🚨🔥
+
 `,
 
         pagamento: `FORMAS DE PAGAMENTO💰💶
@@ -352,7 +364,11 @@ Adquira já os teus megas com segurança, confiança e rapidez!🚨🔥
 📌 E-MOLA: 865627840 
     Nome: Alexandre Uanela  
 
-📮 _Apos a transferência do valor envie o comprovativo da transação ou a chave da mensagem 📸📂
+📮 Após a transferência enviei o comprovante em forma do cópia junto com seu número.
+ 
+> 1. 🚨Não mande comprovativo em formato de imagem 📸🚨
+
+> 2.  🚨 Não mande valor que não têm na tabela🚨
 
 🚀 O futuro é agora! Vamos? 🔥🛒
 `
@@ -408,9 +424,9 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
 });
         
         // Google Apps Script retorna texto simples: "Sucesso! REF|MEGAS|NUM [PENDENTE]"
-        const responseText = response.data || '';
+        const responseText = String(response.data || '');
         console.log(`📥 Resposta Google Sheets: ${responseText}`);
-        
+
         if (responseText.includes('Sucesso!')) {
             console.log(`✅ Google Sheets: Dados enviados! | Grupo: ${grupoNome}`);
             return { sucesso: true, row: 'N/A' };
