@@ -17,7 +17,14 @@ const GOOGLE_SHEETS_CONFIG = {
     retryDelay: 2000
 };
 
+// === CONFIGURAÇÃO SCRIPT DE PAGAMENTOS ===
+const SCRIPT_PAGAMENTOS_CONFIG = {
+    scriptUrl: process.env.GOOGLE_SHEETS_PAGAMENTOS || 'https://script.google.com/macros/s/AKfycbzzifHGu1JXc2etzG3vqK5Jd3ihtULKezUTQQIDJNsr6tXx3CmVmKkOlsld0x1Feo0H/exec',
+    timeout: 30000
+};
+
 console.log(`📊 Google Sheets configurado: ${GOOGLE_SHEETS_CONFIG.scriptUrl}`);
+console.log(`🔍 Script Pagamentos configurado: ${SCRIPT_PAGAMENTOS_CONFIG.scriptUrl}`);
 
 // Criar instância do cliente
 const client = new Client({
@@ -455,6 +462,90 @@ async function tentarComRetry(funcao, maxTentativas = 3, delay = 2000) {
         }
     }
 }
+// === FUNÇÃO PARA NORMALIZAR VALORES ===
+function normalizarValor(valor) {
+    if (typeof valor === 'number') {
+        return valor;
+    }
+
+    if (typeof valor === 'string') {
+        const valorLimpo = valor.trim ? valor.trim() : valor;
+
+        // Casos especiais: valores com múltiplos zeros após vírgula (ex: "1,0000" = 1000MT)
+        const regexZerosAposVirgula = /^(\d+),0+$/;
+        const matchZeros = valorLimpo.match(regexZerosAposVirgula);
+        if (matchZeros) {
+            const baseNumero = parseInt(matchZeros[1]);
+            const numeroZeros = valorLimpo.split(',')[1].length;
+            const multiplicador = numeroZeros >= 3 ? 1000 : Math.pow(10, numeroZeros);
+            return baseNumero * multiplicador;
+        }
+
+        // Detectar se vírgula é separador de milhares ou decimal
+        const temVirgulaSeguida3Digitos = /,\d{3}($|\D)/.test(valorLimpo);
+
+        let valorFinal = valorLimpo;
+        if (temVirgulaSeguida3Digitos) {
+            // Vírgula como separador de milhares: "1,000" ou "10,500.50"
+            valorFinal = valorLimpo.replace(/,(?=\d{3}($|\D))/g, '');
+        } else {
+            // Vírgula como separador decimal: "1,50" → "1.50"
+            valorFinal = valorLimpo.replace(',', '.');
+        }
+
+        const valorNumerico = parseFloat(valorFinal);
+
+        if (isNaN(valorNumerico)) {
+            console.log('⚠️ Valor não pôde ser normalizado: "' + valor + '"');
+            return valor;
+        }
+
+        // Retorna inteiro se não tem decimais significativos
+        return (Math.abs(valorNumerico % 1) < 0.0001) ? Math.round(valorNumerico) : valorNumerico;
+    }
+
+    return valor;
+}
+
+// === FUNÇÃO PARA VERIFICAR PAGAMENTO NA PLANILHA ===
+async function verificarPagamento(referencia, valorEsperado) {
+    try {
+        // Normalizar valor antes da verificação
+        const valorNormalizado = normalizarValor(valorEsperado);
+
+        console.log(`🔍 Verificando pagamento ${referencia} - ${valorNormalizado}MT (original: ${valorEsperado})`);
+
+        const response = await axios.post(SCRIPT_PAGAMENTOS_CONFIG.scriptUrl, {
+            action: "buscar_por_referencia",
+            referencia: referencia,
+            valor: valorNormalizado
+        }, {
+            timeout: SCRIPT_PAGAMENTOS_CONFIG.timeout,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.data && response.data.encontrado) {
+            // VERIFICAR SE PAGAMENTO JÁ FOI PROCESSADO
+            if (response.data.ja_processado) {
+                console.log(`⚠️ Pagamento já foi processado anteriormente!`);
+                return 'ja_processado';
+            }
+
+            console.log(`✅ Pagamento encontrado e marcado como processado!`);
+            return true;
+        }
+
+        console.log(`❌ Pagamento não encontrado`);
+        return false;
+
+    } catch (error) {
+        console.error(`❌ Erro ao verificar pagamento:`, error.message);
+        return false;
+    }
+}
+
 async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoNome, autorMensagem) {
     // Formato igual ao Bot Atacado: transacao já concatenada
     const transacaoFormatada = `${referencia}|${valor}|${numero}`;
@@ -524,8 +615,31 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
     const grupoNome = getConfiguracaoGrupo(grupoId)?.nome || 'Desconhecido';
     const timestamp = new Date().toLocaleString('pt-BR');
     const linhaCompleta = `${referencia}|${valor}|${numero}`;
-    
-    console.log(`📊 ENVIANDO PARA GOOGLE SHEETS [${grupoNome}]: ${linhaCompleta}`);
+
+    console.log(`🔍 VERIFICANDO PAGAMENTO [${grupoNome}]: ${linhaCompleta}`);
+
+    // === VERIFICAR PAGAMENTO ANTES DE PROCESSAR ===
+    const pagamentoConfirmado = await verificarPagamento(referencia, valor);
+
+    if (pagamentoConfirmado === 'ja_processado') {
+        console.log(`⚠️ Pagamento já processado - ${referencia} (${valor}MT)`);
+        return {
+            sucesso: false,
+            erro: 'Pagamento já foi processado anteriormente',
+            tipo: 'ja_processado'
+        };
+    }
+
+    if (!pagamentoConfirmado) {
+        console.log(`❌ Pagamento não confirmado - ${referencia} (${valor}MT)`);
+        return {
+            sucesso: false,
+            erro: 'Pagamento não encontrado na planilha de pagamentos',
+            tipo: 'nao_encontrado'
+        };
+    }
+
+    console.log(`✅ Pagamento confirmado! Processando [${grupoNome}]: ${linhaCompleta}`);
     
     // Armazenar localmente (backup)
     dadosParaTasker.push({
@@ -1238,14 +1352,39 @@ client.on('message', async (message) => {
                         const nomeContato = message._data.notifyName || 'N/A';
                         const autorMensagem = message.author || 'Desconhecido';
                         
-                        await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+                        const resultadoEnvio = await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+
+                        if (resultadoEnvio && !resultadoEnvio.sucesso) {
+                            if (resultadoEnvio.tipo === 'ja_processado') {
+                                await message.reply(
+                                    `⚠️ *PAGAMENTO JÁ PROCESSADO*\n\n` +
+                                    `💰 Referência: ${referencia}\n` +
+                                    `📊 Megas: ${megas}\n` +
+                                    `📱 Número: ${numero}\n\n` +
+                                    `✅ Este pagamento já foi processado anteriormente. Não é necessário enviar novamente.\n\n` +
+                                    `Se você acredita que isso é um erro, entre em contato com o suporte.`
+                                );
+                                return;
+                            } else if (resultadoEnvio.tipo === 'nao_encontrado') {
+                                await message.reply(
+                                    `⏳ *AGUARDANDO CONFIRMAÇÃO DO PAGAMENTO*\n\n` +
+                                    `💰 Referência: ${referencia}\n` +
+                                    `📊 Megas: ${megas}\n` +
+                                    `📱 Número: ${numero}\n\n` +
+                                    `🔍 Aguardando confirmação do pagamento no sistema...\n` +
+                                    `⏱️ Tente novamente em alguns minutos.`
+                                );
+                                return;
+                            }
+                        }
+
                         await registrarComprador(message.from, numero, nomeContato, megas);
-                        
+
                         if (message.from === ENCAMINHAMENTO_CONFIG.grupoOrigem) {
                             const timestampMensagem = new Date().toLocaleString('pt-BR');
                             adicionarNaFila(dadosCompletos, autorMensagem, configGrupo.nome, timestampMensagem);
                         }
-                        
+
                         await message.reply(
                             `✅ *Pedido Recebido!*\n\n` +
                             `💰 Referência: ${referencia}\n` +
@@ -1326,14 +1465,39 @@ client.on('message', async (message) => {
                 const nomeContato = message._data.notifyName || 'N/A';
                 const autorMensagem = message.author || 'Desconhecido';
                 
-                await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+                const resultadoEnvio = await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+
+                if (resultadoEnvio && !resultadoEnvio.sucesso) {
+                    if (resultadoEnvio.tipo === 'ja_processado') {
+                        await message.reply(
+                            `⚠️ *PAGAMENTO JÁ PROCESSADO*\n\n` +
+                            `💰 Referência: ${referencia}\n` +
+                            `📊 Megas: ${megas}\n` +
+                            `📱 Número: ${numero}\n\n` +
+                            `✅ Este pagamento já foi processado anteriormente. Não é necessário enviar novamente.\n\n` +
+                            `Se você acredita que isso é um erro, entre em contato com o suporte.`
+                        );
+                        return;
+                    } else if (resultadoEnvio.tipo === 'nao_encontrado') {
+                        await message.reply(
+                            `⏳ *AGUARDANDO CONFIRMAÇÃO DO PAGAMENTO*\n\n` +
+                            `💰 Referência: ${referencia}\n` +
+                            `📊 Megas: ${megas}\n` +
+                            `📱 Número: ${numero}\n\n` +
+                            `🔍 Aguardando confirmação do pagamento no sistema...\n` +
+                            `⏱️ Tente novamente em alguns minutos.`
+                        );
+                        return;
+                    }
+                }
+
                 await registrarComprador(message.from, numero, nomeContato, megas);
-                
+
                 if (message.from === ENCAMINHAMENTO_CONFIG.grupoOrigem) {
                     const timestampMensagem = new Date().toLocaleString('pt-BR');
                     adicionarNaFila(dadosCompletos, autorMensagem, configGrupo.nome, timestampMensagem);
                 }
-                
+
                 await message.reply(
                     `✅ *Pedido Recebido!*\n\n` +
                     `💰 Referência: ${referencia}\n` +
