@@ -59,6 +59,18 @@ let dadosParaTasker = [];
 let historicoCompradores = {};
 const ARQUIVO_HISTORICO = 'historico_compradores.json';
 
+// === SISTEMA DE PACOTES AUTOMÁTICOS ===
+const SistemaPacotes = require('./sistema_pacotes');
+let sistemaPacotes = null;
+
+// Inicializar sistema de pacotes se habilitado
+if (process.env.SISTEMA_PACOTES_ENABLED === 'true') {
+    console.log('📦 Inicializando Sistema de Pacotes Automáticos...');
+    sistemaPacotes = new SistemaPacotes();
+} else {
+    console.log('📦 Sistema de Pacotes Automáticos desabilitado');
+}
+
 // Cache de administradores dos grupos
 let adminCache = {};
 
@@ -1027,6 +1039,9 @@ client.on('ready', async () => {
     });
     
     console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual');
+    if (sistemaPacotes) {
+        console.log('📦 Comandos pacotes: .pacotes .pacotes_stats .validade [numero] .cancelar_pacote [numero] [ref] .criar_pacote [ref] [numero] [dias]');
+    }
 });
 
 client.on('group-join', async (notification) => {
@@ -1224,6 +1239,66 @@ client.on('message', async (message) => {
                 dadosParaTasker = [];
                 await message.reply('🗑️ *Dados do Google Sheets limpos!*');
                 return;
+            }
+
+            // === COMANDOS SISTEMA DE PACOTES ===
+            if (sistemaPacotes) {
+                if (comando === '.pacotes') {
+                    const lista = sistemaPacotes.listarClientesAtivos();
+                    await message.reply(lista);
+                    return;
+                }
+
+                if (comando === '.pacotes_stats') {
+                    const stats = sistemaPacotes.obterEstatisticas();
+                    await message.reply(stats);
+                    return;
+                }
+
+                if (comando.startsWith('.validade ')) {
+                    const numero = comando.split(' ')[1];
+                    if (numero && /^\d{9}$/.test(numero)) {
+                        const resultado = sistemaPacotes.verificarValidadePacote(numero);
+                        await message.reply(resultado);
+                    } else {
+                        await message.reply('❌ Formato: .validade 842223344');
+                    }
+                    return;
+                }
+
+                if (comando.startsWith('.cancelar_pacote ')) {
+                    const params = comando.split(' ');
+                    if (params.length === 3) {
+                        const numero = params[1];
+                        const referencia = params[2];
+                        const resultado = sistemaPacotes.cancelarPacote(numero, referencia);
+                        await message.reply(resultado);
+                    } else {
+                        await message.reply('❌ Formato: .cancelar_pacote 842223344 REF123');
+                    }
+                    return;
+                }
+
+                if (comando.startsWith('.criar_pacote ')) {
+                    const params = comando.split(' ');
+                    if (params.length === 4) {
+                        const referencia = params[1];
+                        const numero = params[2];
+                        const tipoPacote = params[3];
+
+                        console.log(`📦 Criando pacote manual: ${referencia} para ${numero} (${tipoPacote} dias)`);
+                        const resultado = await sistemaPacotes.processarComprovante(referencia, numero, message.from, tipoPacote);
+
+                        if (resultado.sucesso) {
+                            await message.reply(resultado.mensagem);
+                        } else {
+                            await message.reply(`❌ Erro ao criar pacote: ${resultado.erro}`);
+                        }
+                    } else {
+                        await message.reply('❌ Formato: .criar_pacote REF123 842223344 30\n\nTipos disponíveis: 3, 5, 15, 30 dias');
+                    }
+                    return;
+                }
             }
 
             // === NOVOS COMANDOS PARA DETECÇÃO DE GRUPOS ===
