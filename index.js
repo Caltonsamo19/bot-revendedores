@@ -611,18 +611,21 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
 }
 
 // === FUNÇÃO PRINCIPAL PARA TASKER ===
-async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensagem) {
+async function enviarParaTasker(referencia, valorPagamento, numero, grupoId, autorMensagem, megasCalculados = null) {
     const grupoNome = getConfiguracaoGrupo(grupoId)?.nome || 'Desconhecido';
     const timestamp = new Date().toLocaleString('pt-BR');
-    const linhaCompleta = `${referencia}|${valor}|${numero}`;
 
-    console.log(`🔍 VERIFICANDO PAGAMENTO [${grupoNome}]: ${linhaCompleta}`);
+    // Usar megasCalculados se fornecido, senão usar valorPagamento
+    const valorParaPlanilha = megasCalculados || valorPagamento;
+    const linhaCompleta = `${referencia}|${valorParaPlanilha}|${numero}`;
 
-    // === VERIFICAR PAGAMENTO ANTES DE PROCESSAR ===
-    const pagamentoConfirmado = await verificarPagamento(referencia, valor);
+    console.log(`🔍 VERIFICANDO PAGAMENTO [${grupoNome}]: ${referencia} - Valor real: ${valorPagamento}MT`);
+
+    // === VERIFICAR PAGAMENTO ANTES DE PROCESSAR (usando valor real do pagamento) ===
+    const pagamentoConfirmado = await verificarPagamento(referencia, valorPagamento);
 
     if (pagamentoConfirmado === 'ja_processado') {
-        console.log(`⚠️ Pagamento já processado - ${referencia} (${valor}MT)`);
+        console.log(`⚠️ Pagamento já processado - ${referencia} (${valorPagamento}MT)`);
         return {
             sucesso: false,
             erro: 'Pagamento já foi processado anteriormente',
@@ -631,7 +634,7 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
     }
 
     if (!pagamentoConfirmado) {
-        console.log(`❌ Pagamento não confirmado - ${referencia} (${valor}MT)`);
+        console.log(`❌ Pagamento não confirmado - ${referencia} (${valorPagamento}MT)`);
         return {
             sucesso: false,
             erro: 'Pagamento não encontrado na planilha de pagamentos',
@@ -653,7 +656,7 @@ async function enviarParaTasker(referencia, valor, numero, grupoId, autorMensage
     });
     
     // === TENTAR GOOGLE SHEETS PRIMEIRO ===
-    const resultado = await enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoNome, autorMensagem);
+    const resultado = await enviarParaGoogleSheets(referencia, valorParaPlanilha, numero, grupoId, grupoNome, autorMensagem);
     
     if (resultado.sucesso) {
         // Marcar como enviado
@@ -1352,7 +1355,9 @@ client.on('message', async (message) => {
                         const nomeContato = message._data.notifyName || 'N/A';
                         const autorMensagem = message.author || 'Desconhecido';
                         
-                        const resultadoEnvio = await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+                        // Usar valor do comprovante para verificação, não os megas
+                        const valorPagamento = resultadoIA.valorComprovante || resultadoIA.valorPago || megas;
+                        const resultadoEnvio = await enviarParaTasker(referencia, valorPagamento, numero, message.from, autorMensagem, megas);
 
                         if (resultadoEnvio && !resultadoEnvio.sucesso) {
                             if (resultadoEnvio.tipo === 'ja_processado') {
@@ -1465,7 +1470,9 @@ client.on('message', async (message) => {
                 const nomeContato = message._data.notifyName || 'N/A';
                 const autorMensagem = message.author || 'Desconhecido';
                 
-                const resultadoEnvio = await enviarParaTasker(referencia, megas, numero, message.from, autorMensagem);
+                // Usar valor do comprovante para verificação, não os megas
+                const valorPagamento = resultadoIA.valorComprovante || resultadoIA.valorPago || megas;
+                const resultadoEnvio = await enviarParaTasker(referencia, valorPagamento, numero, message.from, autorMensagem, megas);
 
                 if (resultadoEnvio && !resultadoEnvio.sucesso) {
                     if (resultadoEnvio.tipo === 'ja_processado') {
