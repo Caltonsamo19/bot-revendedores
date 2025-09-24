@@ -8,10 +8,10 @@ class WhatsAppAI {
     this.historicoMensagens = [];
     this.maxHistorico = 100; // OTIMIZADO: Reduzido de 200 para 100 mensagens
 
-    // RATE LIMITING PARA OPENAI
+    // RATE LIMITING PARA OPENAI - OTIMIZADO
     this.rateLimiter = {
       requests: [],
-      maxRequests: 10, // máximo 10 requests por minuto
+      maxRequests: 80, // máximo 80 requests por minuto (aumentado de 10)
       windowMs: 60000 // janela de 1 minuto
     };
     

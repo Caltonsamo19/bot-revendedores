@@ -4,6 +4,168 @@ const qrcode = require('qrcode-terminal');
 const fs = require('fs').promises;
 const axios = require('axios'); // npm install axios
 
+// === CONNECTION POOLING PARA APIS EXTERNAS ===
+class APIConnectionPool {
+    constructor() {
+        this.axiosInstances = new Map();
+        this.maxConcurrent = 5; // Máximo 5 requests simultâneas por endpoint
+        this.activeRequests = new Map(); // endpoint -> count
+        this.requestQueue = new Map(); // endpoint -> array of pending requests
+
+        console.log('🔗 API Connection Pool inicializado');
+    }
+
+    getAxiosInstance(baseURL) {
+        if (!this.axiosInstances.has(baseURL)) {
+            const instance = axios.create({
+                baseURL,
+                timeout: 30000,
+                maxRedirects: 3,
+                validateStatus: (status) => status < 500, // Retry apenas em erros 5xx
+                headers: {
+                    'User-Agent': 'WhatsApp-Bot/1.0',
+                    'Connection': 'keep-alive'
+                }
+            });
+
+            // Request interceptor para rate limiting
+            instance.interceptors.request.use(async (config) => {
+                await this.waitForSlot(baseURL);
+                this.incrementActive(baseURL);
+                return config;
+            });
+
+            // Response interceptor para cleanup
+            instance.interceptors.response.use(
+                (response) => {
+                    this.decrementActive(baseURL);
+                    return response;
+                },
+                (error) => {
+                    this.decrementActive(baseURL);
+                    throw error;
+                }
+            );
+
+            this.axiosInstances.set(baseURL, instance);
+        }
+        return this.axiosInstances.get(baseURL);
+    }
+
+    async waitForSlot(baseURL) {
+        const active = this.activeRequests.get(baseURL) || 0;
+
+        if (active >= this.maxConcurrent) {
+            return new Promise((resolve) => {
+                const queue = this.requestQueue.get(baseURL) || [];
+                queue.push(resolve);
+                this.requestQueue.set(baseURL, queue);
+            });
+        }
+    }
+
+    incrementActive(baseURL) {
+        const current = this.activeRequests.get(baseURL) || 0;
+        this.activeRequests.set(baseURL, current + 1);
+    }
+
+    decrementActive(baseURL) {
+        const current = this.activeRequests.get(baseURL) || 0;
+        this.activeRequests.set(baseURL, Math.max(0, current - 1));
+
+        // Processar fila se houver
+        const queue = this.requestQueue.get(baseURL) || [];
+        if (queue.length > 0 && current - 1 < this.maxConcurrent) {
+            const nextResolve = queue.shift();
+            this.requestQueue.set(baseURL, queue);
+            nextResolve();
+        }
+    }
+
+    getStats() {
+        const stats = {};
+        for (const [url, count] of this.activeRequests.entries()) {
+            const queueSize = (this.requestQueue.get(url) || []).length;
+            stats[url] = { active: count, queued: queueSize };
+        }
+        return stats;
+    }
+}
+
+const apiPool = new APIConnectionPool();
+
+// === SISTEMA DE LOGS OTIMIZADO (MODO SILENCIOSO) ===
+const SILENT_MODE = true; // Reduzir logs desnecessários para performance
+const LOG_LEVEL = {
+    ERROR: 0,   // Sempre mostrar erros
+    WARN: 1,    // Mostrar avisos importantes
+    INFO: 2,    // Mostrar informações essenciais
+    DEBUG: 3    // Mostrar debug (desabilitado em modo silencioso)
+};
+
+function smartLog(level, message, ...args) {
+    if (SILENT_MODE && level === LOG_LEVEL.DEBUG) return; // Pular logs debug
+    if (level <= LOG_LEVEL.WARN || !SILENT_MODE) {
+        console.log(message, ...args);
+    }
+}
+
+// === CACHE DE VERIFICAÇÕES ADMIN (5 MINUTOS) ===
+class AdminCache {
+    constructor() {
+        this.cache = new Map();
+        this.cacheTimeout = 5 * 60 * 1000; // 5 minutos
+
+        // Limpeza automática a cada 10 minutos
+        setInterval(() => this.cleanup(), 10 * 60 * 1000);
+        smartLog(LOG_LEVEL.INFO, '🔒 Admin Cache inicializado (5min TTL)');
+    }
+
+    get(userId) {
+        const entry = this.cache.get(userId);
+        if (!entry) return null;
+
+        if (Date.now() - entry.timestamp > this.cacheTimeout) {
+            this.cache.delete(userId);
+            return null;
+        }
+
+        return entry.isAdmin;
+    }
+
+    set(userId, isAdmin) {
+        this.cache.set(userId, {
+            isAdmin,
+            timestamp: Date.now()
+        });
+    }
+
+    cleanup() {
+        const now = Date.now();
+        let removed = 0;
+
+        for (const [userId, entry] of this.cache.entries()) {
+            if (now - entry.timestamp > this.cacheTimeout) {
+                this.cache.delete(userId);
+                removed++;
+            }
+        }
+
+        if (removed > 0) {
+            smartLog(LOG_LEVEL.INFO, `🗑️ Admin cache: removidos ${removed} entradas expiradas`);
+        }
+    }
+
+    getStats() {
+        return {
+            entries: this.cache.size,
+            timeout: this.cacheTimeout / 1000 + 's'
+        };
+    }
+}
+
+const adminCache = new AdminCache();
+
 // === IMPORTAR A IA ===
 const WhatsAppAI = require('./whatsapp_ai');
 
@@ -94,12 +256,153 @@ const ENCAMINHAMENTO_CONFIG = {
     intervaloSegundos: 2
 };
 
-// Fila de mensagens para encaminhar
+// === SISTEMA DE FILA ASSÍNCRONA DE MENSAGENS ===
+class MessageQueue {
+    constructor() {
+        this.queue = [];
+        this.processing = false;
+        this.concurrency = 3; // Processar até 3 mensagens simultaneamente
+        this.activeJobs = 0;
+        this.maxQueueSize = 1000; // Limite da fila para evitar overflow
+    }
+
+    async add(messageData, handler) {
+        if (this.queue.length >= this.maxQueueSize) {
+            console.log(`⚠️ QUEUE: Fila cheia (${this.maxQueueSize}), descartando mensagem mais antiga`);
+            this.queue.shift();
+        }
+
+        this.queue.push({ messageData, handler, timestamp: Date.now() });
+        this.processQueue();
+    }
+
+    async processQueue() {
+        if (this.processing || this.activeJobs >= this.concurrency || this.queue.length === 0) {
+            return;
+        }
+
+        this.processing = true;
+
+        while (this.queue.length > 0 && this.activeJobs < this.concurrency) {
+            const job = this.queue.shift();
+            this.activeJobs++;
+
+            // Processar job em paralelo sem await
+            this.processJob(job).finally(() => {
+                this.activeJobs--;
+                this.processQueue(); // Continuar processando
+            });
+        }
+
+        this.processing = false;
+    }
+
+    async processJob(job) {
+        try {
+            const { messageData, handler, timestamp } = job;
+            const waitTime = Date.now() - timestamp;
+
+            if (waitTime > 30000) { // Descartar mensagens muito antigas (30s)
+                console.log(`⏰ QUEUE: Mensagem descartada por timeout (${waitTime}ms)`);
+                return;
+            }
+
+            smartLog(LOG_LEVEL.DEBUG, `📤 QUEUE: Processando mensagem (fila: ${this.queue.length}, ativos: ${this.activeJobs})`);
+            await handler(messageData);
+
+        } catch (error) {
+            console.error(`❌ QUEUE: Erro ao processar mensagem:`, error);
+        }
+    }
+
+    getStats() {
+        return {
+            queueSize: this.queue.length,
+            activeJobs: this.activeJobs,
+            processing: this.processing
+        };
+    }
+}
+
+const messageQueue = new MessageQueue();
+
+// Fila de mensagens para encaminhar (mantida para compatibilidade)
 let filaMensagens = [];
 let processandoFila = false;
 
-// === SISTEMA DE CACHE DE DADOS OTIMIZADO ===
-let cacheTransacoes = new Map(); // Cache em memória mais eficiente
+// === SISTEMA DE CACHE DE DADOS OTIMIZADO COM CLEANUP AUTOMÁTICO ===
+class MemoryManager {
+    constructor() {
+        this.cacheTransacoes = new Map();
+        this.maxCacheSize = 500; // Limite máximo de itens
+        this.cleanupInterval = 30 * 60 * 1000; // Cleanup a cada 30min
+
+        // Iniciar cleanup automático
+        setInterval(() => this.performCleanup(), this.cleanupInterval);
+        console.log('🧹 Memory Manager inicializado com cleanup automático');
+    }
+
+    performCleanup() {
+        const beforeSize = this.getMemoryUsage();
+
+        // Limpar cache de transações se exceder limite
+        if (this.cacheTransacoes.size > this.maxCacheSize) {
+            const keys = Array.from(this.cacheTransacoes.keys());
+            const keysToDelete = keys.slice(0, keys.length - Math.floor(this.maxCacheSize * 0.8));
+            keysToDelete.forEach(key => this.cacheTransacoes.delete(key));
+            console.log(`🗑️ Cache: removidos ${keysToDelete.length} itens antigos`);
+        }
+
+        // Limpar objetos de referência muito grandes
+        this.cleanupObjectSize(codigosReferencia, 'codigosReferencia', 200);
+        this.cleanupObjectSize(referenciasClientes, 'referenciasClientes', 300);
+        this.cleanupObjectSize(bonusSaldos, 'bonusSaldos', 200);
+        this.cleanupObjectSize(cacheBoasVindas, 'cacheBoasVindas', 100);
+
+        // Limpar itens expirados do cache de boas-vindas (mais de 24h)
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        Object.keys(cacheBoasVindas).forEach(key => {
+            if (cacheBoasVindas[key] < oneDayAgo) {
+                delete cacheBoasVindas[key];
+            }
+        });
+
+        const afterSize = this.getMemoryUsage();
+        console.log(`🧹 Memory cleanup: ${beforeSize.total}MB → ${afterSize.total}MB`);
+    }
+
+    cleanupObjectSize(obj, name, maxSize) {
+        const keys = Object.keys(obj);
+        if (keys.length > maxSize) {
+            const keysToDelete = keys.slice(0, keys.length - Math.floor(maxSize * 0.8));
+            keysToDelete.forEach(key => delete obj[key]);
+            console.log(`🗑️ ${name}: removidos ${keysToDelete.length} itens antigos`);
+        }
+    }
+
+    getMemoryUsage() {
+        const usage = process.memoryUsage();
+        return {
+            rss: Math.round(usage.rss / 1024 / 1024),
+            heap: Math.round(usage.heapUsed / 1024 / 1024),
+            total: Math.round(usage.rss / 1024 / 1024)
+        };
+    }
+
+    getStats() {
+        return {
+            cacheTransacoes: this.cacheTransacoes.size,
+            codigosReferencia: Object.keys(codigosReferencia).length,
+            referenciasClientes: Object.keys(referenciasClientes).length,
+            bonusSaldos: Object.keys(bonusSaldos).length,
+            pagamentosPendentes: Object.keys(pagamentosPendentes).length,
+            memory: this.getMemoryUsage()
+        };
+    }
+}
+
+const memoryManager = new MemoryManager();
+let cacheTransacoes = memoryManager.cacheTransacoes; // Manter compatibilidade
 
 // === SISTEMA DE RETRY SILENCIOSO PARA PAGAMENTOS ===
 let pagamentosPendentes = {}; // {id: {dados do pedido}}
@@ -107,6 +410,7 @@ let timerRetryPagamentos = null;
 const ARQUIVO_PAGAMENTOS_PENDENTES = './pagamentos_pendentes.json';
 const RETRY_INTERVAL = 60000; // 60 segundos
 const RETRY_TIMEOUT = 30 * 60 * 1000; // 30 minutos
+const MAX_RETRY_ATTEMPTS = 3; // Máximo 3 tentativas por pagamento
 
 // === SISTEMA DE REFERÊNCIAS E BÔNUS ===
 let codigosReferencia = {}; // codigo -> dados do dono
@@ -801,7 +1105,7 @@ async function enviarBoasVindas(grupoId, participantId) {
 🤖 *SISTEMA DE VENDAS 100% AUTOMÁTICO!*
 📱 1. Envie comprovante de pagamento aqui
 ⚡ 2. Nosso sistema processa automaticamente
-📊 3. Participe do ranking diário de compradores
+📊 3. Participe do ranking geral de compradores
 
 💰 *COMANDOS ÚTEIS:*
 • *tabela* - Ver preços de pacotes
@@ -1222,20 +1526,17 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
 
         console.log(`🔍 REVENDEDORES: Verificando pagamento ${referencia} - ${valorNormalizado}MT (original: ${valorEsperado})`);
 
-        // Primeira tentativa: busca pelo valor exato (otimizado)
-        let response = await axios.post(PAGAMENTOS_CONFIG.scriptUrl, {
+        // Primeira tentativa: busca pelo valor exato (usando connection pool)
+        const paymentsApi = apiPool.getAxiosInstance('https://script.google.com/macros/s/');
+        let response = await paymentsApi.post(PAGAMENTOS_CONFIG.scriptUrl, {
             action: "buscar_por_referencia",
             referencia: referencia,
             valor: valorNormalizado
         }, {
-            timeout: PAGAMENTOS_CONFIG.timeout, // Mantém timeout do Google Sheets
             headers: {
                 'Content-Type': 'application/json',
-                'Connection': 'keep-alive',
                 'Cache-Control': 'no-cache'
-            },
-            maxRedirects: 3,
-            validateStatus: (status) => status < 500
+            }
         });
 
         if (response.data && response.data.encontrado) {
@@ -1243,20 +1544,16 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
             return true;
         }
 
-        // Segunda tentativa: busca apenas por referência (com tolerância de valor)
+        // Segunda tentativa: busca apenas por referência (usando connection pool)
         console.log(`🔍 REVENDEDORES: Tentando busca apenas por referência...`);
-        response = await axios.post(PAGAMENTOS_CONFIG.scriptUrl, {
+        response = await paymentsApi.post(PAGAMENTOS_CONFIG.scriptUrl, {
             action: "buscar_por_referencia_only",
             referencia: referencia
         }, {
-            timeout: PAGAMENTOS_CONFIG.timeout, // Mantém timeout do Google Sheets
             headers: {
                 'Content-Type': 'application/json',
-                'Connection': 'keep-alive',
                 'Cache-Control': 'no-cache'
-            },
-            maxRedirects: 3,
-            validateStatus: (status) => status < 500
+            }
         });
 
         if (response.data && response.data.encontrado) {
@@ -1287,8 +1584,8 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
 let historicoCompradores = {};
 const ARQUIVO_HISTORICO = 'historico_compradores.json';
 
-// Cache de administradores dos grupos
-let adminCache = {};
+// Cache de administradores dos grupos (diferente do AdminCache global)
+let groupAdminCache = {};
 
 // === FUNÇÕES DO SISTEMA DE RETRY SILENCIOSO ===
 
@@ -1400,9 +1697,16 @@ async function verificarPagamentosPendentes() {
             continue;
         }
 
+        // Verificar se atingiu limite de tentativas
+        if (pendencia.tentativas >= MAX_RETRY_ATTEMPTS) {
+            console.log(`❌ RETRY: Pagamento ${pendencia.referencia} atingiu limite de ${MAX_RETRY_ATTEMPTS} tentativas - removendo da fila`);
+            await removerPagamentoPendente(pendencia.id);
+            continue;
+        }
+
         // Verificar pagamento
         pendencia.tentativas++;
-        console.log(`🔍 RETRY: Tentativa ${pendencia.tentativas} para ${pendencia.referencia}`);
+        console.log(`🔍 RETRY: Tentativa ${pendencia.tentativas}/${MAX_RETRY_ATTEMPTS} para ${pendencia.referencia}`);
 
         const pagamentoConfirmado = await verificarPagamentoIndividual(pendencia.referencia, pendencia.valorComprovante);
 
@@ -1537,7 +1841,7 @@ const CONFIGURACAO_GRUPOS = {
 🤖 *SISTEMA DE VENDAS 100% AUTOMÁTICO!*
 📱 1. Envie comprovante de pagamento aqui
 ⚡ 2. Nosso sistema processa automaticamente
-📊 3. Participe do ranking diário de compradores
+📊 3. Participe do ranking geral de compradores
 
 💰 *COMANDOS ÚTEIS:*
 • *tabela* - Ver preços de pacotes
@@ -1846,7 +2150,7 @@ Importante 🚨: Envie o valor que consta na tabela!
 🤖 *SISTEMA 100% AUTOMÁTICO - SEM DEMORAS!*
 ⚡ Envie seu comprovante e receba instantaneamente
 🏆 Sistema mais rápido de Moçambique
-📊 Ranking diário com prêmios especiais
+📊 Ranking geral com prêmios especiais
 
 💰 *COMANDOS:*
 • *tabela* - Ver preços VIP
@@ -2035,17 +2339,14 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
         console.log(`🔍 Dados enviados:`, JSON.stringify(dados, null, 2));
         console.log(`🔗 URL destino:`, GOOGLE_SHEETS_CONFIG.scriptUrl);
         
-       const response = await axios.post(GOOGLE_SHEETS_CONFIG.scriptUrl, dados, {
-    timeout: GOOGLE_SHEETS_CONFIG.timeout,
-    headers: {
-        'Content-Type': 'application/json',
-        'X-Bot-Source': 'WhatsApp-Bot'
-    },
-    // Configuração de retry
-    validateStatus: function (status) {
-        return status < 500; // Resolve apenas se status < 500
-    }
-});
+        // Usar connection pool para Google Sheets
+        const sheetsApi = apiPool.getAxiosInstance('https://script.google.com/macros/s/');
+        const response = await sheetsApi.post(GOOGLE_SHEETS_CONFIG.scriptUrl, dados, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Bot-Source': 'WhatsApp-Bot-Pooled'
+            }
+        });
         
         // Google Apps Script agora retorna JSON
         const responseData = response.data;
@@ -2328,7 +2629,17 @@ function detectarPerguntaPorNumero(mensagem) {
 }
 
 function isAdministrador(numero) {
-    return ADMINISTRADORES_GLOBAIS.includes(numero);
+    // Verificar cache primeiro
+    const cached = adminCache.get(numero);
+    if (cached !== null) {
+        return cached;
+    }
+
+    // Calcular e cachear resultado
+    const isAdmin = ADMINISTRADORES_GLOBAIS.includes(numero);
+    adminCache.set(numero, isAdmin);
+
+    return isAdmin;
 }
 
 function isGrupoMonitorado(chatId) {
@@ -2364,8 +2675,8 @@ async function isAdminGrupo(chatId, participantId) {
     try {
         console.log(`🔍 Verificando admin: chatId=${chatId}, participantId=${participantId}`);
         
-        if (adminCache[chatId] && adminCache[chatId].timestamp > Date.now() - 300000) {
-            const { admins, mapeamentoLidToCus } = adminCache[chatId];
+        if (groupAdminCache[chatId] && groupAdminCache[chatId].timestamp > Date.now() - 300000) {
+            const { admins, mapeamentoLidToCus } = groupAdminCache[chatId];
             console.log(`📋 Usando cache...`);
             
             // Usar mapeamento para verificar se é admin
@@ -2424,7 +2735,7 @@ async function isAdminGrupo(chatId, participantId) {
         console.log(`🗺️ Mapeamento criado:`, mapeamentoLidToCus);
         
         // Salvar cache com mapeamento
-        adminCache[chatId] = {
+        groupAdminCache[chatId] = {
             admins: admins,
             mapeamentoLidToCus: mapeamentoLidToCus,
             timestamp: Date.now()
@@ -3057,15 +3368,100 @@ client.on('group-join', async (notification) => {
     }
 });
 
-client.on('message', async (message) => {
+// === HANDLERS SEPARADOS POR TIPO DE COMANDO ===
+async function handleAdminCommands(message) {
+    const autorMensagem = message.author || message.from;
+    const isAdmin = isAdministrador(autorMensagem);
+
+    let isAdminDoGrupo = false;
+    if (message.from.endsWith('@g.us')) {
+        isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
+    }
+
+    const isAdminQualquer = isAdmin || isAdminDoGrupo;
+    if (!isAdminQualquer) return false;
+
+    const comando = message.body.toLowerCase().trim();
+
+    // Comandos administrativos rápidos
+    if (comando === '.ia') {
+        const statusIA = ia.getStatusDetalhado();
+        await message.reply(statusIA);
+        return true;
+    }
+
+    if (comando === '.queue') {
+        const stats = messageQueue.getStats();
+        await message.reply(`📊 *QUEUE STATUS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n🔄 Fila: ${stats.queueSize}\n⚡ Ativos: ${stats.activeJobs}\n🎯 Processando: ${stats.processing ? 'SIM' : 'NÃO'}`);
+        return true;
+    }
+
+    if (comando === '.memory') {
+        const stats = memoryManager.getStats();
+        const memStats = `📊 *MEMORY STATUS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n💾 Memória: ${stats.memory.total}MB\n🗄️ Cache Transações: ${stats.cacheTransacoes}\n👥 Códigos Ref: ${stats.codigosReferencia}\n🎯 Clientes Ref: ${stats.referenciasClientes}\n💰 Bônus: ${stats.bonusSaldos}\n⏳ Pagamentos Pendentes: ${stats.pagamentosPendentes}`;
+        await message.reply(memStats);
+        return true;
+    }
+
+    if (comando === '.pool') {
+        const poolStats = apiPool.getStats();
+        let poolStatus = `🔗 *CONNECTION POOL STATUS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+        if (Object.keys(poolStats).length === 0) {
+            poolStatus += `✅ Pool vazio (sem conexões ativas)`;
+        } else {
+            for (const [url, stats] of Object.entries(poolStats)) {
+                const shortUrl = url.replace('https://script.google.com/macros/s/', 'sheets/');
+                poolStatus += `📍 ${shortUrl}\n`;
+                poolStatus += `   ⚡ Ativas: ${stats.active}/5\n`;
+                poolStatus += `   📋 Fila: ${stats.queued}\n\n`;
+            }
+        }
+
+        await message.reply(poolStatus);
+        return true;
+    }
+
+    if (comando === '.performance') {
+        const adminStats = adminCache.getStats();
+        const queueStats = messageQueue.getStats();
+        const memStats = memoryManager.getStats();
+
+        let perfStatus = `⚡ *PERFORMANCE STATUS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        perfStatus += `🔒 Admin Cache: ${adminStats.entries} (${adminStats.timeout})\n`;
+        perfStatus += `📤 Message Queue: ${queueStats.queueSize} fila, ${queueStats.activeJobs} ativos\n`;
+        perfStatus += `💾 Memória: ${memStats.memory.total}MB\n`;
+        perfStatus += `🔇 Modo Silencioso: ${SILENT_MODE ? 'ATIVO' : 'INATIVO'}\n`;
+        perfStatus += `🔗 Pool Conexões: ${Object.keys(apiPool.getStats()).length} endpoints`;
+
+        await message.reply(perfStatus);
+        return true;
+    }
+
+    return false; // Comando não foi processado aqui
+}
+
+async function handlePurchaseCommands(message) {
+    const body = message.body.toLowerCase().trim();
+
+    // Comandos de compra que precisam ir para fila
+    if (body.includes('comprar') || body.includes('mb') || body.includes('gb') ||
+        body.startsWith('.') || body.includes('referencia') || body.includes('bonus')) {
+        return true; // Deve ser processado na fila
+    }
+
+    return false;
+}
+
+async function processMessage(message) {
     try {
         const isPrivado = !message.from.endsWith('@g.us');
         const autorMensagem = message.author || message.from;
         const isAdmin = isAdministrador(autorMensagem);
-        
+
         // DEBUG DETALHADO DA MENSAGEM
         if (message.body.startsWith('.addcomando') || message.body.startsWith('.comandos') || message.body.startsWith('.delcomando')) {
-            console.log(`🔍 DEBUG MENSAGEM ADMIN:`);
+            smartLog(LOG_LEVEL.DEBUG, `🔍 DEBUG MENSAGEM ADMIN:`);
             console.log(`   📱 message.from: ${message.from}`);
             console.log(`   👤 message.author: ${message.author}`);
             console.log(`   🆔 autorMensagem: ${autorMensagem}`);
@@ -3084,7 +3480,7 @@ client.on('message', async (message) => {
             }
         }
         
-        console.log(`🔍 Debug: Verificando admin para ${autorMensagem}, resultado: ${isAdmin}`);
+        smartLog(LOG_LEVEL.DEBUG, `🔍 Debug: Verificando admin para ${autorMensagem}, resultado: ${isAdmin}`);
 
         // === COMANDOS ADMINISTRATIVOS ===
         // Verificar se é admin global OU admin do grupo
@@ -3093,11 +3489,11 @@ client.on('message', async (message) => {
         // Só verificar admin do grupo se for mensagem de grupo
         if (message.from.endsWith('@g.us')) {
             isAdminDoGrupo = await isAdminGrupo(message.from, autorMensagem);
-            console.log(`🔍 Debug admin grupo: ${autorMensagem} é admin do grupo? ${isAdminDoGrupo}`);
+            smartLog(LOG_LEVEL.DEBUG, `🔍 Debug admin grupo: ${autorMensagem} é admin do grupo? ${isAdminDoGrupo}`);
         }
         
         const isAdminQualquer = isAdmin || isAdminDoGrupo;
-        console.log(`🔍 Debug final: isAdminQualquer = ${isAdminQualquer} (global: ${isAdmin}, grupo: ${isAdminDoGrupo})`);
+        smartLog(LOG_LEVEL.DEBUG, `🔍 Debug final: isAdminQualquer = ${isAdminQualquer} (global: ${isAdmin}, grupo: ${isAdminDoGrupo})`);
         
         if (isAdminQualquer) {
             const comando = message.body.toLowerCase().trim();
@@ -3149,7 +3545,7 @@ client.on('message', async (message) => {
 
                         statusRetry += `${index + 1}. ${pendencia.referencia}\n`;
                         statusRetry += `   💰 Valor: ${pendencia.valorComprovante}MT\n`;
-                        statusRetry += `   🔄 Tentativas: ${pendencia.tentativas}\n`;
+                        statusRetry += `   🔄 Tentativas: ${pendencia.tentativas}/${MAX_RETRY_ATTEMPTS}\n`;
                         statusRetry += `   ⏰ Há ${tempoDecorrido}min (${tempoRestante}min restantes)\n\n`;
                     });
 
@@ -3599,39 +3995,9 @@ client.on('message', async (message) => {
                     }
                 }
 
-                // .resetranking - Reset manual do ranking diário (ADMIN APENAS)
+                // .resetranking - Comando removido (ranking diário/semanal desabilitado)
                 if (comando === '.resetranking') {
-                    try {
-                        // Verificar permissão de admin
-                        const admins = ['258861645968', '258123456789', '258852118624']; // Lista de admins
-                        if (!admins.includes(remetente)) {
-                            return; // Falha silenciosa para segurança
-                        }
-
-                        console.log(`🔄 RESET: Admin ${remetente} solicitou reset do ranking diário`);
-
-                        // Executar reset através do sistema de compras
-                        const resultado = await sistemaCompras.resetarRankingGrupo(message.from);
-
-                        if (resultado.success) {
-                            let resposta = `🔄 *RANKING RESETADO*\n\n`;
-                            resposta += `✅ *Status:* ${resultado.message}\n`;
-                            resposta += `👥 *Clientes afetados:* ${resultado.clientesResetados}\n`;
-                            resposta += `📅 *Data do reset:* ${new Date(resultado.dataReset).toLocaleString('pt-BR')}\n`;
-                            resposta += `👑 *Executado por:* Administrador\n\n`;
-                            resposta += `💡 *Próximos passos:*\n`;
-                            resposta += `• Use .ranking para verificar novo estado\n`;
-                            resposta += `• Novos comprovantes começarão nova contagem`;
-
-                            await message.reply(resposta);
-                        } else {
-                            await message.reply(`❌ *ERRO NO RESET*\n\n⚠️ ${resultado.message}\n\n💡 Contate o suporte técnico se o problema persistir`);
-                        }
-
-                    } catch (error) {
-                        console.error('❌ Erro no comando .resetranking:', error);
-                        await message.reply(`❌ *ERRO INTERNO*\n\n⚠️ Não foi possível resetar o ranking\n\n📝 Erro: ${error.message}`);
-                    }
+                    await message.reply(`❌ *COMANDO DESABILITADO*\n\nO sistema de ranking diário/semanal foi removido.\nApenas o ranking geral está ativo.`);
                     return;
                 }
                 
@@ -5245,6 +5611,29 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
 
     } catch (error) {
         console.error('❌ Erro ao processar mensagem:', error);
+    }
+}
+
+// Novo handler principal com queue
+client.on('message', async (message) => {
+    try {
+        // Primeiro: tentar processar comandos administrativos rápidos
+        const adminProcessed = await handleAdminCommands(message);
+        if (adminProcessed) return;
+
+        // Segundo: verificar se precisa ir para fila
+        const needsQueue = await handlePurchaseCommands(message);
+
+        if (needsQueue) {
+            // Adicionar à fila assíncrona para processamento
+            await messageQueue.add(message, processMessage);
+        } else {
+            // Processar diretamente mensagens simples
+            await processMessage(message);
+        }
+
+    } catch (error) {
+        console.error('❌ Erro no handler principal de mensagem:', error);
     }
 });
 

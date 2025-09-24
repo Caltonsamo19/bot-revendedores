@@ -341,7 +341,8 @@ class SistemaCompras {
                     ultimaCompraDia: null,
                     comprasSemana: 0,
                     megasSemana: 0,
-                    ultimaCompraSemana: null
+                    ultimaCompraSemana: null,
+                    ultimaCompra: null // Para calcular dias sem comprar
                 };
             }
 
@@ -391,13 +392,12 @@ class SistemaCompras {
                 grupoData.megas += megas;
                 grupoData.ultimaCompraDia = hoje;
                 grupoData.ultimaCompraSemana = hoje;
+                grupoData.ultimaCompra = hoje; // Para calcular dias sem comprar
             }
             
-            // Atualizar ranking do grupo (diário e semanal)
+            // Atualizar ranking do grupo (apenas geral)
             if (grupoId) {
                 await this.atualizarRankingGrupo(grupoId);
-                await this.atualizarRankingSemanalGrupo(grupoId);
-                await this.atualizarRankingDiarioGrupo(grupoId);
             }
 
             // SALVAMENTO AUTOMÁTICO APÓS CADA COMPRA CONFIRMADA
@@ -431,16 +431,10 @@ class SistemaCompras {
             const cliente = this.historicoCompradores[numero];
             if (!cliente) return null;
 
-            // Obter posições em todos os rankings
-            console.log(`🔍 DEBUG: Obtendo posições para ${numero} no grupo ${grupoId}`);
+            // Obter posição apenas no ranking geral (único mantido)
+            // DEBUG log removido para performance
             const posicaoGeral = await this.obterPosicaoClienteGrupo(numero, grupoId);
-            console.log(`📊 DEBUG: Posição geral - ${posicaoGeral.posicao}º lugar (${posicaoGeral.megas}MB)`);
-
-            const posicaoSemanal = await this.obterPosicaoClienteSemana(numero, grupoId);
-            console.log(`📊 DEBUG: Posição semanal - ${posicaoSemanal.posicao}º lugar (${posicaoSemanal.megasSemana}MB)`);
-
-            const posicaoDiaria = await this.obterPosicaoClienteDia(numero, grupoId);
-            console.log(`📊 DEBUG: Posição diária - ${posicaoDiaria.posicao}º lugar (${posicaoDiaria.megasDia}MB)`);
+            // DEBUG log removido para performance
 
             // Converter megas para GB quando necessário
             const megasFormatados = megas >= 1024 ? `${(megas/1024).toFixed(1)} GB` : `${megas} MB`;
@@ -450,41 +444,37 @@ class SistemaCompras {
             const megasGrupo = grupoId && cliente.grupos[grupoId] ? cliente.grupos[grupoId].megas : 0;
             const totalFormatado = megasGrupo >= 1024 ? `${(megasGrupo/1024).toFixed(1)} GB` : `${megasGrupo} MB`;
 
-            // Formatar valores dos rankings
-            const megasDiaFormatados = posicaoDiaria.megasDia >= 1024 ?
-                `${(posicaoDiaria.megasDia/1024).toFixed(1)} GB` : `${posicaoDiaria.megasDia} MB`;
+            // Obter dados do líder atual para comparação
+            const liderAtual = await this.obterLiderGrupo(grupoId);
+            const liderMegas = liderAtual && liderAtual.megas >= 1024 ?
+                `${(liderAtual.megas/1024).toFixed(1)} GB` : `${liderAtual?.megas || 0} MB`;
 
-            const megasSemanaFormatados = posicaoSemanal.megasSemana >= 1024 ?
-                `${(posicaoSemanal.megasSemana/1024).toFixed(1)} GB` : `${posicaoSemanal.megasSemana} MB`;
+            // Verificar se cliente não comprava há dias
+            const diasSemComprar = this.calcularDiasSemComprar(numero, grupoId);
 
-            const megasGeralFormatados = posicaoGeral.megas >= 1024 ?
-                `${(posicaoGeral.megas/1024).toFixed(1)} GB` : `${posicaoGeral.megas} MB`;
+            // DEBUG log removido para performance
 
-            console.log(`📊 DEBUG Rankings: ${numero} - Dia: ${posicaoDiaria.posicao}º, Semana: ${posicaoSemanal.posicao}º, Geral: ${posicaoGeral.posicao}º`);
-
-            // Linha de agradecimento
+            // Nova linha de agradecimento padronizada
             let mensagem = '';
-            if (comprasDoDia === 1) {
-                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua 1ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n\n`;
+
+            if (diasSemComprar > 1) {
+                // Cliente que não comprava há dias
+                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Há ${diasSemComprar} dias que você não comprava, bom tê-lo de volta! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+            } else if (comprasDoDia === 1) {
+                // Primeira compra do dia
+                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua 1ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
             } else {
-                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${comprasDoDia}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n\n`;
+                // Múltiplas compras do dia
+                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${comprasDoDia}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
             }
 
-            // Rankings das três categorias
-            mensagem += `📊 Suas posições nos rankings:\n`;
-            mensagem += `🏅 Hoje: ${posicaoDiaria.posicao}º lugar (${megasDiaFormatados})\n`;
-            mensagem += `📅 Semana: ${posicaoSemanal.posicao}º lugar (${megasSemanaFormatados})\n`;
-            mensagem += `🏆 Geral: ${posicaoGeral.posicao}º lugar (${megasGeralFormatados})\n\n`;
-
-            // Mensagem motivacional baseada na melhor posição
-            const melhorPosicao = Math.min(posicaoDiaria.posicao, posicaoSemanal.posicao, posicaoGeral.posicao);
-
-            if (melhorPosicao === 1) {
-                mensagem += `Continue comprando para manter sua liderança e garantir seus bônus especiais! 💪`;
-            } else if (melhorPosicao <= 3) {
-                mensagem += `Continue comprando para subir nos rankings e desbloquear bônus especiais! 💪`;
+            // Mensagem do ranking baseada na posição (apenas ranking geral)
+            if (posicaoGeral.posicao === 1) {
+                mensagem += `Você está em 1º lugar no ranking. Continue comprando para se manter no topo e garantir seus bônus de líder! 🏆`;
+            } else if (posicaoGeral.posicao <= 3) {
+                mensagem += `Você está em ${posicaoGeral.posicao}º lugar no ranking. Está quase lá! Continue comprando para alcançar o topo. O líder já acumulou ${liderMegas}! 🏆`;
             } else {
-                mensagem += `Continue comprando para subir nos rankings e desbloquear bônus especiais! 💪`;
+                mensagem += `Você está em ${posicaoGeral.posicao}º lugar no ranking. Continue comprando para subir e desbloquear bônus especiais. O líder já acumulou ${liderMegas}! 🏆`;
             }
 
             return {
@@ -556,8 +546,33 @@ class SistemaCompras {
         if (!grupoId || !this.rankingPorGrupo[grupoId] || this.rankingPorGrupo[grupoId].length === 0) {
             return { numero: '000000000', megas: 0, compras: 0 };
         }
-        
+
         return this.rankingPorGrupo[grupoId][0];
+    }
+
+    // === CALCULAR DIAS SEM COMPRAR ===
+    calcularDiasSemComprar(numero, grupoId) {
+        try {
+            const cliente = this.historicoCompradores[numero];
+            if (!cliente || !cliente.grupos[grupoId]) {
+                return 0;
+            }
+
+            const ultimaCompraTimestamp = cliente.grupos[grupoId].ultimaCompra;
+            if (!ultimaCompraTimestamp) {
+                return 0; // Primeira compra
+            }
+
+            const agora = new Date();
+            const ultimaCompra = new Date(ultimaCompraTimestamp);
+            const diferencaMs = agora.getTime() - ultimaCompra.getTime();
+            const diasDiferenca = Math.floor(diferencaMs / (24 * 60 * 60 * 1000));
+
+            return Math.max(0, diasDiferenca);
+        } catch (error) {
+            console.error('❌ Erro ao calcular dias sem comprar:', error);
+            return 0;
+        }
     }
 
     // === LIMPAR COMPRAS PENDENTES ANTIGAS ===
