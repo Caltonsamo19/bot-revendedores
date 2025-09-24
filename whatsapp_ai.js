@@ -282,6 +282,8 @@ Se não conseguires extrair os dados:
     const precos = this.extrairPrecosTabela(tabelaTexto);
     const valorNumerico = parseFloat(valor);
 
+    // DEBUG removido para performance em modo silencioso
+
     if (precos.length === 0) {
       console.log(`   ❌ Nenhum preço encontrado na tabela, retornando valor numérico`);
       return valorNumerico;
@@ -342,7 +344,28 @@ Se não conseguires extrair os dados:
     const linhas = tabelaTexto.split('\n');
     
     for (const linha of linhas) {
-      // Padrões MELHORADOS para detectar preços - VERSÃO ROBUSTA
+      // Verificar se a linha tem formato com bônus PRIMEIRO
+      const formatoBonusMatch = /(\d+)\s*\+\s*\d+MB\s*[💎➔→\-_\s]*\s*(\d+(?:[,.]\d+)?)\s*MT/gi.exec(linha);
+
+      if (formatoBonusMatch) {
+        // Processar formato com bônus (considera apenas valor principal)
+        const quantidade = parseFloat(formatoBonusMatch[1]);
+        const preco = this.limparValorNumerico(formatoBonusMatch[2]);
+
+        console.log(`     🎁 Formato com bônus: ${quantidade}MB (principal) = ${preco}MT`);
+
+        precos.push({
+          quantidade: quantidade,
+          preco: preco,
+          descricao: `${quantidade}MB`,
+          tipo: 'diario',
+          original: linha.trim()
+        });
+
+        continue; // Pular outros padrões para esta linha
+      }
+
+      // Padrões MELHORADOS para detectar preços - VERSÃO ROBUSTA (bônus já processado acima)
       const padroes = [
         // Formato: 1024MB 💎 16MT💵💽
         /(\d+)MB\s*[💎➔→\-_\s]*\s*(\d+(?:[,.]\d+)?)\s*MT/gi,
@@ -382,18 +405,18 @@ Se não conseguires extrair os dados:
           // console.log(`     🔍 Padrão ${index}: ${match[0]}`);
           
           // Detectar formato especial reverso (45MT__1741MB)
-          if (index >= 12) { // Apenas padrões reversos (índices 12 e 13)
+          if (index >= 12) { // Padrões reversos (índices ajustados)
             preco = this.limparValorNumerico(match[1]);
             quantidade = parseFloat(match[2]);
             unidade = 'mb';
             // console.log(`     🔄 Formato reverso: ${preco}MT -> ${quantidade}MB`);
-          } else if (index === 7 || index === 8) { // Formatos 🛜 (MB=MT ou GB=MT)
+          } else if (index === 7 || index === 8) { // Formatos 🛜 (MB=MT ou GB=MT) - índices ajustados
             // Para 🛜5120MB = 90MT: quantidade=5120MB, preco=90MT
             quantidade = parseFloat(match[1]);
             preco = this.limparValorNumerico(match[2]);
             unidade = index === 7 ? 'mb' : 'gb';
             console.log(`     🛜 Formato específico: ${quantidade}${unidade.toUpperCase()} = ${preco}MT`);
-          } else if (index === 10) { // Formato: 450MT - Ilimitado + 11.5GB
+          } else if (index === 10) { // Formato: 450MT - Ilimitado + 11.5GB (índice ajustado)
             preco = this.limparValorNumerico(match[1]);
             quantidade = parseFloat(match[2]);
             unidade = 'gb';
@@ -1200,6 +1223,7 @@ Se não conseguires extrair os dados:
       if (numeros.length === 1) {
         // Calcular megas baseado no valor e tabela do grupo
         const megas = configGrupo ? this.calcularMegasPorValor(comprovante.valor, configGrupo.tabela) : comprovante.valor;
+        // DEBUG removido para performance
         const resultado = `${comprovante.referencia}|${megas}|${numeros[0]}`;
         console.log(`   ✅ PEDIDO COMPLETO IMEDIATO: ${resultado} (${comprovante.valor}MT → ${megas}MB)`);
         return { 

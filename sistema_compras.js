@@ -498,7 +498,7 @@ class SistemaCompras {
             
             // Criar array de ranking ordenado por megas do grupo
             const rankingGrupo = Object.entries(this.historicoCompradores)
-                .filter(([numero, dados]) => dados.grupos[grupoId] && dados.grupos[grupoId].megas > 0)
+                .filter(([numero, dados]) => dados && dados.grupos && dados.grupos[grupoId] && dados.grupos[grupoId].megas > 0)
                 .map(([numero, dados]) => ({
                     numero: numero,
                     megas: dados.grupos[grupoId].megas,
@@ -529,8 +529,20 @@ class SistemaCompras {
     // === OBTER POSIÇÃO DO CLIENTE NO GRUPO ===
     async obterPosicaoClienteGrupo(numero, grupoId) {
         console.log(`🔍 DEBUG GERAL: Buscando ${numero} no grupo ${grupoId}`);
-        if (!grupoId || !this.rankingPorGrupo[grupoId]) {
-            console.log(`❌ DEBUG GERAL: Grupo ${grupoId} não encontrado ou vazio`);
+        if (!grupoId) {
+            console.log(`❌ DEBUG GERAL: Grupo não informado`);
+            return { posicao: 1, megas: 0 };
+        }
+
+        // Se o ranking não existe, atualizar primeiro
+        if (!this.rankingPorGrupo[grupoId]) {
+            console.log(`🔄 DEBUG GERAL: Ranking não existe, atualizando...`);
+            await this.atualizarRankingGrupo(grupoId);
+        }
+
+        // Se ainda não existe após atualização, é porque não há compradores
+        if (!this.rankingPorGrupo[grupoId] || this.rankingPorGrupo[grupoId].length === 0) {
+            console.log(`❌ DEBUG GERAL: Nenhum comprador no grupo ${grupoId}`);
             return { posicao: 1, megas: 0 };
         }
 
