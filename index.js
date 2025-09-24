@@ -1324,9 +1324,8 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
 
         console.log(`🔍 REVENDEDORES: Verificando pagamento ${referencia} - ${valorNormalizado}MT (original: ${valorEsperado})`);
 
-        // Primeira tentativa: busca pelo valor exato (usando connection pool)
-        const paymentsApi = apiPool.getAxiosInstance('https://script.google.com/macros/s/');
-        let response = await paymentsApi.post(PAGAMENTOS_CONFIG.scriptUrl, {
+        // Primeira tentativa: busca pelo valor exato (usando axios simplificado)
+        let response = await axiosInstance.post(PAGAMENTOS_CONFIG.scriptUrl, {
             action: "buscar_por_referencia",
             referencia: referencia,
             valor: valorNormalizado
@@ -2135,9 +2134,8 @@ async function enviarParaGoogleSheets(referencia, valor, numero, grupoId, grupoN
         console.log(`🔍 Dados enviados:`, JSON.stringify(dados, null, 2));
         console.log(`🔗 URL destino:`, GOOGLE_SHEETS_CONFIG.scriptUrl);
         
-        // Usar connection pool para Google Sheets
-        const sheetsApi = apiPool.getAxiosInstance('https://script.google.com/macros/s/');
-        const response = await sheetsApi.post(GOOGLE_SHEETS_CONFIG.scriptUrl, dados, {
+        // Usar axios simplificado para Google Sheets
+        const response = await axiosInstance.post(GOOGLE_SHEETS_CONFIG.scriptUrl, dados, {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Bot-Source': 'WhatsApp-Bot-Pooled'
@@ -3200,35 +3198,27 @@ async function handleAdminCommands(message) {
     }
 
     if (comando === '.pool') {
-        const poolStats = apiPool.getStats();
-        let poolStatus = `🔗 *CONNECTION POOL STATUS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-        if (Object.keys(poolStats).length === 0) {
-            poolStatus += `✅ Pool vazio (sem conexões ativas)`;
-        } else {
-            for (const [url, stats] of Object.entries(poolStats)) {
-                const shortUrl = url.replace('https://script.google.com/macros/s/', 'sheets/');
-                poolStatus += `📍 ${shortUrl}\n`;
-                poolStatus += `   ⚡ Ativas: ${stats.active}/5\n`;
-                poolStatus += `   📋 Fila: ${stats.queued}\n\n`;
-            }
-        }
+        let poolStatus = `🔗 *AXIOS STATUS (SIMPLIFICADO)*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        poolStatus += `✅ Axios simplificado ativo\n`;
+        poolStatus += `⚡ Timeout: 30s\n`;
+        poolStatus += `🔄 Max redirects: 3\n`;
+        poolStatus += `📊 Pool complexo removido (seguindo bot1)`;
 
         await message.reply(poolStatus);
         return true;
     }
 
     if (comando === '.performance') {
-        const adminStats = adminCache.getStats();
         const queueStats = messageQueue.getStats();
-        const memStats = memoryManager.getStats();
+        const usage = process.memoryUsage();
+        const memTotal = Math.round(usage.rss / 1024 / 1024);
 
         let perfStatus = `⚡ *PERFORMANCE STATUS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-        perfStatus += `🔒 Admin Cache: ${adminStats.entries} (${adminStats.timeout})\n`;
+        perfStatus += `🔒 Admin Cache: ${adminCache.size} entradas\n`;
         perfStatus += `📤 Message Queue: ${queueStats.queueSize} fila, ${queueStats.activeJobs} ativos\n`;
-        perfStatus += `💾 Memória: ${memStats.memory.total}MB\n`;
+        perfStatus += `💾 Memória: ${memTotal}MB\n`;
         perfStatus += `🔇 Modo Silencioso: ${SILENT_MODE ? 'ATIVO' : 'INATIVO'}\n`;
-        perfStatus += `🔗 Pool Conexões: ${Object.keys(apiPool.getStats()).length} endpoints`;
+        perfStatus += `🔗 Conexões: Axios simplificado (bot1 pattern)`;
 
         await message.reply(perfStatus);
         return true;
