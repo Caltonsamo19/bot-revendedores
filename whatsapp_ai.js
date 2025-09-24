@@ -282,6 +282,15 @@ Se não conseguires extrair os dados:
     const precos = this.extrairPrecosTabela(tabelaTexto);
     const valorNumerico = parseFloat(valor);
 
+    // DEBUG: Mostrar todos os preços que correspondem ao valor buscado
+    const precosCorrespondentes = precos.filter(p => p.preco === valorNumerico);
+    if (precosCorrespondentes.length > 1) {
+      console.log(`   ⚠️ DEBUG: Encontrados ${precosCorrespondentes.length} preços para ${valorNumerico}MT:`);
+      precosCorrespondentes.forEach((p, i) => {
+        console.log(`     ${i + 1}. ${p.descricao} = ${p.preco}MT (${p.quantidade}MB) - "${p.original}"`);
+      });
+    }
+
     // DEBUG removido para performance em modo silencioso
 
     if (precos.length === 0) {
@@ -299,17 +308,24 @@ Se não conseguires extrair os dados:
       return 'VALOR_MUITO_BAIXO';
     }
     
-    // Procurar correspondência exata
-    let pacoteExato = precos.find(p => p.preco === valorNumerico);
-    
+    // Procurar correspondência exata - PRIORIZAR MAIOR QUANTIDADE SE MÚLTIPLAS CORRESPONDÊNCIAS
+    let correspondenciasExatas = precos.filter(p => p.preco === valorNumerico);
+    let pacoteExato = null;
+
+    if (correspondenciasExatas.length > 0) {
+      // Se há múltiplas correspondências, pegar a com maior quantidade (mais provável de estar correta)
+      pacoteExato = correspondenciasExatas.sort((a, b) => b.quantidade - a.quantidade)[0];
+      console.log(`   ✅ Correspondência exata: ${valorNumerico}MT = ${pacoteExato.descricao} (${pacoteExato.quantidade}MB)`);
+    }
+
     // Se não encontrar exato, tentar com tolerância de ±1MT
     if (!pacoteExato) {
-      pacoteExato = precos.find(p => Math.abs(p.preco - valorNumerico) <= 1);
-      if (pacoteExato) {
+      let correspondenciasAproximadas = precos.filter(p => Math.abs(p.preco - valorNumerico) <= 1);
+      if (correspondenciasAproximadas.length > 0) {
+        // Priorizar maior quantidade também nas aproximadas
+        pacoteExato = correspondenciasAproximadas.sort((a, b) => b.quantidade - a.quantidade)[0];
         console.log(`   ⚡ Correspondência aproximada: ${valorNumerico}MT ≈ ${pacoteExato.preco}MT = ${pacoteExato.descricao} (${pacoteExato.quantidade}MB)`);
       }
-    } else {
-      console.log(`   ✅ Correspondência exata: ${valorNumerico}MT = ${pacoteExato.descricao} (${pacoteExato.quantidade}MB)`);
     }
 
     if (pacoteExato) {
