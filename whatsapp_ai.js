@@ -18,7 +18,7 @@ class WhatsAppAI {
     // Processamento de imagens desativado para otimização
     this.googleVisionEnabled = false;
     
-    // Limpeza automática a cada 10 minutos
+    // Limpeza automática a cada 10 minutos - SIMPLIFICADA
     setInterval(() => {
       this.limparComprovantesAntigos();
     }, 10 * 60 * 1000);

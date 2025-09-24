@@ -4,95 +4,14 @@ const qrcode = require('qrcode-terminal');
 const fs = require('fs').promises;
 const axios = require('axios'); // npm install axios
 
-// === CONNECTION POOLING PARA APIS EXTERNAS ===
-class APIConnectionPool {
-    constructor() {
-        this.axiosInstances = new Map();
-        this.maxConcurrent = 5; // Máximo 5 requests simultâneas por endpoint
-        this.activeRequests = new Map(); // endpoint -> count
-        this.requestQueue = new Map(); // endpoint -> array of pending requests
-
-        console.log('🔗 API Connection Pool inicializado');
+// === AXIOS SIMPLIFICADO (SEGUINDO PADRÃO BOT1) ===
+const axiosInstance = axios.create({
+    timeout: 30000,
+    maxRedirects: 3,
+    headers: {
+        'User-Agent': 'WhatsApp-Bot/1.0'
     }
-
-    getAxiosInstance(baseURL) {
-        if (!this.axiosInstances.has(baseURL)) {
-            const instance = axios.create({
-                baseURL,
-                timeout: 30000,
-                maxRedirects: 3,
-                validateStatus: (status) => status < 500, // Retry apenas em erros 5xx
-                headers: {
-                    'User-Agent': 'WhatsApp-Bot/1.0',
-                    'Connection': 'keep-alive'
-                }
-            });
-
-            // Request interceptor para rate limiting
-            instance.interceptors.request.use(async (config) => {
-                await this.waitForSlot(baseURL);
-                this.incrementActive(baseURL);
-                return config;
-            });
-
-            // Response interceptor para cleanup
-            instance.interceptors.response.use(
-                (response) => {
-                    this.decrementActive(baseURL);
-                    return response;
-                },
-                (error) => {
-                    this.decrementActive(baseURL);
-                    throw error;
-                }
-            );
-
-            this.axiosInstances.set(baseURL, instance);
-        }
-        return this.axiosInstances.get(baseURL);
-    }
-
-    async waitForSlot(baseURL) {
-        const active = this.activeRequests.get(baseURL) || 0;
-
-        if (active >= this.maxConcurrent) {
-            return new Promise((resolve) => {
-                const queue = this.requestQueue.get(baseURL) || [];
-                queue.push(resolve);
-                this.requestQueue.set(baseURL, queue);
-            });
-        }
-    }
-
-    incrementActive(baseURL) {
-        const current = this.activeRequests.get(baseURL) || 0;
-        this.activeRequests.set(baseURL, current + 1);
-    }
-
-    decrementActive(baseURL) {
-        const current = this.activeRequests.get(baseURL) || 0;
-        this.activeRequests.set(baseURL, Math.max(0, current - 1));
-
-        // Processar fila se houver
-        const queue = this.requestQueue.get(baseURL) || [];
-        if (queue.length > 0 && current - 1 < this.maxConcurrent) {
-            const nextResolve = queue.shift();
-            this.requestQueue.set(baseURL, queue);
-            nextResolve();
-        }
-    }
-
-    getStats() {
-        const stats = {};
-        for (const [url, count] of this.activeRequests.entries()) {
-            const queueSize = (this.requestQueue.get(url) || []).length;
-            stats[url] = { active: count, queued: queueSize };
-        }
-        return stats;
-    }
-}
-
-const apiPool = new APIConnectionPool();
+});
 
 // === SISTEMA DE LOGS OTIMIZADO (MODO SILENCIOSO) ===
 const SILENT_MODE = true; // Reduzir logs desnecessários para performance
@@ -110,61 +29,25 @@ function smartLog(level, message, ...args) {
     }
 }
 
-// === CACHE DE VERIFICAÇÕES ADMIN (5 MINUTOS) ===
-class AdminCache {
-    constructor() {
-        this.cache = new Map();
-        this.cacheTimeout = 5 * 60 * 1000; // 5 minutos
+// === CACHE ADMIN SIMPLIFICADO (SEGUINDO PADRÃO BOT1) ===
+const adminCache = new Map();
+const ADMIN_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
-        // Limpeza automática a cada 10 minutos
-        setInterval(() => this.cleanup(), 10 * 60 * 1000);
-        smartLog(LOG_LEVEL.INFO, '🔒 Admin Cache inicializado (5min TTL)');
+function getAdminFromCache(userId) {
+    const entry = adminCache.get(userId);
+    if (!entry || Date.now() - entry.timestamp > ADMIN_CACHE_TTL) {
+        adminCache.delete(userId);
+        return null;
     }
-
-    get(userId) {
-        const entry = this.cache.get(userId);
-        if (!entry) return null;
-
-        if (Date.now() - entry.timestamp > this.cacheTimeout) {
-            this.cache.delete(userId);
-            return null;
-        }
-
-        return entry.isAdmin;
-    }
-
-    set(userId, isAdmin) {
-        this.cache.set(userId, {
-            isAdmin,
-            timestamp: Date.now()
-        });
-    }
-
-    cleanup() {
-        const now = Date.now();
-        let removed = 0;
-
-        for (const [userId, entry] of this.cache.entries()) {
-            if (now - entry.timestamp > this.cacheTimeout) {
-                this.cache.delete(userId);
-                removed++;
-            }
-        }
-
-        if (removed > 0) {
-            smartLog(LOG_LEVEL.INFO, `🗑️ Admin cache: removidos ${removed} entradas expiradas`);
-        }
-    }
-
-    getStats() {
-        return {
-            entries: this.cache.size,
-            timeout: this.cacheTimeout / 1000 + 's'
-        };
-    }
+    return entry.isAdmin;
 }
 
-const adminCache = new AdminCache();
+function setAdminCache(userId, isAdmin) {
+    adminCache.set(userId, {
+        isAdmin,
+        timestamp: Date.now()
+    });
+}
 
 // === IMPORTAR A IA ===
 const WhatsAppAI = require('./whatsapp_ai');
@@ -208,11 +91,10 @@ async function safeReply(message, client, texto) {
     }
 }
 
-// Criar instância do cliente OTIMIZADA
+// Criar instância do cliente (SEGUINDO PADRÃO BOT1)
 const client = new Client({
     authStrategy: new LocalAuth({
-        clientId: "bot_retalho_modificado", // Diferente do bot atacado
-        dataPath: './session_data' // Caminho personalizado para dados de sessão
+        clientId: "bot_retalho" // Simplificado como bot1
     }),
     puppeteer: {
         headless: true,
@@ -220,24 +102,16 @@ const client = new Client({
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--disable-gpu',
             '--disable-extensions',
+            '--no-first-run',
             '--no-default-browser-check',
-            '--disable-default-apps',
-            '--disable-translate',
-            '--disable-sync',
-            '--disable-background-timer-throttling', // OTIMIZAÇÃO: Evitar throttling
+            '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
             '--disable-features=TranslateUI',
-            '--disable-ipc-flooding-protection',
-            '--memory-pressure-off', // OTIMIZAÇÃO: Reduzir pressão de memória
-            '--max-old-space-size=1024' // OTIMIZAÇÃO: Limitar uso de memória
+            '--disable-ipc-flooding-protection'
         ],
-        executablePath: undefined,
-        timeout: 0,
-        ignoreDefaultArgs: ['--disable-extensions']
+        timeout: 60000
     }
 });
 
@@ -331,78 +205,8 @@ let filaMensagens = [];
 let processandoFila = false;
 
 // === SISTEMA DE CACHE DE DADOS OTIMIZADO COM CLEANUP AUTOMÁTICO ===
-class MemoryManager {
-    constructor() {
-        this.cacheTransacoes = new Map();
-        this.maxCacheSize = 500; // Limite máximo de itens
-        this.cleanupInterval = 30 * 60 * 1000; // Cleanup a cada 30min
-
-        // Iniciar cleanup automático
-        setInterval(() => this.performCleanup(), this.cleanupInterval);
-        console.log('🧹 Memory Manager inicializado com cleanup automático');
-    }
-
-    performCleanup() {
-        const beforeSize = this.getMemoryUsage();
-
-        // Limpar cache de transações se exceder limite
-        if (this.cacheTransacoes.size > this.maxCacheSize) {
-            const keys = Array.from(this.cacheTransacoes.keys());
-            const keysToDelete = keys.slice(0, keys.length - Math.floor(this.maxCacheSize * 0.8));
-            keysToDelete.forEach(key => this.cacheTransacoes.delete(key));
-            console.log(`🗑️ Cache: removidos ${keysToDelete.length} itens antigos`);
-        }
-
-        // Limpar objetos de referência muito grandes
-        this.cleanupObjectSize(codigosReferencia, 'codigosReferencia', 200);
-        this.cleanupObjectSize(referenciasClientes, 'referenciasClientes', 300);
-        this.cleanupObjectSize(bonusSaldos, 'bonusSaldos', 200);
-        this.cleanupObjectSize(cacheBoasVindas, 'cacheBoasVindas', 100);
-
-        // Limpar itens expirados do cache de boas-vindas (mais de 24h)
-        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
-        Object.keys(cacheBoasVindas).forEach(key => {
-            if (cacheBoasVindas[key] < oneDayAgo) {
-                delete cacheBoasVindas[key];
-            }
-        });
-
-        const afterSize = this.getMemoryUsage();
-        console.log(`🧹 Memory cleanup: ${beforeSize.total}MB → ${afterSize.total}MB`);
-    }
-
-    cleanupObjectSize(obj, name, maxSize) {
-        const keys = Object.keys(obj);
-        if (keys.length > maxSize) {
-            const keysToDelete = keys.slice(0, keys.length - Math.floor(maxSize * 0.8));
-            keysToDelete.forEach(key => delete obj[key]);
-            console.log(`🗑️ ${name}: removidos ${keysToDelete.length} itens antigos`);
-        }
-    }
-
-    getMemoryUsage() {
-        const usage = process.memoryUsage();
-        return {
-            rss: Math.round(usage.rss / 1024 / 1024),
-            heap: Math.round(usage.heapUsed / 1024 / 1024),
-            total: Math.round(usage.rss / 1024 / 1024)
-        };
-    }
-
-    getStats() {
-        return {
-            cacheTransacoes: this.cacheTransacoes.size,
-            codigosReferencia: Object.keys(codigosReferencia).length,
-            referenciasClientes: Object.keys(referenciasClientes).length,
-            bonusSaldos: Object.keys(bonusSaldos).length,
-            pagamentosPendentes: Object.keys(pagamentosPendentes).length,
-            memory: this.getMemoryUsage()
-        };
-    }
-}
-
-const memoryManager = new MemoryManager();
-let cacheTransacoes = memoryManager.cacheTransacoes; // Manter compatibilidade
+// === CACHE DE TRANSAÇÕES SIMPLIFICADO (SEGUINDO PADRÃO BOT1) ===
+let cacheTransacoes = new Map();
 
 // === SISTEMA DE RETRY SILENCIOSO PARA PAGAMENTOS ===
 let pagamentosPendentes = {}; // {id: {dados do pedido}}
@@ -1098,32 +902,26 @@ async function enviarBoasVindas(grupoId, participantId) {
         }
         
         // Usar mensagem personalizada do grupo ou padrão
-        let mensagemBoasVindas = configGrupo.boasVindas || `🎉 *BOAS-VINDAS AO GRUPO!*
+        let mensagemBoasVindas = configGrupo.boasVindas || `✅@NOME BEM-VINDO AO GRUPO 100% AUTOMÁTICO DE VENDA DE MEGAS!
 
-👋 Olá @NOME, seja bem-vindo!
+📱 Como funciona:
+Envie comprovante de pagamento
+Sistema processa automaticamente
+Participe do ranking de compradores
 
-🤖 *SISTEMA DE VENDAS 100% AUTOMÁTICO!*
-📱 1. Envie comprovante de pagamento aqui
-⚡ 2. Nosso sistema processa automaticamente
-📊 3. Participe do ranking geral de compradores
+⚡ Comandos principais:
+tabela - Ver preços 💰
+pagamento - Ver formas de pagamento 💳
+comocomprar - Instruções de compras 📋
+.ranking - Ver classificação 📊
+.meucodigo - Gerar código de referência 🔑
 
-💰 *COMANDOS ÚTEIS:*
-• *tabela* - Ver preços de pacotes
-• *pagamento* - Ver formas de pagamento
-• *.ranking* - Ver ranking do grupo
-• *.meucodigo* - Gerar seu código de referência
+🎁 Ganhe grátis:
+Até 5GB convidando amigos 👥
+200MB por compra dos seus indicados
+Use .convite CÓDIGO se alguém te indicou
 
-🎁 *GANHE MEGABYTES GRÁTIS!*
-💎 Ganhe até *5GB GRATUITOS* convidando amigos!
-🔑 1. Digite *.meucodigo* para gerar seu código
-👥 2. Convide amigos para o grupo
-💰 3. Peça para usarem seu código: *.convite SEUCÓDIGO*
-🎯 4. Ganhe *200MB* a cada compra deles (primeiras 5 compras)
-
-⚠️ *TEM CÓDIGO DE ALGUÉM?*
-Use: *.convite CÓDIGO* para ativar a parceria!
-
-🚀 Vamos começar? Qualquer dúvida, pergunte no grupo!`;
+❓ Dúvidas? Pergunte no grupo!`;
         
         // Substituir placeholder @NOME pelo nome real
         mensagemBoasVindas = mensagemBoasVindas.replace('@NOME', `@${participantId.replace('@c.us', '')}`);
@@ -1834,28 +1632,26 @@ const MODERACAO_CONFIG = {
 const CONFIGURACAO_GRUPOS = {
     '258820749141-1441573529@g.us': {
         nome: 'Data Store - Vodacom',
-        boasVindas: `🎉 *BOAS-VINDAS AO GRUPO!*
+        boasVindas: `✅ @NOME BEM-VINDO AO GRUPO 100% AUTOMÁTICO DE VENDA DE MEGAS!
 
-👋 Olá @NOME, seja bem-vindo!
+📱 Como funciona:
+Envie comprovante de pagamento
+Sistema processa automaticamente
+Participe do ranking de compradores
 
-🤖 *SISTEMA DE VENDAS 100% AUTOMÁTICO!*
-📱 1. Envie comprovante de pagamento aqui
-⚡ 2. Nosso sistema processa automaticamente
-📊 3. Participe do ranking geral de compradores
+⚡ Comandos principais:
+tabela - Ver preços 💰
+pagamento - Ver formas de pagamento 💳
+comocomprar - Instruções de compras 📋
+.ranking - Ver classificação 📊
+.meucodigo - Gerar código de referência 🔑
 
-💰 *COMANDOS ÚTEIS:*
-• *tabela* - Ver preços de pacotes
-• *pagamento* - Ver formas de pagamento
-• *.ranking* - Ver ranking do grupo
-• *.meucodigo* - Gerar código de referência
+🎁 Ganhe grátis:
+Até 5GB convidando amigos 👥
+200MB por compra dos seus indicados
+Use .convite CÓDIGO se alguém te indicou
 
-🎁 *SISTEMA DE REFERÊNCIAS:*
-Você tem código de referência de alguém?
-Use: *.convite CÓDIGO* para ativar!
-
-✨ *IMPORTANTE:* Códigos de referência só funcionam para membros que entraram nos últimos 5 dias!
-
-🚀 Vamos começar? Qualquer dúvida, pergunte no grupo!`,
+❓ Dúvidas? Pergunte no grupo!`,
         tabela: `SUPER PROMOÇÃO  DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO - 04-05/09/2025
 
 📆 PACOTES DIÁRIOS
@@ -5668,146 +5464,45 @@ process.on('uncaughtException', (error) => {
     }
 })();
 
-// Salvar histórico a cada 10 minutos (otimizado - era 5min)
-setInterval(salvarHistorico, 10 * 60 * 1000);
+// === APENAS 3 TIMERS ESSENCIAIS (SEGUINDO PADRÃO BOT1) ===
 
-// Limpar cache de transações a cada 2 horas (otimizado)
+// 1. Salvar histórico a cada 5 minutos (como bot1)
+setInterval(salvarHistorico, 5 * 60 * 1000);
+
+// 2. Limpar cache geral a cada hora (como bot1 - simples e eficaz)
 setInterval(() => {
+    // Limpar cache de transações
     if (cacheTransacoes.size > 200) {
         const keys = Array.from(cacheTransacoes.keys());
         const oldKeys = keys.slice(0, keys.length - 100);
         oldKeys.forEach(key => cacheTransacoes.delete(key));
-        console.log('🗑️ Cache antigo de transações removido');
     }
-}, 2 * 60 * 60 * 1000);
 
-// === CACHE DESNECESSÁRIO REMOVIDO ===
-// Arquivos .json dos pacotes removidos para otimização
-// Dados disponíveis via comandos quando necessário
+    // Limpar cache admin seguindo padrão bot1 (similar ao bot1: > 50 = clear)
+    if (adminCache.size > 50) {
+        adminCache.clear();
+    }
 
-// Limpar cache de grupos logados a cada 4 horas (otimizado - era 2h)
+    // Limpar outros caches seguindo padrão bot1
+    if (gruposLogados && gruposLogados.size > 50) gruposLogados.clear();
+    if (membrosProcessadosViaEvent && membrosProcessadosViaEvent.size > 50) membrosProcessadosViaEvent.clear();
+
+    // Limpar cache boas-vindas (evitar memory leak)
+    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+    Object.keys(cacheBoasVindas).forEach(key => {
+        if (cacheBoasVindas[key] < oneDayAgo) {
+            delete cacheBoasVindas[key];
+        }
+    });
+
+    console.log('🗑️ Cache geral limpo');
+}, 60 * 60 * 1000); // A cada hora
+
+// 3. Limpar cache de grupos a cada 2 horas (como bot1)
 setInterval(() => {
     gruposLogados.clear();
     console.log('🗑️ Cache de grupos detectados limpo');
-}, 4 * 60 * 60 * 1000);
-
-// Limpar cache de membros processados a cada 6 horas (evita crescimento infinito)
-setInterval(() => {
-    membrosProcessadosViaEvent.clear();
-    console.log('🗑️ Cache de membros processados via event limpo');
-}, 6 * 60 * 60 * 1000);
-
-// === LIMPEZA OTIMIZADA DE CACHE WHATSAPP ===
-setInterval(async () => {
-    try {
-        console.log('🧹 Executando limpeza de cache WhatsApp...');
-
-        // Forçar garbage collection se disponível
-        if (global.gc) {
-            global.gc();
-            console.log('🗑️ Garbage collection executado');
-        }
-
-        // Limpar cache do whatsapp-web.js (se aplicável)
-        if (client && client.pupPage) {
-            await client.pupPage.evaluate(() => {
-                // Limpar localStorage e sessionStorage
-                try {
-                    localStorage.clear();
-                    sessionStorage.clear();
-                    console.log('Cache do navegador limpo');
-                } catch (e) {
-                    console.log('Erro ao limpar cache do navegador:', e.message);
-                }
-            });
-        }
-
-        console.log('✅ Limpeza de cache concluída');
-    } catch (error) {
-        console.error('❌ Erro na limpeza de cache:', error.message);
-    }
-}, 6 * 60 * 60 * 1000); // A cada 6 horas
-
-// === SISTEMA DE MENSAGENS AUTOMÁTICAS DE INCENTIVO ===
-let mensagensEnviadas = new Set(); // Cache para evitar spam
-let contadorMensagensHoje = 0;
-const MAX_MENSAGENS_DIA = 20; // Máximo 20 mensagens por dia
-
-setInterval(async () => {
-    try {
-        // Resetar contador diário à meia-noite
-        const agora = new Date();
-        if (agora.getHours() === 0 && agora.getMinutes() === 0) {
-            contadorMensagensHoje = 0;
-            mensagensEnviadas.clear();
-            console.log('🔄 Contador de mensagens automáticas resetado');
-        }
-
-        // Verificar limite diário
-        if (contadorMensagensHoje >= MAX_MENSAGENS_DIA) {
-            return; // Não enviar mais mensagens hoje
-        }
-
-        // Verificar se cliente está conectado
-        if (!client || !client.getState || client.getState() !== 'CONNECTED') {
-            return;
-        }
-
-        // Obter todos os grupos configurados
-        const grupos = Object.keys(configGrupos || {});
-        if (grupos.length === 0) {
-            return;
-        }
-
-        // Selecionar grupo aleatório
-        const grupoId = grupos[Math.floor(Math.random() * grupos.length)];
-        const configGrupo = getConfiguracaoGrupo(grupoId);
-
-        if (!configGrupo || !configGrupo.ativo) {
-            return;
-        }
-
-        // Verificar se já enviou mensagem neste grupo nas últimas 2 horas
-        const chaveCache = `${grupoId}_${new Date().toISOString().split('T')[0]}_${Math.floor(Date.now() / (2 * 60 * 60 * 1000))}`;
-        if (mensagensEnviadas.has(chaveCache)) {
-            return; // Já enviou neste grupo nas últimas 2 horas
-        }
-
-        // Verificar se é horário comercial (8h-22h)
-        const hora = agora.getHours();
-        if (hora < 8 || hora > 22) {
-            return; // Não enviar fora do horário comercial
-        }
-
-        // Mensagem de incentivo
-        const mensagemIncentivo = `💎 *GANHE ATÉ 5GB GRATUITOS!* 💎
-
-🎯 *Como funciona:*
-🔑 1. Gere seu código com *.meucodigo*
-👥 2. Convide amigos para o grupo
-💰 3. Eles usam *.convite SEUCÓDIGO*
-🎁 4. Você ganha *200MB* por cada compra deles!
-
-✨ *Primeiras 5 compras* de cada amigo = *1GB cada*
-🚀 *Sem limite* de amigos que pode convidar!
-
-📱 Digite *.meucodigo* agora e comece a ganhar!
-
-⏰ *Oferta limitada - aproveite!*`;
-
-        // Enviar mensagem
-        await client.sendMessage(grupoId, mensagemIncentivo);
-
-        // Registrar envio
-        mensagensEnviadas.add(chaveCache);
-        contadorMensagensHoje++;
-
-        console.log(`📢 Mensagem automática enviada para ${configGrupo.nome} (${contadorMensagensHoje}/${MAX_MENSAGENS_DIA} hoje)`);
-
-    } catch (error) {
-        console.error('❌ Erro no sistema de mensagens automáticas:', error);
-    }
-}, 30 * 60 * 1000); // A cada 30 minutos
+}, 2 * 60 * 60 * 1000);
 
 process.on('uncaughtException', (error) => {
     console.error('❌ Erro não capturado:', error);
