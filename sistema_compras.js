@@ -432,15 +432,15 @@ class SistemaCompras {
             if (!cliente) return null;
 
             // Obter posições em todos os rankings
-            // console.log(`🔍 DEBUG: Obtendo posições para ${numero} no grupo ${grupoId}`);
+            console.log(`🔍 DEBUG: Obtendo posições para ${numero} no grupo ${grupoId}`);
             const posicaoGeral = await this.obterPosicaoClienteGrupo(numero, grupoId);
-            // console.log(`📊 DEBUG: Posição geral - ${posicaoGeral.posicao}º lugar (${posicaoGeral.megas}MB)`);
+            console.log(`📊 DEBUG: Posição geral - ${posicaoGeral.posicao}º lugar (${posicaoGeral.megas}MB)`);
 
             const posicaoSemanal = await this.obterPosicaoClienteSemana(numero, grupoId);
-            // console.log(`📊 DEBUG: Posição semanal - ${posicaoSemanal.posicao}º lugar (${posicaoSemanal.megasSemana}MB)`);
+            console.log(`📊 DEBUG: Posição semanal - ${posicaoSemanal.posicao}º lugar (${posicaoSemanal.megasSemana}MB)`);
 
             const posicaoDiaria = await this.obterPosicaoClienteDia(numero, grupoId);
-            // console.log(`📊 DEBUG: Posição diária - ${posicaoDiaria.posicao}º lugar (${posicaoDiaria.megasDia}MB)`);
+            console.log(`📊 DEBUG: Posição diária - ${posicaoDiaria.posicao}º lugar (${posicaoDiaria.megasDia}MB)`);
 
             // Converter megas para GB quando necessário
             const megasFormatados = megas >= 1024 ? `${(megas/1024).toFixed(1)} GB` : `${megas} MB`;
@@ -460,7 +460,7 @@ class SistemaCompras {
             const megasGeralFormatados = posicaoGeral.megas >= 1024 ?
                 `${(posicaoGeral.megas/1024).toFixed(1)} GB` : `${posicaoGeral.megas} MB`;
 
-            // console.log(`📊 DEBUG Rankings: ${numero} - Dia: ${posicaoDiaria.posicao}º, Semana: ${posicaoSemanal.posicao}º, Geral: ${posicaoGeral.posicao}º`);
+            console.log(`📊 DEBUG Rankings: ${numero} - Dia: ${posicaoDiaria.posicao}º, Semana: ${posicaoSemanal.posicao}º, Geral: ${posicaoGeral.posicao}º`);
 
             // Linha de agradecimento
             let mensagem = '';
@@ -538,16 +538,16 @@ class SistemaCompras {
 
     // === OBTER POSIÇÃO DO CLIENTE NO GRUPO ===
     async obterPosicaoClienteGrupo(numero, grupoId) {
-        // console.log(`🔍 DEBUG GERAL: Buscando ${numero} no grupo ${grupoId}`);
+        console.log(`🔍 DEBUG GERAL: Buscando ${numero} no grupo ${grupoId}`);
         if (!grupoId || !this.rankingPorGrupo[grupoId]) {
-            // console.log(`❌ DEBUG GERAL: Grupo ${grupoId} não encontrado ou vazio`);
+            console.log(`❌ DEBUG GERAL: Grupo ${grupoId} não encontrado ou vazio`);
             return { posicao: 1, megas: 0 };
         }
 
-        // console.log(`📊 DEBUG GERAL: Ranking tem ${this.rankingPorGrupo[grupoId].length} participantes`);
+        console.log(`📊 DEBUG GERAL: Ranking tem ${this.rankingPorGrupo[grupoId].length} participantes`);
         const posicao = this.rankingPorGrupo[grupoId].find(item => item.numero === numero);
         const resultado = posicao || { posicao: this.rankingPorGrupo[grupoId].length + 1, megas: 0 };
-        // console.log(`📊 DEBUG GERAL: Resultado - ${resultado.posicao}º lugar (${resultado.megas}MB)`);
+        console.log(`📊 DEBUG GERAL: Resultado - ${resultado.posicao}º lugar (${resultado.megas}MB)`);
         return resultado;
     }
 
@@ -803,20 +803,20 @@ class SistemaCompras {
 
     // === OBTER POSIÇÃO SEMANAL DO CLIENTE ===
     async obterPosicaoClienteSemana(numero, grupoId) {
-        // console.log(`🔍 DEBUG SEMANAL: Buscando ${numero} no grupo ${grupoId}`);
+        console.log(`🔍 DEBUG SEMANAL: Buscando ${numero} no grupo ${grupoId}`);
         if (!grupoId || !this.rankingSemanalPorGrupo[grupoId]) {
-            // console.log(`❌ DEBUG SEMANAL: Grupo ${grupoId} não encontrado ou vazio`);
+            console.log(`❌ DEBUG SEMANAL: Grupo ${grupoId} não encontrado ou vazio`);
             return { posicao: 1, megasSemana: 0, comprasSemana: 0 };
         }
 
-        // console.log(`📊 DEBUG SEMANAL: Ranking tem ${this.rankingSemanalPorGrupo[grupoId].length} participantes`);
+        console.log(`📊 DEBUG SEMANAL: Ranking tem ${this.rankingSemanalPorGrupo[grupoId].length} participantes`);
         const posicao = this.rankingSemanalPorGrupo[grupoId].find(item => item.numero === numero);
         const resultado = posicao || {
             posicao: this.rankingSemanalPorGrupo[grupoId].length + 1,
             megasSemana: 0,
             comprasSemana: 0
         };
-        // console.log(`📊 DEBUG SEMANAL: Resultado - ${resultado.posicao}º lugar (${resultado.megasSemana}MB)`);
+        console.log(`📊 DEBUG SEMANAL: Resultado - ${resultado.posicao}º lugar (${resultado.megasSemana}MB)`);
         return resultado;
     }
 
@@ -957,20 +957,20 @@ class SistemaCompras {
 
     // === OBTER POSIÇÃO DIÁRIA DO CLIENTE ===
     async obterPosicaoClienteDia(numero, grupoId) {
-        // console.log(`🔍 DEBUG DIÁRIO: Buscando ${numero} no grupo ${grupoId}`);
+        console.log(`🔍 DEBUG DIÁRIO: Buscando ${numero} no grupo ${grupoId}`);
         if (!grupoId || !this.rankingDiarioPorGrupo[grupoId]) {
-            // console.log(`❌ DEBUG DIÁRIO: Grupo ${grupoId} não encontrado ou vazio`);
+            console.log(`❌ DEBUG DIÁRIO: Grupo ${grupoId} não encontrado ou vazio`);
             return { posicao: 1, megasDia: 0, comprasDia: 0 };
         }
 
-        // console.log(`📊 DEBUG DIÁRIO: Ranking tem ${this.rankingDiarioPorGrupo[grupoId].length} participantes`);
+        console.log(`📊 DEBUG DIÁRIO: Ranking tem ${this.rankingDiarioPorGrupo[grupoId].length} participantes`);
         const posicao = this.rankingDiarioPorGrupo[grupoId].find(item => item.numero === numero);
         const resultado = posicao || {
             posicao: this.rankingDiarioPorGrupo[grupoId].length + 1,
             megasDia: 0,
             comprasDia: 0
         };
-        // console.log(`📊 DEBUG DIÁRIO: Resultado - ${resultado.posicao}º lugar (${resultado.megasDia}MB)`);
+        console.log(`📊 DEBUG DIÁRIO: Resultado - ${resultado.posicao}º lugar (${resultado.megasDia}MB)`);
         return resultado;
     }
 
