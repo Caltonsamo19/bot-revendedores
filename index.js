@@ -1344,9 +1344,9 @@ async function verificarPagamentoIndividual(referencia, valorEsperado) {
             return true;
         }
 
-        // Segunda tentativa: busca apenas por referência (usando connection pool)
+        // Segunda tentativa: busca apenas por referência (usando axiosInstance)
         console.log(`🔍 REVENDEDORES: Tentando busca apenas por referência...`);
-        response = await paymentsApi.post(PAGAMENTOS_CONFIG.scriptUrl, {
+        response = await axiosInstance.post(PAGAMENTOS_CONFIG.scriptUrl, {
             action: "buscar_por_referencia_only",
             referencia: referencia
         }, {
