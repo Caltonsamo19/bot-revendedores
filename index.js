@@ -58,6 +58,9 @@ const SistemaPacotes = require('./sistema_pacotes');
 // === IMPORTAR SISTEMA DE COMPRAS ===
 const SistemaCompras = require('./sistema_compras');
 
+// === IMPORTAR SISTEMA DE RELATÓRIOS ===
+const SistemaRelatorios = require('./sistema_relatorios');
+
 // === CONFIGURAÇÃO GOOGLE SHEETS - BOT RETALHO (SCRIPT PRÓPRIO) ===
 const GOOGLE_SHEETS_CONFIG = {
     scriptUrl: process.env.GOOGLE_SHEETS_SCRIPT_URL_RETALHO || 'https://script.google.com/macros/s/AKfycbyMilUC5bYKGXV95LR4MmyaRHzMf6WCmXeuztpN0tDpQ9_2qkgCxMipSVqYK_Q6twZG/exec',
@@ -1629,404 +1632,7 @@ const MODERACAO_CONFIG = {
 
 // Configuração para cada grupo
 const CONFIGURACAO_GRUPOS = {
-    '258820749141-1441573529@g.us': {
-        nome: 'Data Store - Vodacom',
-        boasVindas: `✅ @NOME BEM-VINDO AO GRUPO 100% AUTOMÁTICO DE VENDA DE MEGAS!
-
-📱 Como funciona:
-Envie comprovante de pagamento
-Sistema processa automaticamente
-Participe do ranking de compradores
-
-⚡ Comandos principais:
-tabela - Ver preços 💰
-pagamento - Ver formas de pagamento 💳
-comocomprar - Instruções de compras 📋
-.ranking - Ver classificação 📊
-.meucodigo - Gerar código de referência 🔑
-
-🎁 Ganhe grátis:
-Até 5GB convidando amigos 👥
-200MB por compra dos seus indicados
-Use .convite CÓDIGO se alguém te indicou
-
-❓ Dúvidas? Pergunte no grupo!`,
-        tabela: `SUPER PROMOÇÃO  DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO - 04-05/09/2025
-
-📆 PACOTES DIÁRIOS
-512MB 💎 10MT 💵💽
-900MB 💎 15MT 💵💽
-1080MB 💎 17MT 💵💽
-1200MB 💎 20MT 💵💽
-2150MB 💎 34MT 💵💽
-3200MB 💎 51MT 💵💽
-4250MB 💎 68MT 💵💽
-5350MB 💎 85MT 💵💽
-10240MB 💎 160MT 💵💽
-20480MB 💎 320MT 💵💽
-
-📅PACOTE DIÁRIO PREMIUM (3 Dias)
-2000 + 700MB 💎 44MT 💵💽
-3000 + 700MB 💎 66MT 💵💽
-4000 + 700MB 💎 88MT 💵💽
-5000 + 700MB 💎 109MT 💵💽
-6000 + 700MB 💎 133MT 💵💽
-7000 + 700MB 💎 149MT 💵💽
-10000 + 700MB 💎 219MT 💵💽
-
-📅 PACOTES SEMANAIS(5 Dias)
-3072 + 700MB 💎 105MT 💵💽
-5120 + 700MB 💎 155MT 💵💽
-10240 + 700MB 💎 300MT 💵💽
-15360 + 700MB 💎 455MT 💵💽
-20480 + 700MB 💎 600MT 💵💽
-
-📅 PACOTES MENSAIS
-12.8GB 💎 270MT 💵💽
-22.8GB 💎 435MT 💵💽
-32.8GB 💎 605MT 💵💽
-52.8GB 💎 945MT 💵💽
-102.8GB 💎 1605MT 💵💽
-
-
-PACOTES DIAMANTE MENSAIS
-Chamadas + SMS ilimitadas + 11GB 💎 460MT 💵
-Chamadas + SMS ilimitadas + 24GB 💎 820MT 💵
-Chamadas + SMS ilimitadas + 50GB 💎 1550MT 💵
-Chamadas + SMS ilimitadas + 100GB 💎 2250MT 💵
-
-⚠ NB: Válido apenas para Vodacom
-`,
-
-        pagamento: `FORMAS DE PAGAMENTO ATUALIZADAS
- 
-1- M-PESA 
-NÚMERO: 848715208
-NOME:  NATACHA ALICE
-
-NÚMERO: 871112049
-NOME: NATACHA ALICE`
-    },
-
-    '120363402160265624@g.us': {
-        nome: 'Treinamento IA',
-        tabela: `PROMOÇÃO DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO 
-📆 PACOTES DIÁRIOS 
-512MB 💎 10MT 💵💽
-850MB 💎 15MT 💵💽
-1024MB 💎 17MT 💵💽
-1200MB 💎 20MT 💵💽
-2048MB 💎 34MT 💵💽
-3072MB 💎 51MT 💵💽
-4096MB 💎 68MT 💵💽
-5120MB 💎 85MT 💵💽
-10240MB 💎 170MT 💵💽
-20480MB 💎 340MT 💵💽
-
-📅PACOTE DIÁRIO PREMIUM (3 Dias)
-2000 + 700MB 💎 44MT 💵💽
-3000 + 700MB 💎 66MT 💵💽
-4000 + 700MB 💎 88MT 💵💽
-5000 + 700MB 💎 109MT 💵💽
-6000 + 700MB 💎 133MT 💵💽
-7000 + 700MB 💎 149MT 💵💽
-10000 + 700MB 💎 219MT 💵💽
-
-📅 PACOTES SEMANAIS(5 Dias)
-3072 + 700MB 💎 105MT 💵💽
-5120 + 700MB 💎 155MT 💵💽
-10240 + 700MB 💎 300MT 💵💽
-15360 + 700MB 💎 455MT 💵💽
-20480 + 700MB 💎 600MT 💵💽
-
-📅 PACOTES MENSAIS
-⚠ Para ativar estes pacotes, o Txuna Crédito não pode estar ativo
-12.8GB 💎 255MT 💵💽
-22.8GB 💎 435MT 💵💽
-32.8GB 💎 605MT 💵💽
-52.8GB 💎 945MT 💵💽
-102.8GB 💎 1605MT 💵💽
-
-PACOTES DIAMANTE MENSAIS
-Chamadas + SMS ilimitadas + 12GB 💎 460MT 💵
-Chamadas + SMS ilimitadas + 24GB 💎 820MT 💵
-Chamadas + SMS ilimitadas + 50GB 💎 1550MT 💵
-Chamadas + SMS ilimitadas + 100GB 💎 2250MT 💵
-⚠ NB: Válido apenas para Vodacom
-
-
-🚀 Oferecemos sempre o melhor!*
-
-`,
-
-        pagamento: `🅼🅴🅶🅰🆂 🅿🆁🅾🅼🅾    💳 🛒⛔ FORMAS DE PAGAMENTO:⛔🛒💳
-
-
-      ● E-MOLA: 868019487🛒
-      ● M-PESA: 851841990🛒
-
-NOME:   Alice Armando Nhaquila📝
-
-!¡ 📂⛔🛒 ENVIE O SEU COMPROVATIVO NO GRUPO,  JUNTAMENTE COM O NÚMERO QUE VAI RECEBER OS MB✅⛔🛒
-`
-    },
-
-    '258840161370-1471468657@g.us': {
-        nome: 'Venda Automática 24/7',
-        tabela: `TABELA ATUALIZADA
-___________________________
-
- PACOTE DIÁRIO BÁSICO( 24H⏱) 
-1024MB    - 17,00 MT
-1200MB    - 20,00 MT
-2048MB   - 34,00 MT
-2200MB    - 40,00 MT
-3096MB    - 51,00 MT
-4096MB    - 68,00 MT
-5120MB     - 85,00 MT
-6144MB    - 102,00 MT
-7168MB    - 119,00 MT
-8192MB    - 136,00 MT
-9144MB    - 153,00 MT
-10240MB  - 170,00 MT
-
- PACOTE DIÁRIO PREMIUM ( 3 DIAS 🗓) 
-Megabyte Renováveis! 
-2000MB  - 44,00 MT
-3000MB  - 66,00 MT
-4000MB  - 88,00 MT
-5000MB - 109,00 MT
-6000MB  - 133,00 MT
-7000MB  - 149,00 MT
-10000MB  - 219,00 MT
-
-PACOTE SEMANAL BÁSICO (5 Dias🗓)
-Megabyte Renováveis!
-1700MB - 45,00MT
-2900MB - 80,00MT
-3400MB - 110,00MT
-5500MB - 150,00MT
-7800MB - 200,00MT
-11400MB - 300,00MT 
-
- PACOTE SEMANAL PREMIUM ( 15 DIAS 🗓 ) 
-Megabyte Renováveis!
-3000MB - 100,00 MT
-5000MB - 149,00 MT
-8000MB - 201,00 MT
-10000MB - 231,00 MT
-20000MB - 352,00 MT
-
-PACOTE MENSAL PREMIUM (30 dias🗓)
-Megabyte Renováveis!
-3198MB   - 104,00MT
-5298MB   - 184,00MT
-8398MB   - 229,00MT
-10498MB   - 254,00MT
-12598MB   - 294,00MT
-15698MB   - 349,00MT
-18798MB   - 414,00MT
-20898MB   - 468,00MT
-25998MB   - 529,00MT
-
-PACOTE MENSAL EXCLUSIVO (30 dias🗓)
-Não pode ter xtuna crédito
-32.8GB   - 649,00MT
-51.2GB   - 1049,00MT
-60.2GB   - 124900MT
-80.2GB   - 1449,00MT
-100.2GB   - 1700,00MT
-
-🔴🔴 VODACOM
-➖Chamadas +SMS ILIMITADAS ➖p/todas as redes +GB➖
-
-➖ SEMANAL (7dias)➖
-280mt = Ilimitado+ 7.5GB
-
-Mensal(30dias):
-450MT - Ilimitado + 11.5GB.
-500MT - Ilimitado + 14.5GB.
-700MT - Ilimitado + 26.5GB.
-1000MT - Ilimitado + 37.5GB.
-1500MT - Ilimitado + 53.5GB
-2150MT - Ilimitado + 102.5GB
-
-PARA OS PACOTES MENSAIS, NÃO PODE TER TXUNA CRÉDITO.
-
-🟠🟠 MOVITEL
-➖Chamadas +SMS ILIMITADAS ➖p/todas as redes +GB➖
-
-➖ SEMANAL (7dias)➖
-280mt = Ilimitado+ 7.1GB
-
-➖ MENSAL (30dias)➖ p./tds redes
-450mt = Ilimitado+ 9GB
-950mt = Ilimitado+ 23GB
-1450mt = Ilimitado+ 38GB
-1700mt = Ilimitado+ 46GB
-1900mt = Ilimitado+ 53GB
-2400mt = ilimitado+ 68GB
-
-Importante 🚨: Envie o valor que consta na tabela!
-`,
-
-        pagamento: `╭━━━┛ 💸  ＦＯＲＭＡＳ ＤＥ ＰＡＧＡＭＥＮＴＯ: 
-┃
-┃ 🪙 E-Mola: (Glória) 👩‍💻
-┃     860186270  
-┃
-┃ 🪙 M-Pesa:  (Leonor)👨‍💻
-┃     857451196  
-┃
-┃
-┃ ⚠ IMPORTANTE:  
-┃     ▪ Envie o comprovativo em forma de mensagem e o número para receber rápido!
-┃
-┃┃
-╰⚠ NB: Válido apenas para Vodacom━━━━━━  
-       🚀 O futuro é agora. Vamos?`
-    },
-    '120363228868368923@g.us': {
-    nome: 'VENDA DE MEGAS',
-    tabela: `𝗧𝗮𝗯𝗲𝗹𝗮 𝗮𝗰𝘁𝘂𝗮𝗹𝗶𝘇𝗮do 𝗱𝗲 𝘃𝗼𝗱𝗮𝗰𝗼𝗺
-
-
-𝗗𝗶𝗮𝗿𝗶𝗼
-✅PODE TER TXUNA CRÉDITO
-
-
-𝟭024M𝗕__𝟭𝟴 𝗠𝗧
-𝟮048M𝗕__𝟯6𝗠𝗧
-𝟯072MB ___ 𝟱4𝗠𝗧
-𝟰096MB__𝟳0𝗠𝗧
-𝟱120M𝗕 ___ 𝟵𝟬𝗠𝗧
-𝟭0240MB___𝟭8𝟬𝗠𝗧
-
-𝗦𝗲𝗺𝗮𝗻𝗮𝗹
-❎ NÃO PODE TER TXUNA CRÉDITO
-
-𝟰5𝗠𝗧__𝟭𝟳41M𝗕
-80𝗠𝗧__𝟮𝟵70M𝗕
-90𝗠𝗧__𝟯𝟰82M𝗕
-𝟭40𝗠𝗧___𝟱325M𝗕
-𝟭80𝗠𝗧___𝟳270M𝗕
-
-𝐌𝐞𝐧𝐬𝐚𝐥
-❎ NÃO PODE TER TXUNA CRÉDITO
-
-𝟲057M𝗕__𝟮𝟬𝟬𝗠𝗧
-𝟴057MB__𝟮𝟯𝟬𝗠𝗧
-𝟭𝟬057MB___𝟮6𝟬𝗠𝗧
-𝟮𝟬057M𝗕___𝟰𝟱𝟬𝗠𝗧
-
-𝗗𝗶𝗮𝗺𝗮𝗻𝘁𝗲 𝗱𝗲 𝗩𝗼𝗱𝗮𝗰𝗼𝗺
-❎ NÃO PODE TER TXUNA CRÉDITO
-
-𝗠𝗲𝗻𝘀𝗮𝗹 (𝟯𝟬𝗗𝗶𝗮𝘀)
-⿡𝟰50𝗠𝘁 =𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟭𝟭𝗚𝗕+𝗦𝗠𝗦
-⿢𝟱50 =𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟭𝟱𝗚𝗕+𝗦𝗠𝗦
-⿣𝟳50=𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟮𝟱𝗚𝗕+𝗦𝗠𝗦
-⿤𝟭050=𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟰𝟮𝗚𝗕+𝗦𝗠𝗦
-
-`,
-    pagamento: `💳 FORMAS/ PAGAMENTOS :⤵
-- 📲 𝗘-𝗠𝗢𝗟𝗔: 868440408:
-- *JOSE TOMAS*
-- 📲 𝗠-𝗣𝗘𝗦𝗔 850189315:
-- *JOSE TOMÁS*
-
-📩 Envie o seu comprovantivo no grupo, juntamente com o número que vai receber os dados.`
-},'120363022366545020@g.us': {
-        nome: 'Megas VIP',
-        boasVindas: `🎉 *BOAS-VINDAS AO MEGAS VIP!*
-
-👋 Olá @NOME, seja bem-vindo ao melhor grupo de internet!
-
-🤖 *SISTEMA 100% AUTOMÁTICO - SEM DEMORAS!*
-⚡ Envie seu comprovante e receba instantaneamente
-🏆 Sistema mais rápido de Moçambique
-📊 Ranking geral com prêmios especiais
-
-💰 *COMANDOS:*
-• *tabela* - Ver preços VIP
-• *pagamento* - Formas de pagamento
-• *.ranking* - Ver seu ranking
-
-🎁 *BÔNUS DE REFERÊNCIA:*
-Indique amigos e ganhe MB extras!
-Use: *.meucodigo* para seu código
-
-🚀 *VANTAGENS EXCLUSIVAS:*
-✅ Processamento em tempo real
-✅ Suporte 24/7
-✅ Preços especiais
-✅ Sem taxas escondidas
-
-Bem-vindo à família VIP! 🔥`,
-        tabela: `🚨📢MEGABYTES DA VODACOM📢🚨
-
-📦PACOTE DIÁRIO📦
-
-🛜512MB = 10MT
-🛜768MB = 16MT
-🛜1024MB = 18MT
-🛜1280MB = 26MT
-🛜2048MB = 36MT
-🛜3072MB = 54MT
-🛜4096MB = 72MT
-🛜5120MB = 90MT
-🛜6144MB = 108MB
-🛜7168MB = 126MB
-🛜8192MB = 144MB
-🛜9216MB = 162MB
-🛜10240MB = 180MT
-
-PACOTE SEMANAL🛒📦
-⚠ Vai receber 100MB por dia durante 6 dias, totalizando +0.6GB. ⚠
-
-🛜2.0GB = 65MT
-🛜3.0GB = 85MT
-🛜5.0GB = 130MT
-🛜7.0GB = 175MT 
-🛜10.0GB = 265MT
-🛜14.0GB = 362MT
-━━━━━━━━━━━━━━━━━━━━
-🚨Para pacote MENSAL é só entrar em contato com o número abaixo 👇👇🚨
-
-https://wa.me/258865627840?text=%20Quero%20pacote%20mensal?%20
-━━━━━━━━━━━━━━━━━━━━
-🚨Para pacote ILIMITADO é só entrar em contato com o número abaixo 👇👇🚨
-https://wa.me/258865627840?text=%20Quero%20pacote%20ilimitado?%20
-━━━━━━━━━━━━━━━━━━━━
-
-FORMA DE PAGAMENTO:
-💳💸
-M-Pesa: 853529033 📱
-- Ercílio Uanela 
-e-Mola: 865627840 📱
-- Alexandre Uanela 
-
-Adquira já os teus megas com segurança, confiança e rapidez!🚨🔥
-`,
-
-        pagamento: `FORMAS DE PAGAMENTO💰💶
-
-📌 M-PESA: 853529033 
-   Nome: Ercílio Uanela 
-
-📌 E-MOLA: 865627840 
-    Nome: Alexandre Uanela  
-
-📮 Após a transferência enviei o comprovante em forma do cópia junto com seu número.
- 
-> 1. 🚨Não mande comprovativo em formato de imagem 📸🚨
-
-> 2.  🚨 Não mande valor que não têm na tabela🚨
-
-🚀 O futuro é agora! Vamos? 🔥🛒
-`
-    },
-    '120363023150137820@g.us': {
+        '120363020570328377@g.us': {
         nome: 'NET VODACOM ACESSÍVEL',
         tabela: `🚨📱 INTERNET VODACOM COM OS MELHORES PREÇOS!
 Mega Promoção da NET DA VODACOM ACESSÍVEL — Conecte-se já! 🚀
@@ -2045,58 +1651,46 @@ Mega Promoção da NET DA VODACOM ACESSÍVEL — Conecte-se já! 🚀
 ✅ 10GB - 170MT
 
 
-📅 PACOTES SEMANAIS 
-⚠ Vai receber 100MB por dia durante 7 dias, totalizando +0.7GB
 
-✅ 2GB – 55MT
-✅ 3GB – 75MT
-✅ 5GB – 130MT
-✅ 10GB – 220MT
+🚨QUANDO PRECISAREM PACOTE MENSAL, ENTRA EM CONTACTO ATRAVÉS DO LINK ABAIXO 👇👇🚨
+
+https://wa.me/258858891101?text=%20Quero%20pacote%20mensal!%20
 
 
-
-📅 PACOTES MENSAIS 
-⚠ Não deve ter txuna crédito ⚠
-
-✅ 5GB – 165MT
-✅ 10GB – 280MT
-✅ 20GB – 480MT
-✅ 30GB – 760MT
-✅ 50GB – 960MT
-✅ 100GB – 1940MT
-✅ 200GB – 3420MT
+QUANDO PRECISAREM DO  ILIMITADO, EMTREM EM CONTACTO COM O LINK 
+https://wa.me/258858891101?text=%20Quero%20pacote%20ilimitado!%20
 
 
-📦 Compra rápida. Entrega garantida. Atendimento VIP! 💎✨
+FORMAS DE PAGAMENTO💰💶
 
-🌟 TUDO TOP ILIMITADO 🌟
-📞💬 JÁ PODES FALAR SEM LIMITE E NAVEGAR COM A MELHOR INTERNET 🌐🔥
+📌 M-PESA:  858891101
+   Nome:  ISAC DA LURDES
 
-📅 MENSAL (30 DIAS) 📅
+📌 E-MOLA: 866291101
+    Nome:   ISAC LURDES 
 
-💰 450MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 11GB
-💰 550MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 15GB
-💰 750MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 21GB
-💰 1100MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 33GB
-💰 1350MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 50GB
-💰 2300MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 100GB
+🚀 O futuro é agora! Vamos? 🔥🛒
 
 `,
-        pagamento: `💰 Método de Pagamento
-Envie o valor para um dos números abaixo:
-📲 858891101 — Isac Lurdes Raul Vilanculo
-📲 866291101 — Isac Lurdes Raul Vilanculo
+        pagamento: `FORMAS DE PAGAMENTO💰💶
 
+📌 M-PESA:  858891101
+   Nome:  ISAC DA LURDES
 
+📌 E-MOLA: 866291101
+    Nome:  ISAC LURDES 
 
-📌 Após o pagamento:
-📸 Envie o comprovativo ( screenshot ) no grupo.
-📱Informe ( junto com ) o número que receberá os megas.
+📮 Após a transferência enviei o comprovante em forma do cópia junto com seu número.
+ 
+> 1. 🚨Não mande comprovativo em formato de imagem 📸🚨
 
-🔥 Promoção ativa! Aproveite enquanto puder 🚀
+> 2.  🚨 Não mande valor que não têm na tabela🚨
+
+🚀 O futuro é agora! Vamos? 🔥🛒
 `
-    }
+    }
 };
+
 
 // === FUNÇÃO GOOGLE SHEETS ===
 
@@ -3001,6 +2595,24 @@ client.on('ready', async () => {
     console.log(`🔗 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}`);
     console.log('🤖 Bot Retalho - Lógica simples igual ao Bot Atacado!');
 
+    // === INICIALIZAR SISTEMA DE RELATÓRIOS ===
+    try {
+        global.sistemaRelatorios = new SistemaRelatorios(client, GOOGLE_SHEETS_CONFIG, PAGAMENTOS_CONFIG);
+
+        // Configurar números de relatório (AJUSTAR CONFORME NECESSÁRIO)
+        // sistemaRelatorios.configurarNumeroRelatorio('GRUPO_ID_AQUI', '258847123456');
+
+        // Iniciar agendamento às 22h
+        global.sistemaRelatorios.iniciarAgendamento();
+
+        console.log('📊 Sistema de relatórios iniciado!');
+        console.log('⏰ Relatórios agendados para 22:00 diariamente');
+        console.log('📞 Configure números com: !config-relatorio');
+
+    } catch (error) {
+        console.error('❌ Erro ao iniciar sistema de relatórios:', error.message);
+    }
+
     // === INICIALIZAR SISTEMA DE RETRY SILENCIOSO ===
     await carregarPagamentosPendentes();
     console.log('🔄 Sistema de Retry Silencioso ATIVADO!');
@@ -3028,7 +2640,7 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .setboasvindas .getboasvindas .testboasvindas .testreferencia');
+    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .setboasvindas .getboasvindas .testboasvindas .testreferencia .config-relatorio .list-relatorios .remove-relatorio .test-relatorio');
     
     // Iniciar monitoramento automático de novos membros
     await iniciarMonitoramentoMembros();
@@ -4071,6 +3683,159 @@ async function processMessage(message) {
                         await message.reply(`❌ *ERRO INTERNO*\n\n⚠️ Não foi possível conceder bônus\n\n📝 Erro: ${error.message}`);
                         return;
                     }
+                }
+
+                // === COMANDOS DE RELATÓRIOS ===
+
+                // .config-relatorio GRUPO_ID NUMERO - Configurar número para relatórios (ADMIN APENAS)
+                if (comando.startsWith('.config-relatorio ')) {
+                    if (!isAdmin) {
+                        await message.reply('❌ Apenas administradores podem usar este comando!');
+                        return;
+                    }
+
+                    const parametros = comando.split(' ');
+                    if (parametros.length < 3) {
+                        await message.reply(
+                            `❌ *FORMATO INCORRETO*\n\n` +
+                            `✅ Use: *.config-relatorio GRUPO_ID NUMERO*\n\n` +
+                            `📋 **Exemplos:**\n` +
+                            `• *.config-relatorio 258820749141-1441573529@g.us 258847123456*\n\n` +
+                            `💡 **Para obter ID do grupo:**\n` +
+                            `Use: *.grupo_atual*`
+                        );
+                        return;
+                    }
+
+                    const grupoId = parametros[1];
+                    let numeroRelatorio = parametros[2];
+
+                    // Validar número
+                    if (!/^\d{9}$/.test(numeroRelatorio) && !/^\d{12}$/.test(numeroRelatorio)) {
+                        await message.reply(
+                            `❌ *NÚMERO INVÁLIDO*\n\n` +
+                            `✅ Use formato de 9 ou 12 dígitos:\n` +
+                            `• 847123456 (9 dígitos)\n` +
+                            `• 258847123456 (12 dígitos)`
+                        );
+                        return;
+                    }
+
+                    // Converter para formato completo se necessário
+                    if (numeroRelatorio.length === 9) {
+                        numeroRelatorio = '258' + numeroRelatorio;
+                    }
+
+                    // Configurar no sistema de relatórios
+                    if (global.sistemaRelatorios) {
+                        global.sistemaRelatorios.configurarNumeroRelatorio(grupoId, numeroRelatorio);
+
+                        await message.reply(
+                            `✅ *CONFIGURAÇÃO SALVA*\n\n` +
+                            `📱 Grupo: ${grupoId.split('@')[0]}\n` +
+                            `📞 Número para relatórios: ${numeroRelatorio}\n` +
+                            `⏰ Relatórios às 22:00 diariamente\n\n` +
+                            `💡 Teste com: *.test-relatorio*`
+                        );
+                    } else {
+                        await message.reply('❌ Sistema de relatórios não está disponível');
+                    }
+                    return;
+                }
+
+                // .list-relatorios - Listar configurações de relatórios (ADMIN APENAS)
+                if (comando === '.list-relatorios') {
+                    if (!isAdmin) {
+                        await message.reply('❌ Apenas administradores podem usar este comando!');
+                        return;
+                    }
+
+                    if (global.sistemaRelatorios) {
+                        const configs = global.sistemaRelatorios.numerosRelatorio;
+                        if (Object.keys(configs).length === 0) {
+                            await message.reply(
+                                `📋 *CONFIGURAÇÕES DE RELATÓRIOS*\n\n` +
+                                `❌ Nenhum grupo configurado\n\n` +
+                                `💡 Configure com: *.config-relatorio*`
+                            );
+                        } else {
+                            let texto = `📋 *CONFIGURAÇÕES DE RELATÓRIOS*\n\n`;
+
+                            for (const [grupoId, numero] of Object.entries(configs)) {
+                                const grupoNome = grupoId.split('@')[0];
+                                texto += `📱 ${grupoNome}\n`;
+                                texto += `   📞 ${numero}\n\n`;
+                            }
+
+                            texto += `⏰ Horário: 22:00 diariamente\n`;
+                            texto += `🧪 Teste: *.test-relatorio*`;
+
+                            await message.reply(texto);
+                        }
+                    } else {
+                        await message.reply('❌ Sistema de relatórios não está disponível');
+                    }
+                    return;
+                }
+
+                // .remove-relatorio GRUPO_ID - Remover configuração de relatórios (ADMIN APENAS)
+                if (comando.startsWith('.remove-relatorio ')) {
+                    if (!isAdmin) {
+                        await message.reply('❌ Apenas administradores podem usar este comando!');
+                        return;
+                    }
+
+                    const grupoId = comando.split(' ')[1];
+                    if (!grupoId) {
+                        await message.reply(
+                            `❌ *FORMATO INCORRETO*\n\n` +
+                            `✅ Use: *.remove-relatorio GRUPO_ID*\n` +
+                            `💡 Liste os grupos com: *.list-relatorios*`
+                        );
+                        return;
+                    }
+
+                    if (global.sistemaRelatorios) {
+                        global.sistemaRelatorios.removerNumeroRelatorio(grupoId);
+                        await message.reply(
+                            `✅ *CONFIGURAÇÃO REMOVIDA*\n\n` +
+                            `📱 Grupo: ${grupoId.split('@')[0]}\n` +
+                            `❌ Relatórios desativados para este grupo`
+                        );
+                    } else {
+                        await message.reply('❌ Sistema de relatórios não está disponível');
+                    }
+                    return;
+                }
+
+                // .test-relatorio [GRUPO_ID] - Testar relatório (ADMIN APENAS)
+                if (comando.startsWith('.test-relatorio')) {
+                    if (!isAdmin) {
+                        await message.reply('❌ Apenas administradores podem usar este comando!');
+                        return;
+                    }
+
+                    if (!global.sistemaRelatorios) {
+                        await message.reply('❌ Sistema de relatórios não está disponível');
+                        return;
+                    }
+
+                    const parametros = comando.split(' ');
+                    const grupoId = parametros[1] || message.from; // Usar grupo atual se não especificado
+
+                    await message.reply(
+                        `🧪 *TESTE DE RELATÓRIOS*\n\n` +
+                        `📊 Gerando relatório de teste...\n` +
+                        `⏳ Aguarde alguns segundos...`
+                    );
+
+                    try {
+                        await global.sistemaRelatorios.testarRelatorio(grupoId);
+                        await message.reply('✅ Teste concluído! Verifique se o relatório foi enviado.');
+                    } catch (error) {
+                        await message.reply(`❌ Erro no teste: ${error.message}`);
+                    }
+                    return;
                 }
             }
 
@@ -5155,19 +4920,12 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                     // Enviar mensagem de parabenização com menção clicável
                     if (resultadoConfirmacao.mensagem && resultadoConfirmacao.contactId) {
                         try {
-                            // Obter nome do contato para substituir o placeholder
-                            const contact = await client.getContactById(resultadoConfirmacao.contactId);
-                            
-                            // Prioridade: nome salvo > pushname (nome do perfil) > name > número
-                            const nomeExibicao = contact.name || contact.pushname || contact.number;
-                            const numeroLimpo = contact.id.user; // Número sem @ e sem +
-                            
-                            // Substituir placeholder pelo número (formato correto para menções clickáveis)
-                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${numeroLimpo}`);
-                            
+                            // Usar mesmo formato das boas-vindas (WhatsApp resolve o nome automaticamente)
+                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${resultadoConfirmacao.contactId.replace('@c.us', '')}`);
+
                             // Enviar com menção clicável
-                            await client.sendMessage(message.from, mensagemFinal, { 
-                                mentions: [resultadoConfirmacao.contactId] 
+                            await client.sendMessage(message.from, mensagemFinal, {
+                                mentions: [resultadoConfirmacao.contactId]
                             });
                         } catch (error) {
                             console.error('❌ Erro ao enviar parabenização com menção:', error);
