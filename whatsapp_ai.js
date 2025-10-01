@@ -48,6 +48,61 @@ class WhatsAppAI {
     this.rateLimiter.requests.push(now);
   }
 
+  // === NORMALIZAR NÚMERO DE TELEFONE ===
+  normalizarNumeroTelefone(texto) {
+    if (!texto || typeof texto !== 'string') return null;
+
+    // Remover todos os espaços, hífens, parênteses e outros caracteres especiais
+    let numeroLimpo = texto.replace(/[\s\-\(\)\+]/g, '');
+
+    // Casos comuns:
+    // 1. +258841234567 ou 258841234567 -> 841234567
+    // 2. 841234567 -> 841234567
+
+    // Se começa com 258 (código do país), remover
+    if (numeroLimpo.startsWith('258') && numeroLimpo.length >= 11) {
+      numeroLimpo = numeroLimpo.substring(3);
+    }
+
+    // Validar se é um número válido (9 dígitos começando com 8)
+    if (/^8[0-9]{8}$/.test(numeroLimpo)) {
+      return numeroLimpo;
+    }
+
+    return null;
+  }
+
+  // === EXTRAIR E NORMALIZAR NÚMEROS DE TEXTO ===
+  extrairENormalizarNumeros(texto) {
+    if (!texto || typeof texto !== 'string') return [];
+
+    const numerosEncontrados = new Set();
+
+    // Padrão 1: Números com +258 ou 258 (com ou sem espaços)
+    // Exemplos: +258 84 123 4567, 258841234567, +25884 1234567
+    const padrao258 = /(?:\+?258\s*)?8[0-9](?:\s*[0-9]){7}/g;
+    let matches = texto.match(padrao258);
+
+    if (matches) {
+      matches.forEach(match => {
+        const numero = this.normalizarNumeroTelefone(match);
+        if (numero) numerosEncontrados.add(numero);
+      });
+    }
+
+    // Padrão 2: Números já no formato correto (9 dígitos com 8)
+    const padraoSimples = /\b8[0-9]{8}\b/g;
+    matches = texto.match(padraoSimples);
+
+    if (matches) {
+      matches.forEach(match => {
+        numerosEncontrados.add(match);
+      });
+    }
+
+    return Array.from(numerosEncontrados);
+  }
+
   // === RECONSTRUIR REFERÊNCIAS QUEBRADAS ===
   reconstruirReferenciasQuebradas(texto) {
     console.log('🔧 Reconstruindo referências quebradas...');
@@ -553,24 +608,23 @@ Se não conseguires extrair os dados:
   // === FUNÇÃO MELHORADA PARA EXTRAIR NÚMEROS DE LEGENDAS ===
   extrairNumerosDeLegenda(legendaImagem) {
     console.log(`   🔍 LEGENDA: Analisando "${legendaImagem}"`);
-    
+
     if (!legendaImagem || typeof legendaImagem !== 'string' || legendaImagem.trim().length === 0) {
       console.log(`   ❌ LEGENDA: Vazia ou inválida`);
       return [];
     }
-    
+
     // Limpar a legenda de forma mais robusta
     let legendaLimpa = legendaImagem
       .replace(/[📱📲📞☎️🔢💳🎯🤖✅❌⏳💰📊💵📋⚡]/g, ' ') // Remover emojis comuns
       .replace(/\s+/g, ' ') // Normalizar espaços
       .trim();
-    
+
     // console.log(`   📝 LEGENDA: Limpa "${legendaLimpa}"`);
-    
-    // Buscar números de 9 dígitos que começam com 8
-    const regexNumeros = /\b8[0-9]{8}\b/g;
-    const numerosEncontrados = legendaLimpa.match(regexNumeros) || [];
-    
+
+    // Buscar e normalizar números (agora aceita +258, 258, espaços, etc)
+    const numerosEncontrados = this.extrairENormalizarNumeros(legendaLimpa);
+
     if (numerosEncontrados.length === 0) {
       console.log(`   ❌ LEGENDA: Nenhum número encontrado`);
       return [];
@@ -668,16 +722,15 @@ Se não conseguires extrair os dados:
   // === EXTRAIR NÚMEROS DE TEXTO (MELHORADO) ===
   extrairTodosNumeros(mensagem) {
     // console.log(`   🔍 TEXTO: Extraindo números da mensagem...`);
-    
+
     if (!mensagem || typeof mensagem !== 'string') {
       console.log(`   ❌ TEXTO: Mensagem inválida`);
       return [];
     }
-    
-    // Procurar números de 9 dígitos que começam com 8
-    const regex = /\b8[0-9]{8}\b/g;
-    const matches = mensagem.match(regex);
-    
+
+    // Usar função de normalização que aceita +258, 258, espaços, etc
+    const matches = this.extrairENormalizarNumeros(mensagem);
+
     if (!matches || matches.length === 0) {
       console.log(`   ❌ TEXTO: Nenhum número encontrado`);
       return [];
@@ -947,14 +1000,12 @@ Se não conseguires extrair os dados:
       return null;
     }
     
-    // Padrões melhorados para pedidos específicos
+    // Padrões melhorados para pedidos específicos (aceita +258, 258, espaços)
     const padroesPedidos = [
-      // Formato: quantidade + unidade + número
-      /(\d+(?:\.\d+)?)\s*(gb|g|giga|gigas?|mb|m|mega|megas?)\s+([8][0-9]{8})/gi,
+      // Formato: quantidade + unidade + número (com possível +258 ou 258 e espaços)
+      /(\d+(?:\.\d+)?)\s*(gb|g|giga|gigas?|mb|m|mega|megas?)\s+(?:para\s+)?(?:\+?258\s*)?([8][0-9](?:\s*[0-9]){7})/gi,
       // Formato: número + quantidade + unidade
-      /([8][0-9]{8})\s+(\d+(?:\.\d+)?)\s*(gb|g|giga|gigas?|mb|m|mega|megas?)/gi,
-      // Formato com "para": 2gb para 852413946
-      /(\d+(?:\.\d+)?)\s*(gb|g|giga|gigas?|mb|m|mega|megas?)\s+(?:para\s+)?([8][0-9]{8})/gi
+      /(?:\+?258\s*)?([8][0-9](?:\s*[0-9]){7})\s+(\d+(?:\.\d+)?)\s*(gb|g|giga|gigas?|mb|m|mega|megas?)/gi
     ];
     
     const pedidos = [];
@@ -962,19 +1013,30 @@ Se não conseguires extrair os dados:
     for (const padrao of padroesPedidos) {
       let match;
       while ((match = padrao.exec(mensagem)) !== null) {
-        let quantidade, unidade, numero;
-        
-        if (match[1] && /\d/.test(match[1]) && match[2] && /[8][0-9]{8}/.test(match[3])) {
+        let quantidade, unidade, numeroRaw;
+
+        // Identificar se é quantidade+número ou número+quantidade
+        if (match[1] && /\d/.test(match[1]) && match[2]) {
+          // Caso 1: quantidade + unidade + número
           quantidade = parseFloat(match[1]);
           unidade = match[2].toLowerCase();
-          numero = match[3];
-        } else if (match[1] && /[8][0-9]{8}/.test(match[1]) && match[2] && /\d/.test(match[2])) {
-          numero = match[1];
+          numeroRaw = match[3];
+        } else if (match[1] && match[2] && /\d/.test(match[2])) {
+          // Caso 2: número + quantidade + unidade
+          numeroRaw = match[1];
           quantidade = parseFloat(match[2]);
           unidade = match[3].toLowerCase();
         }
-        
-        if (quantidade && unidade && numero) {
+
+        if (quantidade && unidade && numeroRaw) {
+          // Normalizar o número (remover +258, 258, espaços)
+          const numero = this.normalizarNumeroTelefone(numeroRaw);
+
+          if (!numero) {
+            console.log(`   ⚠️ Número inválido após normalização: "${numeroRaw}"`);
+            continue;
+          }
+
           let quantidadeGB;
           if (unidade.includes('gb') || unidade.includes('giga') || unidade === 'g') {
             quantidadeGB = quantidade;
@@ -983,9 +1045,9 @@ Se não conseguires extrair os dados:
           } else {
             continue;
           }
-          
+
           const precoEncontrado = this.encontrarPrecoParaQuantidade(quantidadeGB, precos);
-          
+
           if (precoEncontrado) {
             pedidos.push({
               numero: numero,
@@ -994,7 +1056,7 @@ Se não conseguires extrair os dados:
               preco: precoEncontrado.preco,
               original: match[0]
             });
-            
+
             console.log(`   ✅ Pedido específico: ${quantidadeGB}GB para ${numero} = ${precoEncontrado.preco}MT`);
           }
         }
@@ -1185,19 +1247,20 @@ Se não conseguires extrair os dados:
     
     // MELHORAR DETECÇÃO: Verificar se é uma mensagem que contém apenas números
     const mensagemLimpa = mensagem.trim();
-    const apenasNumeroRegex = /^8[0-9]{8}$/; // Exatamente um número de 9 dígitos
-    const multiplosNumerosRegex = /^(8[0-9]{8}[\s,]*)+$/; // Múltiplos números separados por espaço ou vírgula
-    
+    // Aceita números com +258, 258, espaços, vírgulas
+    const apenasNumeroRegex = /^(?:\+?258\s*)?8[0-9](?:\s*[0-9]){7}$/; // Um número com possível código de país e espaços
+    const multiplosNumerosRegex = /^((?:\+?258\s*)?8[0-9](?:\s*[0-9]){7}[\s,]*)+$/; // Múltiplos números
+
     console.log(`   🔍 Verificando se é apenas número(s)...`);
     // console.log(`   📝 Mensagem limpa: "${mensagemLimpa}"`);
-    
+
     if (apenasNumeroRegex.test(mensagemLimpa) || multiplosNumerosRegex.test(mensagemLimpa)) {
       console.log(`   📱 DETECTADO: Mensagem contém apenas número(s)!`);
-      
-      // Extrair números da mensagem
-      const numerosDetectados = mensagemLimpa.match(/8[0-9]{8}/g) || [];
+
+      // Extrair e normalizar números da mensagem
+      const numerosDetectados = this.extrairENormalizarNumeros(mensagemLimpa);
       console.log(`   📱 Números detectados: ${numerosDetectados.length}`);
-      
+
       if (numerosDetectados.length > 0) {
         return await this.processarNumeros(numerosDetectados, remetente, timestamp, mensagem, configGrupo);
       }

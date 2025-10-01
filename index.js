@@ -1741,45 +1741,44 @@ Importante 🚨: Envie o valor que consta na tabela!
         nome: 'Megas VIP',
         tabela: `🚨MB DA VODACOM 📶🌐
 
-🔥 E o melhor de tudo: o nosso Pacote Diário e Semanal Txuna não leva!👌🚀
+🔥 E o melhor de tudo: é que o nosso Pacote Diário e Semanal Txuna não leva!👌🚀
 ⏳ Aproveite, irá mudar a qualquer momento
 
 ⏰PACOTE DIÁRIO🛒📦
-🌐256MB ➝ 7MT
-🌐512MB ➝ 10MT
-🌐1024MB ➝ 17MT
-🌐2048MB ➝ 34MT
-🌐3072MB ➝ 51MT
-🌐4096MB ➝ 68MT
-🌐5120MB ➝ 85MT
-🌐6144MB ➝ 102MT
-🌐7168MB ➝ 119MT
-🌐8192MB ➝ 136MT
-🌐9216MB ➝ 153MT
-🌐10240MB ➝ 170MT
+🌐256MB = 7MT
+🌐512MB = 10MT
+🌐1024MB = 17MT
+🌐2048MB = 34MT
+🌐3072MB = 51MT
+🌐4096MB = 68MT
+🌐5120MB = 85MT
+🌐6144MB = 102MT
+🌐7168MB = 119MT
+🌐8192MB = 136MT
+🌐9216MB = 153MT
+🌐10240MB = 170MT
 
  📅PACOTE SEMANAL🛒📦
 ⚠ Vai receber 100MB por dia durante 6 dias, totalizando +0.6GB. ⚠
 
-📡2.0GB ➝ 65MT
-📡3.0GB ➝ 89MT
-📡5.0GB ➝ 130MT
-📡7.0GB ➝ 175MT 
-📡10.0GB ➝ 265MT
-📡14.0GB ➝ 362MT
+📡2.0GB = 65MT
+📡3.0GB = 89MT
+📡5.0GB = 130MT
+📡7.0GB = 175MT 
+📡10.0GB = 265MT
+📡14.0GB = 362MT
 
 > PARA VER TABELA DO PACOTE MENSAL DIGITE: Mensal
 
-> *PARA VER TABELA DO PACOTE  ILIMITADO DIGITE:*Ilimitado
+> PARA VER TABELA DO PACOTE  ILIMITADO DIGITE: Ilimitado
 
 
 💳FORMA DE PAGAMENTO:
 
 M-Pesa: 853529033 📱
-- Ercílio Uanela 
+- Ercílio UANELA 
 e-Mola: 865627840 📱
-- Alexandre Uanela 
-
+- Alexandre UANELA 
 
 ✨ Mais Rápido, Mais Barato, Mais Confiável! ✨
 `,
