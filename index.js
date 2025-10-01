@@ -235,131 +235,6 @@ const ARQUIVO_MEMBROS = './dados_membros_entrada.json';
 
 // === FUNÇÕES DO SISTEMA DE REFERÊNCIA ===
 
-// Cache para controlar boas-vindas (evitar spam)
-let cacheBoasVindas = {}; // {grupoId_participantId: timestamp}
-let ultimosParticipantes = {}; // {grupoId: [participantIds]} - cache dos participantes
-
-// === CACHE PARA RASTREAR MEMBROS JÁ PROCESSADOS VIA GROUP-JOIN ===
-let membrosProcessadosViaEvent = new Set(); // Evita processamento duplicado
-
-// Sistema automático de detecção de novos membros
-async function iniciarMonitoramentoMembros() {
-    console.log('🕵️ Iniciando monitoramento automático de novos membros...');
-    
-    // Executar a cada 2 minutos (otimizado - era 30s)
-    setInterval(async () => {
-        try {
-            await verificarNovosMembros();
-        } catch (error) {
-            console.error('❌ Erro no monitoramento de membros:', error);
-        }
-    }, 120000); // 2 minutos
-    
-    // Primeira execução após 10 segundos (para dar tempo do bot conectar)
-    setTimeout(async () => {
-        await verificarNovosMembros();
-    }, 10000);
-}
-
-// Verificar novos membros em todos os grupos monitorados
-async function verificarNovosMembros() {
-    for (const grupoId of Object.keys(CONFIGURACAO_GRUPOS)) {
-        try {
-            await detectarNovosMembrosGrupo(grupoId);
-        } catch (error) {
-            // Silencioso para não poluir logs
-        }
-    }
-}
-
-// Detectar novos membros em um grupo específico
-async function detectarNovosMembrosGrupo(grupoId) {
-    try {
-        const chat = await client.getChatById(grupoId);
-        const participants = await chat.participants;
-        const participantIds = participants.map(p => p.id._serialized);
-        
-        // Se é a primeira vez que verificamos este grupo
-        if (!ultimosParticipantes[grupoId]) {
-            ultimosParticipantes[grupoId] = participantIds;
-            return;
-        }
-        
-        // Encontrar novos participantes
-        const novosParticipantes = participantIds.filter(id => 
-            !ultimosParticipantes[grupoId].includes(id)
-        );
-        
-        // Processar novos membros
-        for (const participantId of novosParticipantes) {
-            await processarNovoMembro(grupoId, participantId);
-        }
-        
-        // Atualizar cache
-        ultimosParticipantes[grupoId] = participantIds;
-        
-    } catch (error) {
-        // Silencioso - grupo pode não existir ou bot não ter acesso
-    }
-}
-
-// Processar novo membro detectado
-async function processarNovoMembro(grupoId, participantId) {
-    try {
-        const configGrupo = getConfiguracaoGrupo(grupoId);
-        if (!configGrupo) return;
-
-        const cacheKey = `${grupoId}_${participantId}`;
-        const agora = Date.now();
-
-        // Verificar se já enviamos boas-vindas recentemente (últimas 24h)
-        if (cacheBoasVindas[cacheKey] && (agora - cacheBoasVindas[cacheKey]) < (24 * 60 * 60 * 1000)) {
-            return;
-        }
-
-        console.log(`👋 Novo membro detectado via POLLING: ${participantId}`);
-
-        // Verificar se já foi processado via event 'group-join'
-        const membroKey = `${grupoId}_${participantId}`;
-        if (membrosProcessadosViaEvent.has(membroKey)) {
-            console.log(`✅ Membro ${participantId} já foi processado via event 'group-join' - pulando...`);
-            return;
-        }
-
-        // SISTEMA AUTOMÁTICO DESATIVADO - Usuário deve usar código manual
-        console.log(`📢 Sistema automático desativado - novo membro deve usar código do convidador`);
-
-        /* SISTEMA AUTOMÁTICO COMENTADO - USUÁRIO PREFERIU MÉTODO MANUAL
-        // MÉTODO ALTERNATIVO: Analisar mensagens recentes do grupo
-        const referenciaCreada = await detectarConvidadorViaMensagens(grupoId, participantId);
-        if (referenciaCreada) {
-            console.log(`✅ Referência criada via análise de mensagens`);
-        } else {
-            console.log(`ℹ️ Não foi possível detectar convidador - enviando apenas boas-vindas`);
-        }
-        */
-
-        // Registrar entrada do membro
-        await registrarEntradaMembro(grupoId, participantId);
-
-        // Marcar como processado
-        cacheBoasVindas[cacheKey] = agora;
-
-        // Enviar boas-vindas com delay aleatório
-        setTimeout(async () => {
-            try {
-                await enviarBoasVindas(grupoId, participantId);
-                console.log(`✅ Boas-vindas enviadas`);
-            } catch (error) {
-                console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error.message);
-            }
-        }, 3000 + (Math.random() * 5000)); // 3-8 segundos
-
-    } catch (error) {
-        console.error('❌ Erro ao processar novo membro:', error);
-    }
-}
-
 // SISTEMA DE DETECÇÃO INTELIGENTE - CORRIGIDO
 async function tentarDetectarConvidador(grupoId, novoMembroId) {
     try {
@@ -885,63 +760,6 @@ async function salvarDadosMembros() {
     }
 }
 
-// Enviar mensagem de boas-vindas para novos membros
-async function enviarBoasVindas(grupoId, participantId) {
-    try {
-        console.log(`👋 Enviando boas-vindas`);
-        
-        // Registrar entrada do membro
-        await registrarEntradaMembro(grupoId, participantId);
-        
-        // Obter informações do participante
-        const contact = await client.getContactById(participantId);
-        const nomeUsuario = contact.name || contact.pushname || participantId.replace('@c.us', '');
-        
-        // Obter configuração do grupo
-        const configGrupo = getConfiguracaoGrupo(grupoId);
-        if (!configGrupo) {
-            console.log(`⚠️ Grupo não configurado`);
-            return false;
-        }
-        
-        // Usar mensagem personalizada do grupo ou padrão
-        let mensagemBoasVindas = configGrupo.boasVindas || `✅@NOME BEM-VINDO AO GRUPO 100% AUTOMÁTICO DE VENDA DE MEGAS!
-
-📱 Como funciona:
-Envie comprovante de pagamento
-Sistema processa automaticamente
-Participe do ranking de compradores
-
-⚡ Comandos principais:
-tabela - Ver preços 💰
-pagamento - Ver formas de pagamento 💳
-comocomprar - Instruções de compras 📋
-.ranking - Ver classificação 📊
-.meucodigo - Gerar código de referência 🔑
-
-🎁 Ganhe grátis:
-Até 5GB convidando amigos 👥
-200MB por compra dos seus indicados
-Use .convite CÓDIGO se alguém te indicou
-
-❓ Dúvidas? Pergunte no grupo!`;
-        
-        // Substituir placeholder @NOME pelo nome real
-        mensagemBoasVindas = mensagemBoasVindas.replace('@NOME', `@${participantId.replace('@c.us', '')}`);
-        
-        // Enviar mensagem com menção
-        await client.sendMessage(grupoId, mensagemBoasVindas, {
-            mentions: [participantId]
-        });
-        
-        console.log(`✅ Boas-vindas enviadas`);
-        return true;
-        
-    } catch (error) {
-        console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
-        return false;
-    }
-}
 
 // Verificar se usuário é elegível para usar código (últimos 5 dias)
 function isElegivelParaCodigo(participantId, grupoId) {
@@ -1634,26 +1452,6 @@ const MODERACAO_CONFIG = {
 const CONFIGURACAO_GRUPOS = {
     '258820749141-1441573529@g.us': {
         nome: 'Data Store - Vodacom',
-        boasVindas: `✅ @NOME BEM-VINDO AO GRUPO 100% AUTOMÁTICO DE VENDA DE MEGAS!
-
-📱 Como funciona:
-Envie comprovante de pagamento
-Sistema processa automaticamente
-Participe do ranking de compradores
-
-⚡ Comandos principais:
-tabela - Ver preços 💰
-pagamento - Ver formas de pagamento 💳
-comocomprar - Instruções de compras 📋
-.ranking - Ver classificação 📊
-.meucodigo - Gerar código de referência 🔑
-
-🎁 Ganhe grátis:
-Até 5GB convidando amigos 👥
-200MB por compra dos seus indicados
-Use .convite CÓDIGO se alguém te indicou
-
-❓ Dúvidas? Pergunte no grupo!`,
         tabela: `SUPER PROMOÇÃO  DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO - 04-05/09/2025
 
 📆 PACOTES DIÁRIOS
@@ -1941,75 +1739,49 @@ Importante 🚨: Envie o valor que consta na tabela!
 📩 Envie o seu comprovantivo no grupo, juntamente com o número que vai receber os dados.`
 },'120363022366545020@g.us': {
         nome: 'Megas VIP',
-        boasVindas: `🎉 *BOAS-VINDAS AO MEGAS VIP!*
+        tabela: `🚨MB DA VODACOM 📶🌐
 
-👋 Olá @NOME, seja bem-vindo ao melhor grupo de internet!
+🔥 E o melhor de tudo: o nosso Pacote Diário e Semanal Txuna não leva!👌🚀
+⏳ Aproveite, irá mudar a qualquer momento
 
-🤖 *SISTEMA 100% AUTOMÁTICO - SEM DEMORAS!*
-⚡ Envie seu comprovante e receba instantaneamente
-🏆 Sistema mais rápido de Moçambique
-📊 Ranking geral com prêmios especiais
+⏰PACOTE DIÁRIO🛒📦
+🌐256MB ➝ 7MT
+🌐512MB ➝ 10MT
+🌐1024MB ➝ 17MT
+🌐2048MB ➝ 34MT
+🌐3072MB ➝ 51MT
+🌐4096MB ➝ 68MT
+🌐5120MB ➝ 85MT
+🌐6144MB ➝ 102MT
+🌐7168MB ➝ 119MT
+🌐8192MB ➝ 136MT
+🌐9216MB ➝ 153MT
+🌐10240MB ➝ 170MT
 
-💰 *COMANDOS:*
-• *tabela* - Ver preços VIP
-• *pagamento* - Formas de pagamento
-• *.ranking* - Ver seu ranking
-
-🎁 *BÔNUS DE REFERÊNCIA:*
-Indique amigos e ganhe MB extras!
-Use: *.meucodigo* para seu código
-
-🚀 *VANTAGENS EXCLUSIVAS:*
-✅ Processamento em tempo real
-✅ Suporte 24/7
-✅ Preços especiais
-✅ Sem taxas escondidas
-
-Bem-vindo à família VIP! 🔥`,
-        tabela: `🚨📢MEGABYTES DA VODACOM📢🚨
-
-📦PACOTE DIÁRIO📦
-
-🛜512MB = 10MT
-🛜768MB = 16MT
-🛜1024MB = 18MT
-🛜1280MB = 26MT
-🛜2048MB = 36MT
-🛜3072MB = 54MT
-🛜4096MB = 72MT
-🛜5120MB = 90MT
-🛜6144MB = 108MB
-🛜7168MB = 126MB
-🛜8192MB = 144MB
-🛜9216MB = 162MB
-🛜10240MB = 180MT
-
-PACOTE SEMANAL🛒📦
+ 📅PACOTE SEMANAL🛒📦
 ⚠ Vai receber 100MB por dia durante 6 dias, totalizando +0.6GB. ⚠
 
-🛜2.0GB = 65MT
-🛜3.0GB = 85MT
-🛜5.0GB = 130MT
-🛜7.0GB = 175MT 
-🛜10.0GB = 265MT
-🛜14.0GB = 362MT
-━━━━━━━━━━━━━━━━━━━━
-🚨Para pacote MENSAL é só entrar em contato com o número abaixo 👇👇🚨
+📡2.0GB ➝ 65MT
+📡3.0GB ➝ 89MT
+📡5.0GB ➝ 130MT
+📡7.0GB ➝ 175MT 
+📡10.0GB ➝ 265MT
+📡14.0GB ➝ 362MT
 
-https://wa.me/258865627840?text=%20Quero%20pacote%20mensal?%20
-━━━━━━━━━━━━━━━━━━━━
-🚨Para pacote ILIMITADO é só entrar em contato com o número abaixo 👇👇🚨
-https://wa.me/258865627840?text=%20Quero%20pacote%20ilimitado?%20
-━━━━━━━━━━━━━━━━━━━━
+> PARA VER TABELA DO PACOTE MENSAL DIGITE: Mensal
 
-FORMA DE PAGAMENTO:
-💳💸
+> *PARA VER TABELA DO PACOTE  ILIMITADO DIGITE:*Ilimitado
+
+
+💳FORMA DE PAGAMENTO:
+
 M-Pesa: 853529033 📱
 - Ercílio Uanela 
 e-Mola: 865627840 📱
 - Alexandre Uanela 
 
-Adquira já os teus megas com segurança, confiança e rapidez!🚨🔥
+
+✨ Mais Rápido, Mais Barato, Mais Confiável! ✨
 `,
 
         pagamento: `FORMAS DE PAGAMENTO💰💶
@@ -3050,10 +2822,7 @@ client.on('ready', async () => {
         console.log(`   📋 ${config.nome} (${grupoId})`);
     });
     
-    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .setboasvindas .getboasvindas .testboasvindas .testreferencia .config-relatorio .list-relatorios .remove-relatorio .test-relatorio');
-    
-    // Iniciar monitoramento automático de novos membros
-    await iniciarMonitoramentoMembros();
+    console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .testreferencia .config-relatorio .list-relatorios .remove-relatorio .test-relatorio');
 });
 
 client.on('group-join', async (notification) => {
@@ -3137,33 +2906,9 @@ client.on('group-join', async (notification) => {
                         console.log(`👤 Adicionado por: ${nomeAdicionador} (${addedBy})`);
                         console.log(`🏢 No grupo: ${configGrupo.nome}`);
 
-                        // Marcar como processado via event para evitar processamento duplicado
-                        const membroKey = `${chatId}_${participantId}`;
-                        membrosProcessadosViaEvent.add(membroKey);
-
-                        // SISTEMA AUTOMÁTICO DESATIVADO - Novo membro deve usar código manual
-                        console.log(`📢 Sistema automático desativado - ${nomeParticipante} deve usar código do convidador`);
-
-                        /* SISTEMA AUTOMÁTICO COMENTADO - USUÁRIO PREFERIU MÉTODO MANUAL
-                        if (notification.type === 'add') {
-                            console.log(`🔗 Criando referência automática (admin adicionou)...`);
-                            const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
-                            console.log(`🔗 Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
-                        } else if (notification.type === 'invite') {
-                            console.log(`📎 Membro entrou via link de convite - não criando referência automática`);
-                        } else {
-                            console.log(`❓ Tipo de entrada desconhecido: ${notification.type}`);
-                        }
-                        */
-
-                        // Aguardar um pouco para evitar spam
-                        setTimeout(async () => {
-                            try {
-                                await enviarBoasVindas(chatId, participantId);
-                            } catch (error) {
-                                console.error(`❌ Erro ao enviar boas-vindas para ${participantId}:`, error);
-                            }
-                        }, 2000 + (Math.random() * 3000));
+                        // Registrar entrada do novo membro
+                        await registrarEntradaMembro(chatId, participantId);
+                        console.log(`✅ Entrada do membro ${nomeParticipante} registrada`);
 
                     } catch (error) {
                         console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
@@ -3809,101 +3554,6 @@ async function processMessage(message) {
                     return;
                 }
                 
-                // .setboasvindas - Definir mensagem de boas-vindas personalizada (ADMIN APENAS)
-                if (comando.startsWith('.setboasvindas ')) {
-                    if (!isAdmin) {
-                        await message.reply('❌ Apenas administradores podem usar este comando!');
-                        return;
-                    }
-                    
-                    try {
-                        // Extrair a nova mensagem
-                        const novaMensagem = message.body.substring('.setboasvindas '.length).trim();
-                        
-                        if (novaMensagem.length === 0) {
-                            await message.reply(`❌ *ERRO*\n\nUso: .setboasvindas [mensagem]\n\n📝 *Placeholder disponível:*\n@NOME - será substituído pelo nome do novo membro\n\n*Exemplo:*\n.setboasvindas 🎉 Bem-vindo @NOME! Nosso sistema é 100% automático!`);
-                            return;
-                        }
-                        
-                        if (novaMensagem.length > 2000) {
-                            await message.reply(`❌ *MENSAGEM MUITO LONGA*\n\nMáximo: 2000 caracteres\nAtual: ${novaMensagem.length} caracteres`);
-                            return;
-                        }
-                        
-                        // Salvar no arquivo (simulação - na prática você salvaria em BD)
-                        console.log(`🔧 ADMIN ${remetente} definiu nova mensagem de boas-vindas para grupo ${message.from}`);
-                        
-                        const resposta = `✅ *MENSAGEM DE BOAS-VINDAS ATUALIZADA*\n\n` +
-                                        `👤 *Admin:* ${message._data.notifyName || 'Admin'}\n` +
-                                        `📱 *Grupo:* ${message.from}\n` +
-                                        `📝 *Caracteres:* ${novaMensagem.length}/2000\n\n` +
-                                        `📋 *Prévia da mensagem:*\n` +
-                                        `${novaMensagem.substring(0, 200)}${novaMensagem.length > 200 ? '...' : ''}\n\n` +
-                                        `✅ A nova mensagem será usada para próximos membros!\n` +
-                                        `💡 Use .testboasvindas para testar`;
-                        
-                        await message.reply(resposta);
-                        
-                    } catch (error) {
-                        console.error('❌ Erro no comando .setboasvindas:', error);
-                        await message.reply(`❌ *ERRO*\n\nNão foi possível atualizar a mensagem\n\n📝 Erro: ${error.message}`);
-                    }
-                    return;
-                }
-                
-                // .getboasvindas - Ver mensagem atual de boas-vindas (ADMIN APENAS)
-                if (comando === '.getboasvindas') {
-                    if (!isAdmin) {
-                        await message.reply('❌ Apenas administradores podem usar este comando!');
-                        return;
-                    }
-                    
-                    try {
-                        const configGrupo = getConfiguracaoGrupo(message.from);
-                        if (!configGrupo) {
-                            await message.reply('❌ Este grupo não está configurado!');
-                            return;
-                        }
-                        
-                        const mensagemAtual = configGrupo.boasVindas || 'Mensagem padrão (não personalizada)';
-                        
-                        const resposta = `📋 *MENSAGEM DE BOAS-VINDAS ATUAL*\n\n` +
-                                        `📱 *Grupo:* ${configGrupo.nome}\n` +
-                                        `📝 *Caracteres:* ${mensagemAtual.length}/2000\n\n` +
-                                        `📋 *Mensagem:*\n${mensagemAtual}\n\n` +
-                                        `💡 Use .setboasvindas para alterar\n` +
-                                        `🧪 Use .testboasvindas para testar`;
-                        
-                        await message.reply(resposta);
-                        
-                    } catch (error) {
-                        console.error('❌ Erro no comando .getboasvindas:', error);
-                        await message.reply(`❌ *ERRO*\n\nNão foi possível obter a mensagem\n\n📝 Erro: ${error.message}`);
-                    }
-                    return;
-                }
-                
-                // .testboasvindas - Testar mensagem de boas-vindas (ADMIN APENAS)
-                if (comando === '.testboasvindas') {
-                    if (!isAdmin) {
-                        await message.reply('❌ Apenas administradores podem usar este comando!');
-                        return;
-                    }
-
-                    try {
-                        await message.reply('🧪 *TESTE DE BOAS-VINDAS*\n\nEnviando mensagem de teste...');
-
-                        // Enviar boas-vindas para o próprio admin como teste
-                        setTimeout(async () => {
-                            await enviarBoasVindas(message.from, autorMensagem);
-                        }, 1000);
-
-                    } catch (error) {
-                        console.error('❌ Erro no comando .testboasvindas:', error);
-                        await message.reply(`❌ *ERRO*\n\nNão foi possível testar a mensagem\n\n📝 Erro: ${error.message}`);
-                    }
-                    return;
-                }
 
                 // .testreferencia - Testar sistema de referência automática (ADMIN APENAS)
                 if (comando === '.testreferencia') {
@@ -4738,192 +4388,6 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return false;
         }
 
-        // === FUNÇÃO PARA DETECTAR INTENÇÃO DE COMPRA ===
-        async function detectarIntencaoCompra(texto) {
-            // Verificação básica por padrões (sem IA - economia máxima)
-            const textoLimpo = texto.toLowerCase().trim();
-
-            // Excluir comandos específicos conhecidos
-            const comandosExcluir = [
-                'tabela',
-                'pagamento',
-                '.ranking',
-                '.meucodigo',
-                '.convite',
-                '.cancelar',
-                '.debug',
-                '.ia',
-                '.retry'
-            ];
-
-            // Se a mensagem é exatamente um comando, não detectar como intenção de compra
-            for (const comando of comandosExcluir) {
-                if (textoLimpo === comando || textoLimpo.startsWith(comando + ' ')) {
-                    return false;
-                }
-            }
-
-            // Padrões diretos de intenção de compra (EXPANDIDOS)
-            const padroesCompra = [
-                // Palavras simples e diretas
-                'posso',
-                'quero',
-                'preciso',
-                'vou',
-                'vendo',
-                'compro',
-                'pago',
-                'transferi',
-                'enviei',
-                'mandei',
-                'fiz',
-
-                // Frases sobre pagamento
-                'posso pagar',
-                'pode pagar',
-                'posso comprar',
-                'pode comprar',
-                'quero comprar',
-                'quero pagar',
-                'preciso pagar',
-                'vou pagar',
-                'vou comprar',
-                'como pagar',
-                'como comprar',
-                'onde pagar',
-                'posso fazer',
-                'como faço',
-
-                // Frases sobre disponibilidade
-                'tem megas',
-                'tem mega',
-                'tem internet',
-                'tem saldo',
-                'tem dados',
-                'tem pacote',
-                'tem pacotes',
-                'tem wifi',
-                'tem net',
-                'quero megas',
-                'quero mega',
-                'quero internet',
-                'quero dados',
-                'quero net',
-                'preciso de megas',
-                'preciso de mega',
-                'preciso de internet',
-                'preciso de dados',
-                'preciso de net',
-
-                // Sobre admins/atendimento
-                'admin disponivel',
-                'admin disponível',
-                'adm disponivel',
-                'adm disponível',
-                'tem alguem',
-                'tem alguém',
-                'alguém aí',
-                'alguem ai',
-                'tem admin',
-                'tem adm',
-                'pode atender',
-                'alguém pode',
-                'alguem pode',
-                'quem pode',
-                'disponível',
-                'disponivel',
-                'atende',
-                'atendimento',
-
-                // Perguntas diretas por admin (muito comuns)
-                'adm?',
-                'admin?',
-                'adm ?',
-                'admin ?',
-                'tem adm?',
-                'tem admin?',
-                'cadê admin',
-                'cadê adm',
-                'onde admin',
-                'onde adm',
-                'admin aí',
-                'adm aí',
-                'admin ai',
-                'adm ai',
-
-                // Sobre preços
-                'quanto custa',
-                'qual preço',
-                'qual o preço',
-                'preço',
-                'quanto é',
-                'quanto fica',
-                'valor',
-                'custo',
-                'custa',
-                'quanto vale',
-                'qual valor',
-
-                // Formas de pagamento
-                'formas de pagamento',
-                'forma de pagamento',
-                'como pago',
-                'aceita',
-                'recebe',
-                'mpesa',
-                'emola',
-                'mkesh',
-                'transferência',
-                'transferencia',
-                'cartão',
-                'cartao',
-                'dinheiro',
-
-                // Saudações com intenção
-                'boa tarde',
-                'bom dia',
-                'boa noite',
-                'olá',
-                'ola',
-                'oi',
-                'hey',
-                'ei',
-                'salve',
-
-                // Expressões casuais
-                'e aí',
-                'e ai',
-                'beleza',
-                'tudo bem',
-                'como está',
-                'como esta',
-                'tá aí',
-                'ta ai',
-                'está aí',
-                'esta ai'
-            ];
-
-            // Verificação direta (mais rápido, sem IA)
-            for (const padrao of padroesCompra) {
-                if (textoLimpo.includes(padrao)) {
-                    console.log(`🛒 COMPRA DETECTADA: "${texto}" → padrão "${padrao}"`);
-                    return true;
-                }
-            }
-
-            // Verificação adicional para palavras muito simples (apenas se mensagem for curta)
-            if (textoLimpo.length <= 20) {
-                const palavrasSimples = ['megas', 'mega', 'internet', 'dados', 'net', 'wifi', 'saldo'];
-                for (const palavra of palavrasSimples) {
-                    if (textoLimpo === palavra) {
-                        console.log(`🛒 PALAVRA SIMPLES DETECTADA: "${texto}" → "${palavra}"`);
-                        return true;
-                    }
-                }
-            }
-
-            return false; // Sem usar IA para economia máxima
-        }
 
         // === DETECÇÃO INTELIGENTE DE .MEUCODIGO (QUALQUER FORMATO) ===
         if (message.type === 'chat' && await detectarIntencaoMeuCodigo(message.body)) {
@@ -5330,7 +4794,6 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                     // Enviar mensagem de parabenização com menção clicável
                     if (resultadoConfirmacao.mensagem && resultadoConfirmacao.contactId) {
                         try {
-                            // Usar mesmo formato das boas-vindas (WhatsApp resolve o nome automaticamente)
                             const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${resultadoConfirmacao.contactId.replace('@c.us', '')}`);
 
                             // Enviar com menção clicável
@@ -5555,13 +5018,6 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return;
         }
 
-        // === DETECÇÃO DE INTENÇÃO DE COMPRA (ÚLTIMA VERIFICAÇÃO) ===
-        // Só executa se nenhum comando específico foi processado
-        if (await detectarIntencaoCompra(message.body)) {
-            console.log(`🛒 Intenção de compra detectada de ${message.author || message.from}`);
-            await safeReply(message, client, 'Estou á disposição, para te atender com flexibilidade.');
-            return;
-        }
 
     } catch (error) {
         console.error('❌ Erro ao processar mensagem:', error);
@@ -5643,15 +5099,6 @@ setInterval(() => {
 
     // Limpar outros caches seguindo padrão bot1
     if (gruposLogados && gruposLogados.size > 50) gruposLogados.clear();
-    if (membrosProcessadosViaEvent && membrosProcessadosViaEvent.size > 50) membrosProcessadosViaEvent.clear();
-
-    // Limpar cache boas-vindas (evitar memory leak)
-    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
-    Object.keys(cacheBoasVindas).forEach(key => {
-        if (cacheBoasVindas[key] < oneDayAgo) {
-            delete cacheBoasVindas[key];
-        }
-    });
 
     console.log('🗑️ Cache geral limpo');
 }, 60 * 60 * 1000); // A cada hora
