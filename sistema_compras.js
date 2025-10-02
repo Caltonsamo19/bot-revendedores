@@ -1,33 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
 
-// Mapeamento de IDs internos (@lid) para números reais (@c.us) - SISTEMA DINÂMICO COMPARTILHADO
-const ARQUIVO_MAPEAMENTOS = path.join(__dirname, 'mapeamentos_lid.json');
-
-let MAPEAMENTO_IDS = {
-    '23450974470333@lid': '258852118624@c.us',  // ID conhecido
-    '245075749638206@lid': null,  // Será identificado automaticamente
-    '76991768342659@lid': '258870818180@c.us'  // Joãozinho - corrigido manualmente
-};
-
-// Carregar mapeamentos salvos (se o arquivo existir)
-function carregarMapeamentosCompras() {
-    try {
-        if (require('fs').existsSync(ARQUIVO_MAPEAMENTOS)) {
-            const data = require('fs').readFileSync(ARQUIVO_MAPEAMENTOS, 'utf8');
-            const mapeamentosSalvos = JSON.parse(data);
-            MAPEAMENTO_IDS = { ...MAPEAMENTO_IDS, ...mapeamentosSalvos };
-            console.log(`✅ COMPRAS: Carregados ${Object.keys(mapeamentosSalvos).length} mapeamentos LID`);
-        }
-    } catch (error) {
-        console.error('❌ COMPRAS: Erro ao carregar mapeamentos LID:', error.message);
-    }
-}
-
-// Carregar na inicialização do módulo
-carregarMapeamentosCompras();
-
-
 class SistemaCompras {
     constructor() {
         console.log('🛒 Inicializando Sistema de Registro de Compras...');
@@ -506,14 +479,14 @@ class SistemaCompras {
 
             return {
                 mensagem: mensagem,
-                contactId: numero
+                contactId: numero + '@c.us'
             };
 
         } catch (error) {
             console.error('❌ COMPRAS: Erro ao gerar mensagem:', error);
             return {
                 mensagem: `🎉 Obrigado, @NOME_PLACEHOLDER, sua compra foi registrada com sucesso!`,
-                contactId: numero
+                contactId: numero + '@c.us'
             };
         }
     }

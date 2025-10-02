@@ -2,7 +2,6 @@ require('dotenv').config();
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs').promises;
-const path = require('path');
 const axios = require('axios'); // npm install axios
 
 // === AXIOS SIMPLIFICADO (SEGUINDO PADRÃO BOT1) ===
@@ -235,95 +234,6 @@ const ARQUIVO_SAQUES = './dados_saques.json';
 const ARQUIVO_MEMBROS = './dados_membros_entrada.json';
 
 // === FUNÇÕES DO SISTEMA DE REFERÊNCIA ===
-
-let ultimosParticipantes = {}; // {grupoId: [participantIds]} - cache dos participantes
-
-// === CACHE PARA RASTREAR MEMBROS JÁ PROCESSADOS VIA GROUP-JOIN ===
-let membrosProcessadosViaEvent = new Set(); // Evita processamento duplicado
-
-// Sistema automático de detecção de novos membros
-async function iniciarMonitoramentoMembros() {
-    console.log('🕵️ Iniciando monitoramento automático de novos membros...');
-    
-    // Executar a cada 2 minutos (otimizado - era 30s)
-    setInterval(async () => {
-        try {
-            await verificarNovosMembros();
-        } catch (error) {
-            console.error('❌ Erro no monitoramento de membros:', error);
-        }
-    }, 120000); // 2 minutos
-    
-    // Primeira execução após 10 segundos (para dar tempo do bot conectar)
-    setTimeout(async () => {
-        await verificarNovosMembros();
-    }, 10000);
-}
-
-// Verificar novos membros em todos os grupos monitorados
-async function verificarNovosMembros() {
-    for (const grupoId of Object.keys(CONFIGURACAO_GRUPOS)) {
-        try {
-            await detectarNovosMembrosGrupo(grupoId);
-        } catch (error) {
-            // Silencioso para não poluir logs
-        }
-    }
-}
-
-// Detectar novos membros em um grupo específico
-async function detectarNovosMembrosGrupo(grupoId) {
-    try {
-        const chat = await client.getChatById(grupoId);
-        const participants = await chat.participants;
-        const participantIds = participants.map(p => p.id._serialized);
-        
-        // Se é a primeira vez que verificamos este grupo
-        if (!ultimosParticipantes[grupoId]) {
-            ultimosParticipantes[grupoId] = participantIds;
-            return;
-        }
-        
-        // Encontrar novos participantes
-        const novosParticipantes = participantIds.filter(id => 
-            !ultimosParticipantes[grupoId].includes(id)
-        );
-        
-        // Processar novos membros
-        for (const participantId of novosParticipantes) {
-            await processarNovoMembro(grupoId, participantId);
-        }
-        
-        // Atualizar cache
-        ultimosParticipantes[grupoId] = participantIds;
-        
-    } catch (error) {
-        // Silencioso - grupo pode não existir ou bot não ter acesso
-    }
-}
-
-// Processar novo membro detectado
-async function processarNovoMembro(grupoId, participantId) {
-    try {
-        const configGrupo = getConfiguracaoGrupo(grupoId);
-        if (!configGrupo) return;
-
-        console.log(`👋 Novo membro detectado via POLLING: ${participantId}`);
-
-        // Verificar se já foi processado via event 'group-join'
-        const membroKey = `${grupoId}_${participantId}`;
-        if (membrosProcessadosViaEvent.has(membroKey)) {
-            console.log(`✅ Membro ${participantId} já foi processado via event 'group-join' - pulando...`);
-            return;
-        }
-
-        // Registrar entrada do membro
-        await registrarEntradaMembro(grupoId, participantId);
-
-    } catch (error) {
-        console.error('❌ Erro ao processar novo membro:', error);
-    }
-}
 
 // SISTEMA DE DETECÇÃO INTELIGENTE - CORRIGIDO
 async function tentarDetectarConvidador(grupoId, novoMembroId) {
@@ -786,9 +696,9 @@ async function criarReferenciaAutomaticaBackup(convidadorId, convidadoId, grupoI
         try {
             await client.sendMessage(grupoId,
                 `🎉 *NOVO MEMBRO ADICIONADO!*\n\n` +
-                `👋 Bem-vindo @${convidadoId.replace('@c.us', '')}!\n\n` +
-                `📢 Sistema detectou provável adição por: @${convidadorId.replace('@c.us', '')}\n` +
-                `🎁 @${convidadorId.replace('@c.us', '')} ganhará *200MB* a cada compra de @${convidadoId.replace('@c.us', '')}!\n\n` +
+                `👋 Bem-vindo *${nomeConvidado}*!\n\n` +
+                `📢 Sistema detectou provável adição por: *${nomeConvidador}*\n` +
+                `🎁 *${nomeConvidador}* ganhará *200MB* a cada compra de *${nomeConvidado}*!\n\n` +
                 `📋 *Benefícios:*\n` +
                 `• Máximo: 5 compras = 1000MB (1GB)\n` +
                 `• Saque mínimo: 1000MB\n` +
@@ -1050,9 +960,9 @@ async function processarBonusCompra(remetenteCompra, valorCompra) {
 
         await client.sendMessage(message.from,
             `🎉 *BÔNUS DE REFERÊNCIA CREDITADO!*\n\n` +
-            `💎 @${convidador.replace('@c.us', '')}, recebeste *${bonusAtual}MB* de bônus!\n\n` +
-            `👤 *Referenciado:* @${remetenteCompra.replace('@c.us', '')}\n` +
-            `📢 *Motivo:* @${remetenteCompra.replace('@c.us', '')} que você ${tipoReferencia} fez uma compra!\n` +
+            `💎 *${nomeConvidador}*, recebeste *${bonusAtual}MB* de bônus!\n\n` +
+            `👤 *Referenciado:* ${nomeComprador}\n` +
+            `📢 *Motivo:* ${nomeComprador} que você ${tipoReferencia} fez uma compra!\n` +
             `🛒 *Compra:* ${referencia.comprasRealizadas}ª de 5\n` +
             `💰 *Novo saldo:* ${novoSaldoFormatado}\n\n` +
             `${novoSaldo >= 1024 ? '🚀 *Já podes sacar!* Use: *.sacar*' : '⏳ *Continua a convidar amigos para ganhar mais bônus!*'}`, {
@@ -1148,9 +1058,9 @@ async function criarReferenciaAutomatica(convidadorId, convidadoId, grupoId) {
         try {
             await client.sendMessage(grupoId,
                 `🎉 *NOVO MEMBRO ADICIONADO!*\n\n` +
-                `👋 Bem-vindo @${convidadoId.replace('@c.us', '')}!\n\n` +
-                `📢 Adicionado por: @${convidadorId.replace('@c.us', '')}\n` +
-                `🎁 @${convidadorId.replace('@c.us', '')} ganhará *200MB* a cada compra de @${convidadoId.replace('@c.us', '')}!\n\n` +
+                `👋 Bem-vindo *${nomeConvidado}*!\n\n` +
+                `📢 Adicionado por: *${nomeConvidador}*\n` +
+                `🎁 *${nomeConvidador}* ganhará *200MB* a cada compra de *${nomeConvidado}*!\n\n` +
                 `📋 *Benefícios:*\n` +
                 `• Máximo: 5 compras = 1000MB (1GB)\n` +
                 `• Saque mínimo: 1000MB\n` +
@@ -1515,87 +1425,11 @@ const ADMINISTRADORES_GLOBAIS = [
     // Removido temporariamente para testar verificação de grupo: '245075749638206@lid'
 ];
 
-// Mapeamento de IDs internos (@lid) para números reais (@c.us) - SISTEMA DINÂMICO
-let MAPEAMENTO_IDS = {
+// Mapeamento de IDs internos (@lid) para números reais (@c.us)
+const MAPEAMENTO_IDS = {
     '23450974470333@lid': '258852118624@c.us',  // Seu ID
-    '245075749638206@lid': null,  // Será identificado automaticamente
-    '76991768342659@lid': '258870818180@c.us'  // Joãozinho - corrigido manualmente
+    '245075749638206@lid': null  // Será identificado automaticamente
 };
-
-// === SISTEMA AUTOMÁTICO DE MAPEAMENTO LID ===
-const ARQUIVO_MAPEAMENTOS = path.join(__dirname, 'mapeamentos_lid.json');
-
-async function carregarMapeamentos() {
-    try {
-        if (fs.existsSync(ARQUIVO_MAPEAMENTOS)) {
-            const data = await fs.readFile(ARQUIVO_MAPEAMENTOS, 'utf8');
-            const mapeamentosSalvos = JSON.parse(data);
-            // Mesclar com os mapeamentos base
-            MAPEAMENTO_IDS = { ...MAPEAMENTO_IDS, ...mapeamentosSalvos };
-            console.log(`✅ Carregados ${Object.keys(mapeamentosSalvos).length} mapeamentos LID salvos`);
-        }
-    } catch (error) {
-        console.error('❌ Erro ao carregar mapeamentos LID:', error.message);
-    }
-}
-
-async function salvarMapeamentos() {
-    try {
-        // Filtrar apenas os mapeamentos válidos (não null)
-        const mapeamentosValidos = {};
-        for (const [lid, numero] of Object.entries(MAPEAMENTO_IDS)) {
-            if (numero && numero !== null) {
-                mapeamentosValidos[lid] = numero;
-            }
-        }
-        await fs.writeFile(ARQUIVO_MAPEAMENTOS, JSON.stringify(mapeamentosValidos, null, 2));
-        console.log(`💾 Salvos ${Object.keys(mapeamentosValidos).length} mapeamentos LID`);
-    } catch (error) {
-        console.error('❌ Erro ao salvar mapeamentos LID:', error.message);
-    }
-}
-
-async function adicionarMapeamento(lid, numeroReal) {
-    if (!lid || !numeroReal || lid === numeroReal) return false;
-
-    // Validar formato
-    if (!lid.endsWith('@lid') || !numeroReal.endsWith('@c.us')) return false;
-
-    // Verificar se já existe
-    if (MAPEAMENTO_IDS[lid] === numeroReal) return false;
-
-    // Adicionar novo mapeamento
-    MAPEAMENTO_IDS[lid] = numeroReal;
-    console.log(`✅ NOVO MAPEAMENTO: ${lid} → ${numeroReal}`);
-    await salvarMapeamentos();
-    return true;
-}
-
-// Função para tentar aprender mapeamento automaticamente quando ambos os formatos estão disponíveis
-async function aprenderMapeamento(message) {
-    try {
-        if (!message.from || !message.author) return;
-
-        const from = message.from; // ID do remetente (pode ser @c.us)
-        const author = message.author; // ID do autor (pode ser @lid)
-
-        // Se temos um @lid e um @c.us, podemos aprender o mapeamento
-        if (author && author.endsWith('@lid') && from && from.endsWith('@c.us')) {
-            // Extrair número base para validar se correspondem
-            const numeroLid = author.replace('@lid', '');
-            const numeroReal = from.replace('@c.us', '');
-
-            // Tentar encontrar uma correspondência lógica (primeiros dígitos, etc.)
-            // Por enquanto, sempre tentar mapear se não temos o mapeamento
-            if (!MAPEAMENTO_IDS[author]) {
-                await adicionarMapeamento(author, from);
-                console.log(`🔍 APRENDIZADO: Detectado possível mapeamento ${author} → ${from}`);
-            }
-        }
-    } catch (error) {
-        // Silencioso - não queremos spam nos logs
-    }
-}
 
 // === CONFIGURAÇÃO DE MODERAÇÃO ===
 const MODERACAO_CONFIG = {
@@ -2406,50 +2240,6 @@ function resolverIdReal(participantId, adminsEncontrados) {
     return participantId;
 }
 
-// Função para converter LID para número usando API oficial do wwebjs
-async function lidParaNumero(lid) {
-    try {
-        console.log(`🔍 INICIO: Convertendo LID para número: ${lid}`);
-        console.log(`🔍 CLIENTE: Status do cliente: ${client ? 'disponível' : 'não disponível'}`);
-
-        if (!client) {
-            console.error(`❌ Cliente WhatsApp não está disponível para conversão LID`);
-            return null;
-        }
-
-        // Verificar se o cliente está realmente pronto
-        try {
-            const info = await client.getState();
-            console.log(`🔍 ESTADO: Cliente estado: ${info}`);
-            if (info !== 'CONNECTED') {
-                console.error(`❌ Cliente não está conectado (estado: ${info}) - não é possível converter LID`);
-                return null;
-            }
-        } catch (stateError) {
-            console.error(`❌ Erro ao verificar estado do cliente:`, stateError.message);
-            return null;
-        }
-
-        console.log(`🔍 CHAMANDO: client.getContactById(${lid})`);
-        const contato = await client.getContactById(lid);
-        console.log(`🔍 CONTATO: Objeto recebido:`, contato ? 'OK' : 'NULL');
-
-        if (!contato) {
-            console.error(`❌ Contato não encontrado para LID: ${lid}`);
-            return null;
-        }
-
-        const numeroReal = contato.number;
-        console.log(`✅ LID convertido com sucesso: ${lid} → ${numeroReal}`);
-        return numeroReal; // Retorna número no formato internacional (ex: 258841234567)
-    } catch (err) {
-        console.error(`❌ Erro detalhado ao buscar número para LID ${lid}:`, err.message);
-        console.error(`❌ Stack trace:`, err.stack);
-        return null;
-    }
-}
-
-
 async function isAdminGrupo(chatId, participantId) {
     try {
         console.log(`🔍 Verificando admin: chatId=${chatId}, participantId=${participantId}`);
@@ -2986,9 +2776,6 @@ client.on('ready', async () => {
     console.log(`🔗 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}`);
     console.log('🤖 Bot Retalho - Lógica simples igual ao Bot Atacado!');
 
-    // Carregar mapeamentos LID salvos
-    await carregarMapeamentos();
-
     // === INICIALIZAR SISTEMA DE RELATÓRIOS ===
     try {
         global.sistemaRelatorios = new SistemaRelatorios(client, GOOGLE_SHEETS_CONFIG, PAGAMENTOS_CONFIG);
@@ -3035,9 +2822,6 @@ client.on('ready', async () => {
     });
     
     console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .testreferencia .config-relatorio .list-relatorios .remove-relatorio .test-relatorio');
-    
-    // Iniciar monitoramento automático de novos membros
-    await iniciarMonitoramentoMembros();
 });
 
 client.on('group-join', async (notification) => {
@@ -3121,25 +2905,9 @@ client.on('group-join', async (notification) => {
                         console.log(`👤 Adicionado por: ${nomeAdicionador} (${addedBy})`);
                         console.log(`🏢 No grupo: ${configGrupo.nome}`);
 
-                        // Marcar como processado via event para evitar processamento duplicado
-                        const membroKey = `${chatId}_${participantId}`;
-                        membrosProcessadosViaEvent.add(membroKey);
-
-                        // SISTEMA AUTOMÁTICO DESATIVADO - Novo membro deve usar código manual
-                        console.log(`📢 Sistema automático desativado - ${nomeParticipante} deve usar código do convidador`);
-
-                        /* SISTEMA AUTOMÁTICO COMENTADO - USUÁRIO PREFERIU MÉTODO MANUAL
-                        if (notification.type === 'add') {
-                            console.log(`🔗 Criando referência automática (admin adicionou)...`);
-                            const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
-                            console.log(`🔗 Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
-                        } else if (notification.type === 'invite') {
-                            console.log(`📎 Membro entrou via link de convite - não criando referência automática`);
-                        } else {
-                            console.log(`❓ Tipo de entrada desconhecido: ${notification.type}`);
-                        }
-                        */
-
+                        // Registrar entrada do novo membro
+                        await registrarEntradaMembro(chatId, participantId);
+                        console.log(`✅ Entrada do membro ${nomeParticipante} registrada`);
 
                     } catch (error) {
                         console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
@@ -3616,38 +3384,36 @@ async function processMessage(message) {
                         
                         for (let i = 0; i < ranking.length; i++) {
                             const item = ranking[i];
-                            // COPIAR EXATAMENTE A LÓGICA DAS BOAS-VINDAS - SEM CONVERSÃO
-                            const participantId = item.numero; // Usar número exatamente como está salvo
-
+                            const contactId = item.numero + '@c.us';
+                            
                             // Obter informações do contato
                             try {
-                                const contact = await client.getContactById(participantId);
-
+                                const contact = await client.getContactById(contactId);
+                                
                                 // Prioridade: nome salvo > nome do perfil > número
                                 const nomeExibicao = contact.name || contact.pushname || item.numero;
-
+                                const numeroLimpo = contact.id.user; // Número sem @ e sem +
+                                
                                 const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
-                                const megasFormatados = item.megas >= 1024 ?
+                                const megasFormatados = item.megas >= 1024 ? 
                                     `${(item.megas/1024).toFixed(1)}GB` : `${item.megas}MB`;
-
-                                // Usar exatamente o mesmo padrão das boas-vindas
-                                mensagem += `${posicaoEmoji} @${participantId.replace('@c.us', '')}\n`;
+                                
+                                mensagem += `${posicaoEmoji} @${numeroLimpo}\n`;
                                 mensagem += `   💾 ${megasFormatados} no grupo (${item.compras}x)\n`;
                                 mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
-
-                                mentions.push(participantId);
+                                
+                                mentions.push(contactId);
                             } catch (error) {
-                                // Se não conseguir obter o contato, usar apenas o número com padrão das boas-vindas
+                                // Se não conseguir obter o contato, usar apenas o número
                                 const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
-                                const megasFormatados = item.megas >= 1024 ?
+                                const megasFormatados = item.megas >= 1024 ? 
                                     `${(item.megas/1024).toFixed(1)}GB` : `${item.megas}MB`;
-
-                                // Usar exatamente o mesmo padrão das boas-vindas
-                                mensagem += `${posicaoEmoji} @${participantId.replace('@c.us', '')}\n`;
+                                
+                                mensagem += `${posicaoEmoji} @${item.numero}\n`;
                                 mensagem += `   💾 ${megasFormatados} no grupo (${item.compras}x)\n`;
                                 mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
-
-                                mentions.push(participantId);
+                                
+                                mentions.push(contactId);
                             }
                         }
                         
@@ -3678,12 +3444,11 @@ async function processMessage(message) {
                         
                         for (let i = 0; i < Math.min(inativos.length, 20); i++) {
                             const item = inativos[i];
-                            // COPIAR EXATAMENTE A LÓGICA DAS BOAS-VINDAS - SEM CONVERSÃO
-                            const participantId = item.numero; // Usar número exatamente como está salvo
-
+                            const contactId = item.numero + '@c.us';
+                            
                             // Obter informações do contato
                             try {
-                                const contact = await client.getContactById(participantId);
+                                const contact = await client.getContactById(contactId);
                                 
                                 // Prioridade: nome salvo > nome do perfil > número
                                 const nomeExibicao = contact.name || contact.pushname || item.numero;
@@ -3692,21 +3457,21 @@ async function processMessage(message) {
                                 const totalFormatado = item.megasTotal >= 1024 ? 
                                     `${(item.megasTotal/1024).toFixed(1)}GB` : `${item.megasTotal}MB`;
                                 
-                                mensagem += `👤 @${participantId.replace('@c.us', '')}\n`;
+                                mensagem += `👤 @${numeroLimpo}\n`;
                                 mensagem += `   ⏰ ${item.diasSemComprar} dias sem comprar\n`;
                                 mensagem += `   📊 Total: ${item.totalCompras}x compras (${totalFormatado})\n\n`;
                                 
-                                mentions.push(participantId);
+                                mentions.push(contactId);
                             } catch (error) {
                                 // Se não conseguir obter o contato, usar apenas o número
                                 const totalFormatado = item.megasTotal >= 1024 ? 
                                     `${(item.megasTotal/1024).toFixed(1)}GB` : `${item.megasTotal}MB`;
                                 
-                                mensagem += `👤 @${participantId.replace('@c.us', '')}\n`;
+                                mensagem += `👤 @${item.numero}\n`;
                                 mensagem += `   ⏰ ${item.diasSemComprar} dias sem comprar\n`;
                                 mensagem += `   📊 Total: ${item.totalCompras}x compras (${totalFormatado})\n\n`;
                                 
-                                mentions.push(participantId);
+                                mentions.push(contactId);
                             }
                         }
                         
@@ -3741,29 +3506,28 @@ async function processMessage(message) {
                         
                         for (let i = 0; i < Math.min(semCompra.length, 30); i++) {
                             const item = semCompra[i];
-                            // COPIAR EXATAMENTE A LÓGICA DAS BOAS-VINDAS - SEM CONVERSÃO
-                            const participantId = item.numero; // Usar número exatamente como está salvo
-
+                            const contactId = item.numero + '@c.us';
+                            
                             // Obter informações do contato
                             try {
-                                const contact = await client.getContactById(participantId);
+                                const contact = await client.getContactById(contactId);
                                 
                                 // Prioridade: nome salvo > nome do perfil > número
                                 const nomeExibicao = contact.name || contact.pushname || item.numero;
                                 const numeroLimpo = contact.id.user; // Número sem @ e sem +
                                 
-                                mensagem += `👤 @${participantId.replace('@c.us', '')}\n`;
+                                mensagem += `👤 @${numeroLimpo}\n`;
                                 mensagem += `   📅 Registrado: ${new Date(item.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
                                 mensagem += `   💰 Compras: ${item.totalCompras} (${item.megasTotal}MB)\n\n`;
                                 
-                                mentions.push(participantId);
+                                mentions.push(contactId);
                             } catch (error) {
                                 // Se não conseguir obter o contato, usar apenas o número
-                                mensagem += `👤 @${participantId.replace('@c.us', '')}\n`;
+                                mensagem += `👤 @${item.numero}\n`;
                                 mensagem += `   📅 Registrado: ${new Date(item.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
                                 mensagem += `   💰 Compras: ${item.totalCompras} (${item.megasTotal}MB)\n\n`;
                                 
-                                mentions.push(participantId);
+                                mentions.push(contactId);
                             }
                         }
                         
@@ -3786,55 +3550,6 @@ async function processMessage(message) {
                 // .resetranking - Comando removido (ranking diário/semanal desabilitado)
                 if (comando === '.resetranking') {
                     await message.reply(`❌ *COMANDO DESABILITADO*\n\nO sistema de ranking diário/semanal foi removido.\nApenas o ranking geral está ativo.`);
-                    return;
-                }
-
-                // .mapear LID NUMERO - Mapear manualmente LID para número real
-                if (comando.startsWith('.mapear ')) {
-                    const partes = message.body.trim().split(' ');
-                    if (partes.length !== 3) {
-                        await message.reply(`❌ *USO INCORRETO*\n\n✅ **Formato:**\n*.mapear LID_CODE NUMERO*\n\n📝 **Exemplo:**\n*.mapear 76991768342659@lid 258870818180@c.us*\n\n💡 **Dica:** Use este comando quando souber que um LID específico corresponde a um número real.`);
-                        return;
-                    }
-
-                    const [, lidCode, numeroReal] = partes;
-
-                    // Validar formatos
-                    if (!lidCode.endsWith('@lid')) {
-                        await message.reply(`❌ *LID INVÁLIDO*\n\nO LID deve terminar com '@lid'\n\n📝 **Exemplo:** 76991768342659@lid`);
-                        return;
-                    }
-
-                    if (!numeroReal.endsWith('@c.us')) {
-                        await message.reply(`❌ *NÚMERO INVÁLIDO*\n\nO número deve terminar com '@c.us'\n\n📝 **Exemplo:** 258870818180@c.us`);
-                        return;
-                    }
-
-                    const sucesso = await adicionarMapeamento(lidCode, numeroReal);
-                    if (sucesso) {
-                        await message.reply(`✅ *MAPEAMENTO ADICIONADO*\n\n🔗 ${lidCode}\n↓\n📱 ${numeroReal}\n\n💾 Salvo no arquivo de mapeamentos.`);
-                    } else {
-                        await message.reply(`⚠️ *MAPEAMENTO JÁ EXISTE*\n\nEste LID já está mapeado para:\n📱 ${MAPEAMENTO_IDS[lidCode] || 'Desconhecido'}`);
-                    }
-                    return;
-                }
-
-                // .mapeamentos - Listar todos os mapeamentos conhecidos
-                if (comando === '.mapeamentos') {
-                    let mensagem = `📋 *MAPEAMENTOS LID CONHECIDOS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-
-                    const mapeamentosValidos = Object.entries(MAPEAMENTO_IDS).filter(([lid, numero]) => numero && numero !== null);
-
-                    if (mapeamentosValidos.length === 0) {
-                        mensagem += `❌ Nenhum mapeamento encontrado`;
-                    } else {
-                        mapeamentosValidos.forEach(([lid, numero], index) => {
-                            mensagem += `${index + 1}. ${lid}\n   → ${numero}\n\n`;
-                        });
-                        mensagem += `📊 *Total: ${mapeamentosValidos.length} mapeamentos*`;
-                    }
-
-                    await message.reply(mensagem);
                     return;
                 }
                 
@@ -3961,8 +3676,7 @@ async function processMessage(message) {
                             return;
                         }
 
-                        // COPIAR EXATAMENTE A LÓGICA DAS BOAS-VINDAS - SEM CONVERSÃO
-                        const participantId = numeroDestino; // Usar número exatamente como recebido
+                        const participantId = numeroDestino + '@c.us';
                         
                         // Inicializar saldo se não existir
                         if (!bonusSaldos[participantId]) {
@@ -4000,9 +3714,9 @@ async function processMessage(message) {
 
                         // Notificar o usuário que recebeu o bônus
                         try {
-                            await client.sendMessage(message.from,
+                            await client.sendMessage(message.from, 
                                 `🎁 *BÔNUS ADMINISTRATIVO!*\n\n` +
-                                `💎 @${participantId.replace('@c.us', '')}, recebeste *${quantidadeFormatada}* de bônus!\n\n` +
+                                `💎 @${numeroDestino}, recebeste *${quantidadeFormatada}* de bônus!\n\n` +
                                 `👨‍💼 *Ofertado por:* Administrador\n` +
                                 `💰 *Novo saldo:* ${novoSaldoFormatado}\n\n` +
                                 `${novoSaldo >= 1024 ? '🚀 *Já podes sacar!* Use: *.sacar*' : '💡 *Continua a acumular para sacar!*'}`, {
@@ -4673,6 +4387,7 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return false;
         }
 
+
         // === DETECÇÃO INTELIGENTE DE .MEUCODIGO (QUALQUER FORMATO) ===
         if (message.type === 'chat' && await detectarIntencaoMeuCodigo(message.body)) {
             const remetente = message.author || message.from;
@@ -5075,23 +4790,19 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 if (resultadoConfirmacao) {
                     console.log(`✅ COMPRAS: Confirmação processada - ${resultadoConfirmacao.numero} | ${resultadoConfirmacao.megas}MB`);
                     
-                    // Enviar mensagem de parabenização com menção clicável (igual às boas-vindas)
+                    // Enviar mensagem de parabenização com menção clicável
                     if (resultadoConfirmacao.mensagem && resultadoConfirmacao.contactId) {
                         try {
-                            // Normalizar ID para formato @c.us igual às boas-vindas
-                            const participantId = resultadoConfirmacao.contactId; // IGUAL ÀS BOAS-VINDAS
-                            // Usar exato formato das boas-vindas
-                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${participantId.replace('@c.us', '')}`);
+                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${resultadoConfirmacao.contactId.replace('@c.us', '')}`);
 
-                            // Enviar com menção igual às boas-vindas
+                            // Enviar com menção clicável
                             await client.sendMessage(message.from, mensagemFinal, {
-                                mentions: [participantId]
+                                mentions: [resultadoConfirmacao.contactId]
                             });
                         } catch (error) {
                             console.error('❌ Erro ao enviar parabenização com menção:', error);
                             // Fallback: enviar sem menção clicável
-                            const participantId = resultadoConfirmacao.contactId; // IGUAL ÀS BOAS-VINDAS
-                            const mensagemFallback = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${participantId.replace('@c.us', '')}`);
+                            const mensagemFallback = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${resultadoConfirmacao.numeroComprador}`);
                             await message.reply(mensagemFallback);
                         }
                     }
@@ -5306,6 +5017,7 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return;
         }
 
+
     } catch (error) {
         console.error('❌ Erro ao processar mensagem:', error);
     }
@@ -5314,10 +5026,7 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
 // Novo handler principal com queue
 client.on('message', async (message) => {
     try {
-        // PRIMEIRO: Tentar aprender mapeamentos LID automaticamente
-        await aprenderMapeamento(message);
-
-        // Segundo: tentar processar comandos administrativos rápidos
+        // Primeiro: tentar processar comandos administrativos rápidos
         const adminProcessed = await handleAdminCommands(message);
         if (adminProcessed) return;
 
@@ -5389,7 +5098,6 @@ setInterval(() => {
 
     // Limpar outros caches seguindo padrão bot1
     if (gruposLogados && gruposLogados.size > 50) gruposLogados.clear();
-    if (membrosProcessadosViaEvent && membrosProcessadosViaEvent.size > 50) membrosProcessadosViaEvent.clear();
 
     console.log('🗑️ Cache geral limpo');
 }, 60 * 60 * 1000); // A cada hora
