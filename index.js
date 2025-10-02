@@ -1574,7 +1574,10 @@ NOME:   Alice Armando Nhaquila📝
 
     '258840161370-1471468657@g.us': {
         nome: 'Venda Automática 24/7',
-        tabela: `TABELA ATUALIZADA
+        tabela: `TABELA ATUALIZADA 
+Outubro 2025🥳🥳
+Pacotes exclusivos apenas para Vodacom🔴🔴
+Pacotes Diários, Semanais (Renováveis) e Mensal 
 ___________________________
 
  PACOTE DIÁRIO BÁSICO( 24H⏱) 
@@ -1618,20 +1621,20 @@ Megabyte Renováveis!
 10000MB - 231,00 MT
 20000MB - 352,00 MT
 
-PACOTE MENSAL PREMIUM (30 dias🗓)
-Megabyte Renováveis!
-3198MB   - 104,00MT
-5298MB   - 184,00MT
-8398MB   - 229,00MT
-10498MB   - 254,00MT
-12598MB   - 294,00MT
-15698MB   - 349,00MT
-18798MB   - 414,00MT
-20898MB   - 468,00MT
-25998MB   - 529,00MT
-
-PACOTE MENSAL EXCLUSIVO (30 dias🗓)
+PACOTE MENSAL EXCLUSIVO (30 dias🗓) 
+Não Renováveis 
 Não pode ter xtuna crédito
+
+
+2.8GB   - 100,00MT
+5.8GB   - 175,00MT
+8.8GB    - 200,00MT
+10.8GB  - 249,00MT
+12.8GB   - 300,00MT
+15.8GB    - 349,00MT
+18.8GB    - 400,00MT
+20.8GB    - 449,00MT
+25.8GB    - 549,00MT
 32.8GB   - 649,00MT
 51.2GB   - 1049,00MT
 60.2GB   - 124900MT
