@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs').promises;
+const path = require('path');
 const axios = require('axios'); // npm install axios
 
 // === AXIOS SIMPLIFICADO (SEGUINDO PADRÃO BOT1) ===
@@ -234,6 +235,95 @@ const ARQUIVO_SAQUES = './dados_saques.json';
 const ARQUIVO_MEMBROS = './dados_membros_entrada.json';
 
 // === FUNÇÕES DO SISTEMA DE REFERÊNCIA ===
+
+let ultimosParticipantes = {}; // {grupoId: [participantIds]} - cache dos participantes
+
+// === CACHE PARA RASTREAR MEMBROS JÁ PROCESSADOS VIA GROUP-JOIN ===
+let membrosProcessadosViaEvent = new Set(); // Evita processamento duplicado
+
+// Sistema automático de detecção de novos membros
+async function iniciarMonitoramentoMembros() {
+    console.log('🕵️ Iniciando monitoramento automático de novos membros...');
+    
+    // Executar a cada 2 minutos (otimizado - era 30s)
+    setInterval(async () => {
+        try {
+            await verificarNovosMembros();
+        } catch (error) {
+            console.error('❌ Erro no monitoramento de membros:', error);
+        }
+    }, 120000); // 2 minutos
+    
+    // Primeira execução após 10 segundos (para dar tempo do bot conectar)
+    setTimeout(async () => {
+        await verificarNovosMembros();
+    }, 10000);
+}
+
+// Verificar novos membros em todos os grupos monitorados
+async function verificarNovosMembros() {
+    for (const grupoId of Object.keys(CONFIGURACAO_GRUPOS)) {
+        try {
+            await detectarNovosMembrosGrupo(grupoId);
+        } catch (error) {
+            // Silencioso para não poluir logs
+        }
+    }
+}
+
+// Detectar novos membros em um grupo específico
+async function detectarNovosMembrosGrupo(grupoId) {
+    try {
+        const chat = await client.getChatById(grupoId);
+        const participants = await chat.participants;
+        const participantIds = participants.map(p => p.id._serialized);
+        
+        // Se é a primeira vez que verificamos este grupo
+        if (!ultimosParticipantes[grupoId]) {
+            ultimosParticipantes[grupoId] = participantIds;
+            return;
+        }
+        
+        // Encontrar novos participantes
+        const novosParticipantes = participantIds.filter(id => 
+            !ultimosParticipantes[grupoId].includes(id)
+        );
+        
+        // Processar novos membros
+        for (const participantId of novosParticipantes) {
+            await processarNovoMembro(grupoId, participantId);
+        }
+        
+        // Atualizar cache
+        ultimosParticipantes[grupoId] = participantIds;
+        
+    } catch (error) {
+        // Silencioso - grupo pode não existir ou bot não ter acesso
+    }
+}
+
+// Processar novo membro detectado
+async function processarNovoMembro(grupoId, participantId) {
+    try {
+        const configGrupo = getConfiguracaoGrupo(grupoId);
+        if (!configGrupo) return;
+
+        console.log(`👋 Novo membro detectado via POLLING: ${participantId}`);
+
+        // Verificar se já foi processado via event 'group-join'
+        const membroKey = `${grupoId}_${participantId}`;
+        if (membrosProcessadosViaEvent.has(membroKey)) {
+            console.log(`✅ Membro ${participantId} já foi processado via event 'group-join' - pulando...`);
+            return;
+        }
+
+        // Registrar entrada do membro
+        await registrarEntradaMembro(grupoId, participantId);
+
+    } catch (error) {
+        console.error('❌ Erro ao processar novo membro:', error);
+    }
+}
 
 // SISTEMA DE DETECÇÃO INTELIGENTE - CORRIGIDO
 async function tentarDetectarConvidador(grupoId, novoMembroId) {
@@ -696,9 +786,9 @@ async function criarReferenciaAutomaticaBackup(convidadorId, convidadoId, grupoI
         try {
             await client.sendMessage(grupoId,
                 `🎉 *NOVO MEMBRO ADICIONADO!*\n\n` +
-                `👋 Bem-vindo *${nomeConvidado}*!\n\n` +
-                `📢 Sistema detectou provável adição por: *${nomeConvidador}*\n` +
-                `🎁 *${nomeConvidador}* ganhará *200MB* a cada compra de *${nomeConvidado}*!\n\n` +
+                `👋 Bem-vindo @${convidadoId.replace('@c.us', '')}!\n\n` +
+                `📢 Sistema detectou provável adição por: @${convidadorId.replace('@c.us', '')}\n` +
+                `🎁 @${convidadorId.replace('@c.us', '')} ganhará *200MB* a cada compra de @${convidadoId.replace('@c.us', '')}!\n\n` +
                 `📋 *Benefícios:*\n` +
                 `• Máximo: 5 compras = 1000MB (1GB)\n` +
                 `• Saque mínimo: 1000MB\n` +
@@ -960,9 +1050,9 @@ async function processarBonusCompra(remetenteCompra, valorCompra) {
 
         await client.sendMessage(message.from,
             `🎉 *BÔNUS DE REFERÊNCIA CREDITADO!*\n\n` +
-            `💎 *${nomeConvidador}*, recebeste *${bonusAtual}MB* de bônus!\n\n` +
-            `👤 *Referenciado:* ${nomeComprador}\n` +
-            `📢 *Motivo:* ${nomeComprador} que você ${tipoReferencia} fez uma compra!\n` +
+            `💎 @${convidador.replace('@c.us', '')}, recebeste *${bonusAtual}MB* de bônus!\n\n` +
+            `👤 *Referenciado:* @${remetenteCompra.replace('@c.us', '')}\n` +
+            `📢 *Motivo:* @${remetenteCompra.replace('@c.us', '')} que você ${tipoReferencia} fez uma compra!\n` +
             `🛒 *Compra:* ${referencia.comprasRealizadas}ª de 5\n` +
             `💰 *Novo saldo:* ${novoSaldoFormatado}\n\n` +
             `${novoSaldo >= 1024 ? '🚀 *Já podes sacar!* Use: *.sacar*' : '⏳ *Continua a convidar amigos para ganhar mais bônus!*'}`, {
@@ -1058,9 +1148,9 @@ async function criarReferenciaAutomatica(convidadorId, convidadoId, grupoId) {
         try {
             await client.sendMessage(grupoId,
                 `🎉 *NOVO MEMBRO ADICIONADO!*\n\n` +
-                `👋 Bem-vindo *${nomeConvidado}*!\n\n` +
-                `📢 Adicionado por: *${nomeConvidador}*\n` +
-                `🎁 *${nomeConvidador}* ganhará *200MB* a cada compra de *${nomeConvidado}*!\n\n` +
+                `👋 Bem-vindo @${convidadoId.replace('@c.us', '')}!\n\n` +
+                `📢 Adicionado por: @${convidadorId.replace('@c.us', '')}\n` +
+                `🎁 @${convidadorId.replace('@c.us', '')} ganhará *200MB* a cada compra de @${convidadoId.replace('@c.us', '')}!\n\n` +
                 `📋 *Benefícios:*\n` +
                 `• Máximo: 5 compras = 1000MB (1GB)\n` +
                 `• Saque mínimo: 1000MB\n` +
@@ -1425,11 +1515,87 @@ const ADMINISTRADORES_GLOBAIS = [
     // Removido temporariamente para testar verificação de grupo: '245075749638206@lid'
 ];
 
-// Mapeamento de IDs internos (@lid) para números reais (@c.us)
-const MAPEAMENTO_IDS = {
+// Mapeamento de IDs internos (@lid) para números reais (@c.us) - SISTEMA DINÂMICO
+let MAPEAMENTO_IDS = {
     '23450974470333@lid': '258852118624@c.us',  // Seu ID
-    '245075749638206@lid': null  // Será identificado automaticamente
+    '245075749638206@lid': null,  // Será identificado automaticamente
+    '76991768342659@lid': '258870818180@c.us'  // Joãozinho - corrigido manualmente
 };
+
+// === SISTEMA AUTOMÁTICO DE MAPEAMENTO LID ===
+const ARQUIVO_MAPEAMENTOS = path.join(__dirname, 'mapeamentos_lid.json');
+
+async function carregarMapeamentos() {
+    try {
+        if (fs.existsSync(ARQUIVO_MAPEAMENTOS)) {
+            const data = await fs.readFile(ARQUIVO_MAPEAMENTOS, 'utf8');
+            const mapeamentosSalvos = JSON.parse(data);
+            // Mesclar com os mapeamentos base
+            MAPEAMENTO_IDS = { ...MAPEAMENTO_IDS, ...mapeamentosSalvos };
+            console.log(`✅ Carregados ${Object.keys(mapeamentosSalvos).length} mapeamentos LID salvos`);
+        }
+    } catch (error) {
+        console.error('❌ Erro ao carregar mapeamentos LID:', error.message);
+    }
+}
+
+async function salvarMapeamentos() {
+    try {
+        // Filtrar apenas os mapeamentos válidos (não null)
+        const mapeamentosValidos = {};
+        for (const [lid, numero] of Object.entries(MAPEAMENTO_IDS)) {
+            if (numero && numero !== null) {
+                mapeamentosValidos[lid] = numero;
+            }
+        }
+        await fs.writeFile(ARQUIVO_MAPEAMENTOS, JSON.stringify(mapeamentosValidos, null, 2));
+        console.log(`💾 Salvos ${Object.keys(mapeamentosValidos).length} mapeamentos LID`);
+    } catch (error) {
+        console.error('❌ Erro ao salvar mapeamentos LID:', error.message);
+    }
+}
+
+async function adicionarMapeamento(lid, numeroReal) {
+    if (!lid || !numeroReal || lid === numeroReal) return false;
+
+    // Validar formato
+    if (!lid.endsWith('@lid') || !numeroReal.endsWith('@c.us')) return false;
+
+    // Verificar se já existe
+    if (MAPEAMENTO_IDS[lid] === numeroReal) return false;
+
+    // Adicionar novo mapeamento
+    MAPEAMENTO_IDS[lid] = numeroReal;
+    console.log(`✅ NOVO MAPEAMENTO: ${lid} → ${numeroReal}`);
+    await salvarMapeamentos();
+    return true;
+}
+
+// Função para tentar aprender mapeamento automaticamente quando ambos os formatos estão disponíveis
+async function aprenderMapeamento(message) {
+    try {
+        if (!message.from || !message.author) return;
+
+        const from = message.from; // ID do remetente (pode ser @c.us)
+        const author = message.author; // ID do autor (pode ser @lid)
+
+        // Se temos um @lid e um @c.us, podemos aprender o mapeamento
+        if (author && author.endsWith('@lid') && from && from.endsWith('@c.us')) {
+            // Extrair número base para validar se correspondem
+            const numeroLid = author.replace('@lid', '');
+            const numeroReal = from.replace('@c.us', '');
+
+            // Tentar encontrar uma correspondência lógica (primeiros dígitos, etc.)
+            // Por enquanto, sempre tentar mapear se não temos o mapeamento
+            if (!MAPEAMENTO_IDS[author]) {
+                await adicionarMapeamento(author, from);
+                console.log(`🔍 APRENDIZADO: Detectado possível mapeamento ${author} → ${from}`);
+            }
+        }
+    } catch (error) {
+        // Silencioso - não queremos spam nos logs
+    }
+}
 
 // === CONFIGURAÇÃO DE MODERAÇÃO ===
 const MODERACAO_CONFIG = {
@@ -1450,357 +1616,7 @@ const MODERACAO_CONFIG = {
 
 // Configuração para cada grupo
 const CONFIGURACAO_GRUPOS = {
-    '258820749141-1441573529@g.us': {
-        nome: 'Data Store - Vodacom',
-        tabela: `SUPER PROMOÇÃO  DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO - 04-05/09/2025
-
-📆 PACOTES DIÁRIOS
-512MB 💎 10MT 💵💽
-900MB 💎 15MT 💵💽
-1080MB 💎 17MT 💵💽
-1200MB 💎 20MT 💵💽
-2150MB 💎 34MT 💵💽
-3200MB 💎 51MT 💵💽
-4250MB 💎 68MT 💵💽
-5350MB 💎 85MT 💵💽
-10240MB 💎 160MT 💵💽
-20480MB 💎 320MT 💵💽
-
-📅PACOTE DIÁRIO PREMIUM (3 Dias)
-2000 + 700MB 💎 44MT 💵💽
-3000 + 700MB 💎 66MT 💵💽
-4000 + 700MB 💎 88MT 💵💽
-5000 + 700MB 💎 109MT 💵💽
-6000 + 700MB 💎 133MT 💵💽
-7000 + 700MB 💎 149MT 💵💽
-10000 + 700MB 💎 219MT 💵💽
-
-📅 PACOTES SEMANAIS(5 Dias)
-3072 + 700MB 💎 105MT 💵💽
-5120 + 700MB 💎 155MT 💵💽
-10240 + 700MB 💎 300MT 💵💽
-15360 + 700MB 💎 455MT 💵💽
-20480 + 700MB 💎 600MT 💵💽
-
-📅 PACOTES MENSAIS
-12.8GB 💎 270MT 💵💽
-22.8GB 💎 435MT 💵💽
-32.8GB 💎 605MT 💵💽
-52.8GB 💎 945MT 💵💽
-102.8GB 💎 1605MT 💵💽
-
-
-PACOTES DIAMANTE MENSAIS
-Chamadas + SMS ilimitadas + 11GB 💎 460MT 💵
-Chamadas + SMS ilimitadas + 24GB 💎 820MT 💵
-Chamadas + SMS ilimitadas + 50GB 💎 1550MT 💵
-Chamadas + SMS ilimitadas + 100GB 💎 2250MT 💵
-
-⚠ NB: Válido apenas para Vodacom
-`,
-
-        pagamento: `FORMAS DE PAGAMENTO ATUALIZADAS
- 
-1- M-PESA 
-NÚMERO: 848715208
-NOME:  NATACHA ALICE
-
-NÚMERO: 871112049
-NOME: NATACHA ALICE`
-    },
-
-    '120363402160265624@g.us': {
-        nome: 'Treinamento IA',
-        tabela: `PROMOÇÃO DE 🛜ⓂEGAS✅ VODACOM A MELHOR PREÇO DO MERCADO 
-📆 PACOTES DIÁRIOS 
-512MB 💎 10MT 💵💽
-850MB 💎 15MT 💵💽
-1024MB 💎 17MT 💵💽
-1200MB 💎 20MT 💵💽
-2048MB 💎 34MT 💵💽
-3072MB 💎 51MT 💵💽
-4096MB 💎 68MT 💵💽
-5120MB 💎 85MT 💵💽
-10240MB 💎 170MT 💵💽
-20480MB 💎 340MT 💵💽
-
-📅PACOTE DIÁRIO PREMIUM (3 Dias)
-2000 + 700MB 💎 44MT 💵💽
-3000 + 700MB 💎 66MT 💵💽
-4000 + 700MB 💎 88MT 💵💽
-5000 + 700MB 💎 109MT 💵💽
-6000 + 700MB 💎 133MT 💵💽
-7000 + 700MB 💎 149MT 💵💽
-10000 + 700MB 💎 219MT 💵💽
-
-📅 PACOTES SEMANAIS(5 Dias)
-3072 + 700MB 💎 105MT 💵💽
-5120 + 700MB 💎 155MT 💵💽
-10240 + 700MB 💎 300MT 💵💽
-15360 + 700MB 💎 455MT 💵💽
-20480 + 700MB 💎 600MT 💵💽
-
-📅 PACOTES MENSAIS
-⚠ Para ativar estes pacotes, o Txuna Crédito não pode estar ativo
-12.8GB 💎 255MT 💵💽
-22.8GB 💎 435MT 💵💽
-32.8GB 💎 605MT 💵💽
-52.8GB 💎 945MT 💵💽
-102.8GB 💎 1605MT 💵💽
-
-PACOTES DIAMANTE MENSAIS
-Chamadas + SMS ilimitadas + 12GB 💎 460MT 💵
-Chamadas + SMS ilimitadas + 24GB 💎 820MT 💵
-Chamadas + SMS ilimitadas + 50GB 💎 1550MT 💵
-Chamadas + SMS ilimitadas + 100GB 💎 2250MT 💵
-⚠ NB: Válido apenas para Vodacom
-
-
-🚀 Oferecemos sempre o melhor!*
-
-`,
-
-        pagamento: `🅼🅴🅶🅰🆂 🅿🆁🅾🅼🅾    💳 🛒⛔ FORMAS DE PAGAMENTO:⛔🛒💳
-
-
-      ● E-MOLA: 868019487🛒
-      ● M-PESA: 851841990🛒
-
-NOME:   Alice Armando Nhaquila📝
-
-!¡ 📂⛔🛒 ENVIE O SEU COMPROVATIVO NO GRUPO,  JUNTAMENTE COM O NÚMERO QUE VAI RECEBER OS MB✅⛔🛒
-`
-    },
-
-    '258840161370-1471468657@g.us': {
-        nome: 'Venda Automática 24/7',
-        tabela: `TABELA ATUALIZADA
-___________________________
-
- PACOTE DIÁRIO BÁSICO( 24H⏱) 
-1024MB    - 17,00 MT
-1200MB    - 20,00 MT
-2048MB   - 34,00 MT
-2200MB    - 40,00 MT
-3096MB    - 51,00 MT
-4096MB    - 68,00 MT
-5120MB     - 85,00 MT
-6144MB    - 102,00 MT
-7168MB    - 119,00 MT
-8192MB    - 136,00 MT
-9144MB    - 153,00 MT
-10240MB  - 170,00 MT
-
- PACOTE DIÁRIO PREMIUM ( 3 DIAS 🗓) 
-Megabyte Renováveis! 
-2000MB  - 44,00 MT
-3000MB  - 66,00 MT
-4000MB  - 88,00 MT
-5000MB - 109,00 MT
-6000MB  - 133,00 MT
-7000MB  - 149,00 MT
-10000MB  - 219,00 MT
-
-PACOTE SEMANAL BÁSICO (5 Dias🗓)
-Megabyte Renováveis!
-1700MB - 45,00MT
-2900MB - 80,00MT
-3400MB - 110,00MT
-5500MB - 150,00MT
-7800MB - 200,00MT
-11400MB - 300,00MT 
-
- PACOTE SEMANAL PREMIUM ( 15 DIAS 🗓 ) 
-Megabyte Renováveis!
-3000MB - 100,00 MT
-5000MB - 149,00 MT
-8000MB - 201,00 MT
-10000MB - 231,00 MT
-20000MB - 352,00 MT
-
-PACOTE MENSAL PREMIUM (30 dias🗓)
-Megabyte Renováveis!
-3198MB   - 104,00MT
-5298MB   - 184,00MT
-8398MB   - 229,00MT
-10498MB   - 254,00MT
-12598MB   - 294,00MT
-15698MB   - 349,00MT
-18798MB   - 414,00MT
-20898MB   - 468,00MT
-25998MB   - 529,00MT
-
-PACOTE MENSAL EXCLUSIVO (30 dias🗓)
-Não pode ter xtuna crédito
-32.8GB   - 649,00MT
-51.2GB   - 1049,00MT
-60.2GB   - 124900MT
-80.2GB   - 1449,00MT
-100.2GB   - 1700,00MT
-
-🔴🔴 VODACOM
-➖Chamadas +SMS ILIMITADAS ➖p/todas as redes +GB➖
-
-➖ SEMANAL (7dias)➖
-280mt = Ilimitado+ 7.5GB
-
-Mensal(30dias):
-450MT - Ilimitado + 11.5GB.
-500MT - Ilimitado + 14.5GB.
-700MT - Ilimitado + 26.5GB.
-1000MT - Ilimitado + 37.5GB.
-1500MT - Ilimitado + 53.5GB
-2150MT - Ilimitado + 102.5GB
-
-PARA OS PACOTES MENSAIS, NÃO PODE TER TXUNA CRÉDITO.
-
-🟠🟠 MOVITEL
-➖Chamadas +SMS ILIMITADAS ➖p/todas as redes +GB➖
-
-➖ SEMANAL (7dias)➖
-280mt = Ilimitado+ 7.1GB
-
-➖ MENSAL (30dias)➖ p./tds redes
-450mt = Ilimitado+ 9GB
-950mt = Ilimitado+ 23GB
-1450mt = Ilimitado+ 38GB
-1700mt = Ilimitado+ 46GB
-1900mt = Ilimitado+ 53GB
-2400mt = ilimitado+ 68GB
-
-Importante 🚨: Envie o valor que consta na tabela!
-`,
-
-        pagamento: `╭━━━┛ 💸  ＦＯＲＭＡＳ ＤＥ ＰＡＧＡＭＥＮＴＯ: 
-┃
-┃ 🪙 E-Mola: (Glória) 👩‍💻
-┃     860186270  
-┃
-┃ 🪙 M-Pesa:  (Leonor)👨‍💻
-┃     857451196  
-┃
-┃
-┃ ⚠ IMPORTANTE:  
-┃     ▪ Envie o comprovativo em forma de mensagem e o número para receber rápido!
-┃
-┃┃
-╰⚠ NB: Válido apenas para Vodacom━━━━━━  
-       🚀 O futuro é agora. Vamos?`
-    },
-    '120363228868368923@g.us': {
-    nome: 'VENDA DE MEGAS',
-    tabela: `𝗧𝗮𝗯𝗲𝗹𝗮 𝗮𝗰𝘁𝘂𝗮𝗹𝗶𝘇𝗮do 𝗱𝗲 𝘃𝗼𝗱𝗮𝗰𝗼𝗺
-
-
-𝗗𝗶𝗮𝗿𝗶𝗼
-✅PODE TER TXUNA CRÉDITO
-
-
-𝟭024M𝗕__𝟭𝟴 𝗠𝗧
-𝟮048M𝗕__𝟯6𝗠𝗧
-𝟯072MB ___ 𝟱4𝗠𝗧
-𝟰096MB__𝟳0𝗠𝗧
-𝟱120M𝗕 ___ 𝟵𝟬𝗠𝗧
-𝟭0240MB___𝟭8𝟬𝗠𝗧
-
-𝗦𝗲𝗺𝗮𝗻𝗮𝗹
-❎ NÃO PODE TER TXUNA CRÉDITO
-
-𝟰5𝗠𝗧__𝟭𝟳41M𝗕
-80𝗠𝗧__𝟮𝟵70M𝗕
-90𝗠𝗧__𝟯𝟰82M𝗕
-𝟭40𝗠𝗧___𝟱325M𝗕
-𝟭80𝗠𝗧___𝟳270M𝗕
-
-𝐌𝐞𝐧𝐬𝐚𝐥
-❎ NÃO PODE TER TXUNA CRÉDITO
-
-𝟲057M𝗕__𝟮𝟬𝟬𝗠𝗧
-𝟴057MB__𝟮𝟯𝟬𝗠𝗧
-𝟭𝟬057MB___𝟮6𝟬𝗠𝗧
-𝟮𝟬057M𝗕___𝟰𝟱𝟬𝗠𝗧
-
-𝗗𝗶𝗮𝗺𝗮𝗻𝘁𝗲 𝗱𝗲 𝗩𝗼𝗱𝗮𝗰𝗼𝗺
-❎ NÃO PODE TER TXUNA CRÉDITO
-
-𝗠𝗲𝗻𝘀𝗮𝗹 (𝟯𝟬𝗗𝗶𝗮𝘀)
-⿡𝟰50𝗠𝘁 =𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟭𝟭𝗚𝗕+𝗦𝗠𝗦
-⿢𝟱50 =𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟭𝟱𝗚𝗕+𝗦𝗠𝗦
-⿣𝟳50=𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟮𝟱𝗚𝗕+𝗦𝗠𝗦
-⿤𝟭050=𝗖𝗵𝗮𝗺𝗮𝗱𝗮𝘀 𝗶𝗹𝗶𝗺𝗶𝘁𝗮𝗱𝗮𝘀 +𝟰𝟮𝗚𝗕+𝗦𝗠𝗦
-
-`,
-    pagamento: `💳 FORMAS/ PAGAMENTOS :⤵
-- 📲 𝗘-𝗠𝗢𝗟𝗔: 868440408:
-- *JOSE TOMAS*
-- 📲 𝗠-𝗣𝗘𝗦𝗔 850189315:
-- *JOSE TOMÁS*
-
-📩 Envie o seu comprovantivo no grupo, juntamente com o número que vai receber os dados.`
-},'120363022366545020@g.us': {
-        nome: 'Megas VIP',
-        tabela: `🚨MB DA VODACOM 📶🌐
-
-🔥 E o melhor de tudo: é que o nosso Pacote Diário e Semanal Txuna não leva!👌🚀
-⏳ Aproveite, irá mudar a qualquer momento
-
-⏰PACOTE DIÁRIO🛒📦
-🌐256MB = 7MT
-🌐512MB = 10MT
-🌐1024MB = 17MT
-🌐2048MB = 34MT
-🌐3072MB = 51MT
-🌐4096MB = 68MT
-🌐5120MB = 85MT
-🌐6144MB = 102MT
-🌐7168MB = 119MT
-🌐8192MB = 136MT
-🌐9216MB = 153MT
-🌐10240MB = 170MT
-
- 📅PACOTE SEMANAL🛒📦
-⚠ Vai receber 100MB por dia durante 6 dias, totalizando +0.6GB. ⚠
-
-📡2.0GB = 65MT
-📡3.0GB = 89MT
-📡5.0GB = 130MT
-📡7.0GB = 175MT 
-📡10.0GB = 265MT
-📡14.0GB = 362MT
-
-> PARA VER TABELA DO PACOTE MENSAL DIGITE: Mensal
-
-> PARA VER TABELA DO PACOTE  ILIMITADO DIGITE: Ilimitado
-
-
-💳FORMA DE PAGAMENTO:
-
-M-Pesa: 853529033 📱
-- Ercílio UANELA 
-e-Mola: 865627840 📱
-- Alexandre UANELA 
-
-✨ Mais Rápido, Mais Barato, Mais Confiável! ✨
-`,
-
-        pagamento: `FORMAS DE PAGAMENTO💰💶
-
-📌 M-PESA: 853529033 
-   Nome: Ercílio Uanela 
-
-📌 E-MOLA: 865627840 
-    Nome: Alexandre Uanela  
-
-📮 Após a transferência enviei o comprovante em forma do cópia junto com seu número.
- 
-> 1. 🚨Não mande comprovativo em formato de imagem 📸🚨
-
-> 2.  🚨 Não mande valor que não têm na tabela🚨
-
-🚀 O futuro é agora! Vamos? 🔥🛒
-`
-    },
-    '120363023150137820@g.us': {
+        '120363020570328377@g.us': {
         nome: 'NET VODACOM ACESSÍVEL',
         tabela: `🚨📱 INTERNET VODACOM COM OS MELHORES PREÇOS!
 Mega Promoção da NET DA VODACOM ACESSÍVEL — Conecte-se já! 🚀
@@ -1819,57 +1635,73 @@ Mega Promoção da NET DA VODACOM ACESSÍVEL — Conecte-se já! 🚀
 ✅ 10GB - 170MT
 
 
-📅 PACOTES SEMANAIS 
-⚠ Vai receber 100MB por dia durante 7 dias, totalizando +0.7GB
 
-✅ 2GB – 55MT
-✅ 3GB – 75MT
-✅ 5GB – 130MT
-✅ 10GB – 220MT
+🚨QUANDO PRECISAREM PACOTE MENSAL, ENTRA EM CONTACTO ATRAVÉS DO LINK ABAIXO 👇👇🚨
+
+https://wa.me/258858891101?text=%20Quero%20pacote%20mensal!%20
 
 
-
-📅 PACOTES MENSAIS 
-⚠ Não deve ter txuna crédito ⚠
-
-✅ 5GB – 165MT
-✅ 10GB – 280MT
-✅ 20GB – 480MT
-✅ 30GB – 760MT
-✅ 50GB – 960MT
-✅ 100GB – 1940MT
-✅ 200GB – 3420MT
+QUANDO PRECISAREM DO  ILIMITADO, EMTREM EM CONTACTO COM O LINK 
+https://wa.me/258858891101?text=%20Quero%20pacote%20ilimitado!%20
 
 
-📦 Compra rápida. Entrega garantida. Atendimento VIP! 💎✨
+FORMAS DE PAGAMENTO💰💶
 
-🌟 TUDO TOP ILIMITADO 🌟
-📞💬 JÁ PODES FALAR SEM LIMITE E NAVEGAR COM A MELHOR INTERNET 🌐🔥
+📌 M-PESA:  858891101
+   Nome:  ISAC DA LURDES
 
-📅 MENSAL (30 DIAS) 📅
+📌 E-MOLA: 866291101
+    Nome:   ISAC LURDES 
 
-💰 450MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 11GB
-💰 550MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 15GB
-💰 750MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 21GB
-💰 1100MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 33GB
-💰 1350MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 50GB
-💰 2300MT — 📞 Chamadas Ilimitadas + 💬 SMS Ilimitadas + 📶 100GB
+🚀 O futuro é agora! Vamos? 🔥🛒
 
 `,
-        pagamento: `💰 Método de Pagamento
-Envie o valor para um dos números abaixo:
-📲 858891101 — Isac Lurdes Raul Vilanculo
-📲 866291101 — Isac Lurdes Raul Vilanculo
+        pagamento: `FORMAS DE PAGAMENTO💰💶
 
+📌 M-PESA:  858891101
+   Nome:  ISAC DA LURDES
 
+📌 E-MOLA: 866291101
+    Nome:  ISAC LURDES 
 
-📌 Após o pagamento:
-📸 Envie o comprovativo ( screenshot ) no grupo.
-📱Informe ( junto com ) o número que receberá os megas.
+📮 Após a transferência enviei o comprovante em forma do cópia junto com seu número.
+ 
+> 1. 🚨Não mande comprovativo em formato de imagem 📸🚨
 
-🔥 Promoção ativa! Aproveite enquanto puder 🚀
+> 2.  🚨 Não mande valor que não têm na tabela🚨
+
+🚀 O futuro é agora! Vamos? 🔥🛒
 `
-    }
+    },'120363402302455817@g.us': {
+        nome: 'KA-NET',
+        tabela: `INTERNET VODACOM
+
+Diários (Válidos Por 24Hrs)
+1GB = 18MT
+2GB = 36MT
+5GB = 90MT
+10GB = 170MT
+
+Semanal (7 Dias)
+3.4GB = 95MT
+5.3GB = 140MT
+7.2GB = 190MT
+10.7GB = 290MT
+
+Mensal (Válido Por 30 Dias)
+5GB = 150MT
+10GB = 250MT
+35GB = 710MT
+50GB = 1030MT
+100GB = 2040MT`,
+        pagamento: `💳 FORMAS/ PAGAMENTOS :⤵
+- 📲 𝗘-𝗠𝗢𝗟𝗔: 876692062💶💰
+- Catia Anabela Nharrava 
+- 📲 𝗠-𝗣𝗘𝗦𝗔: 856268077💷💰 
+- ↪📞Kelven Junior Anabela Nharrava
+`
+    }
+    
 };
 
 
@@ -2239,6 +2071,50 @@ function resolverIdReal(participantId, adminsEncontrados) {
     
     return participantId;
 }
+
+// Função para converter LID para número usando API oficial do wwebjs
+async function lidParaNumero(lid) {
+    try {
+        console.log(`🔍 INICIO: Convertendo LID para número: ${lid}`);
+        console.log(`🔍 CLIENTE: Status do cliente: ${client ? 'disponível' : 'não disponível'}`);
+
+        if (!client) {
+            console.error(`❌ Cliente WhatsApp não está disponível para conversão LID`);
+            return null;
+        }
+
+        // Verificar se o cliente está realmente pronto
+        try {
+            const info = await client.getState();
+            console.log(`🔍 ESTADO: Cliente estado: ${info}`);
+            if (info !== 'CONNECTED') {
+                console.error(`❌ Cliente não está conectado (estado: ${info}) - não é possível converter LID`);
+                return null;
+            }
+        } catch (stateError) {
+            console.error(`❌ Erro ao verificar estado do cliente:`, stateError.message);
+            return null;
+        }
+
+        console.log(`🔍 CHAMANDO: client.getContactById(${lid})`);
+        const contato = await client.getContactById(lid);
+        console.log(`🔍 CONTATO: Objeto recebido:`, contato ? 'OK' : 'NULL');
+
+        if (!contato) {
+            console.error(`❌ Contato não encontrado para LID: ${lid}`);
+            return null;
+        }
+
+        const numeroReal = contato.number;
+        console.log(`✅ LID convertido com sucesso: ${lid} → ${numeroReal}`);
+        return numeroReal; // Retorna número no formato internacional (ex: 258841234567)
+    } catch (err) {
+        console.error(`❌ Erro detalhado ao buscar número para LID ${lid}:`, err.message);
+        console.error(`❌ Stack trace:`, err.stack);
+        return null;
+    }
+}
+
 
 async function isAdminGrupo(chatId, participantId) {
     try {
@@ -2776,6 +2652,9 @@ client.on('ready', async () => {
     console.log(`🔗 URL: ${GOOGLE_SHEETS_CONFIG.scriptUrl}`);
     console.log('🤖 Bot Retalho - Lógica simples igual ao Bot Atacado!');
 
+    // Carregar mapeamentos LID salvos
+    await carregarMapeamentos();
+
     // === INICIALIZAR SISTEMA DE RELATÓRIOS ===
     try {
         global.sistemaRelatorios = new SistemaRelatorios(client, GOOGLE_SHEETS_CONFIG, PAGAMENTOS_CONFIG);
@@ -2822,6 +2701,9 @@ client.on('ready', async () => {
     });
     
     console.log('\n🔧 Comandos admin: .ia .stats .sheets .test_sheets .test_grupo .grupos_status .grupos .grupo_atual .addcomando .comandos .delcomando .test_vision .ranking .inativos .semcompra .resetranking .bonus .testreferencia .config-relatorio .list-relatorios .remove-relatorio .test-relatorio');
+    
+    // Iniciar monitoramento automático de novos membros
+    await iniciarMonitoramentoMembros();
 });
 
 client.on('group-join', async (notification) => {
@@ -2905,9 +2787,25 @@ client.on('group-join', async (notification) => {
                         console.log(`👤 Adicionado por: ${nomeAdicionador} (${addedBy})`);
                         console.log(`🏢 No grupo: ${configGrupo.nome}`);
 
-                        // Registrar entrada do novo membro
-                        await registrarEntradaMembro(chatId, participantId);
-                        console.log(`✅ Entrada do membro ${nomeParticipante} registrada`);
+                        // Marcar como processado via event para evitar processamento duplicado
+                        const membroKey = `${chatId}_${participantId}`;
+                        membrosProcessadosViaEvent.add(membroKey);
+
+                        // SISTEMA AUTOMÁTICO DESATIVADO - Novo membro deve usar código manual
+                        console.log(`📢 Sistema automático desativado - ${nomeParticipante} deve usar código do convidador`);
+
+                        /* SISTEMA AUTOMÁTICO COMENTADO - USUÁRIO PREFERIU MÉTODO MANUAL
+                        if (notification.type === 'add') {
+                            console.log(`🔗 Criando referência automática (admin adicionou)...`);
+                            const resultado = await criarReferenciaAutomatica(addedBy, participantId, chatId);
+                            console.log(`🔗 Resultado da criação: ${resultado ? 'SUCESSO' : 'FALHOU'}`);
+                        } else if (notification.type === 'invite') {
+                            console.log(`📎 Membro entrou via link de convite - não criando referência automática`);
+                        } else {
+                            console.log(`❓ Tipo de entrada desconhecido: ${notification.type}`);
+                        }
+                        */
+
 
                     } catch (error) {
                         console.error(`❌ Erro ao processar novo membro ${participantId}:`, error);
@@ -3384,36 +3282,38 @@ async function processMessage(message) {
                         
                         for (let i = 0; i < ranking.length; i++) {
                             const item = ranking[i];
-                            const contactId = item.numero + '@c.us';
-                            
+                            // COPIAR EXATAMENTE A LÓGICA DAS BOAS-VINDAS - SEM CONVERSÃO
+                            const participantId = item.numero; // Usar número exatamente como está salvo
+
                             // Obter informações do contato
                             try {
-                                const contact = await client.getContactById(contactId);
-                                
+                                const contact = await client.getContactById(participantId);
+
                                 // Prioridade: nome salvo > nome do perfil > número
                                 const nomeExibicao = contact.name || contact.pushname || item.numero;
-                                const numeroLimpo = contact.id.user; // Número sem @ e sem +
-                                
+
                                 const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
-                                const megasFormatados = item.megas >= 1024 ? 
+                                const megasFormatados = item.megas >= 1024 ?
                                     `${(item.megas/1024).toFixed(1)}GB` : `${item.megas}MB`;
-                                
-                                mensagem += `${posicaoEmoji} @${numeroLimpo}\n`;
+
+                                // Usar exatamente o mesmo padrão das boas-vindas
+                                mensagem += `${posicaoEmoji} @${participantId.replace('@c.us', '')}\n`;
                                 mensagem += `   💾 ${megasFormatados} no grupo (${item.compras}x)\n`;
                                 mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
-                                
-                                mentions.push(contactId);
+
+                                mentions.push(participantId);
                             } catch (error) {
-                                // Se não conseguir obter o contato, usar apenas o número
+                                // Se não conseguir obter o contato, usar apenas o número com padrão das boas-vindas
                                 const posicaoEmoji = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${item.posicao}º`;
-                                const megasFormatados = item.megas >= 1024 ? 
+                                const megasFormatados = item.megas >= 1024 ?
                                     `${(item.megas/1024).toFixed(1)}GB` : `${item.megas}MB`;
-                                
-                                mensagem += `${posicaoEmoji} @${item.numero}\n`;
+
+                                // Usar exatamente o mesmo padrão das boas-vindas
+                                mensagem += `${posicaoEmoji} @${participantId.replace('@c.us', '')}\n`;
                                 mensagem += `   💾 ${megasFormatados} no grupo (${item.compras}x)\n`;
                                 mensagem += `   📊 Total: ${item.megasTotal >= 1024 ? (item.megasTotal/1024).toFixed(1)+'GB' : item.megasTotal+'MB'}\n\n`;
-                                
-                                mentions.push(contactId);
+
+                                mentions.push(participantId);
                             }
                         }
                         
@@ -3444,11 +3344,12 @@ async function processMessage(message) {
                         
                         for (let i = 0; i < Math.min(inativos.length, 20); i++) {
                             const item = inativos[i];
-                            const contactId = item.numero + '@c.us';
-                            
+                            // COPIAR EXATAMENTE A LÓGICA DAS BOAS-VINDAS - SEM CONVERSÃO
+                            const participantId = item.numero; // Usar número exatamente como está salvo
+
                             // Obter informações do contato
                             try {
-                                const contact = await client.getContactById(contactId);
+                                const contact = await client.getContactById(participantId);
                                 
                                 // Prioridade: nome salvo > nome do perfil > número
                                 const nomeExibicao = contact.name || contact.pushname || item.numero;
@@ -3457,21 +3358,21 @@ async function processMessage(message) {
                                 const totalFormatado = item.megasTotal >= 1024 ? 
                                     `${(item.megasTotal/1024).toFixed(1)}GB` : `${item.megasTotal}MB`;
                                 
-                                mensagem += `👤 @${numeroLimpo}\n`;
+                                mensagem += `👤 @${participantId.replace('@c.us', '')}\n`;
                                 mensagem += `   ⏰ ${item.diasSemComprar} dias sem comprar\n`;
                                 mensagem += `   📊 Total: ${item.totalCompras}x compras (${totalFormatado})\n\n`;
                                 
-                                mentions.push(contactId);
+                                mentions.push(participantId);
                             } catch (error) {
                                 // Se não conseguir obter o contato, usar apenas o número
                                 const totalFormatado = item.megasTotal >= 1024 ? 
                                     `${(item.megasTotal/1024).toFixed(1)}GB` : `${item.megasTotal}MB`;
                                 
-                                mensagem += `👤 @${item.numero}\n`;
+                                mensagem += `👤 @${participantId.replace('@c.us', '')}\n`;
                                 mensagem += `   ⏰ ${item.diasSemComprar} dias sem comprar\n`;
                                 mensagem += `   📊 Total: ${item.totalCompras}x compras (${totalFormatado})\n\n`;
                                 
-                                mentions.push(contactId);
+                                mentions.push(participantId);
                             }
                         }
                         
@@ -3506,28 +3407,29 @@ async function processMessage(message) {
                         
                         for (let i = 0; i < Math.min(semCompra.length, 30); i++) {
                             const item = semCompra[i];
-                            const contactId = item.numero + '@c.us';
-                            
+                            // COPIAR EXATAMENTE A LÓGICA DAS BOAS-VINDAS - SEM CONVERSÃO
+                            const participantId = item.numero; // Usar número exatamente como está salvo
+
                             // Obter informações do contato
                             try {
-                                const contact = await client.getContactById(contactId);
+                                const contact = await client.getContactById(participantId);
                                 
                                 // Prioridade: nome salvo > nome do perfil > número
                                 const nomeExibicao = contact.name || contact.pushname || item.numero;
                                 const numeroLimpo = contact.id.user; // Número sem @ e sem +
                                 
-                                mensagem += `👤 @${numeroLimpo}\n`;
+                                mensagem += `👤 @${participantId.replace('@c.us', '')}\n`;
                                 mensagem += `   📅 Registrado: ${new Date(item.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
                                 mensagem += `   💰 Compras: ${item.totalCompras} (${item.megasTotal}MB)\n\n`;
                                 
-                                mentions.push(contactId);
+                                mentions.push(participantId);
                             } catch (error) {
                                 // Se não conseguir obter o contato, usar apenas o número
-                                mensagem += `👤 @${item.numero}\n`;
+                                mensagem += `👤 @${participantId.replace('@c.us', '')}\n`;
                                 mensagem += `   📅 Registrado: ${new Date(item.primeiraCompra).toLocaleDateString('pt-BR')}\n`;
                                 mensagem += `   💰 Compras: ${item.totalCompras} (${item.megasTotal}MB)\n\n`;
                                 
-                                mentions.push(contactId);
+                                mentions.push(participantId);
                             }
                         }
                         
@@ -3550,6 +3452,55 @@ async function processMessage(message) {
                 // .resetranking - Comando removido (ranking diário/semanal desabilitado)
                 if (comando === '.resetranking') {
                     await message.reply(`❌ *COMANDO DESABILITADO*\n\nO sistema de ranking diário/semanal foi removido.\nApenas o ranking geral está ativo.`);
+                    return;
+                }
+
+                // .mapear LID NUMERO - Mapear manualmente LID para número real
+                if (comando.startsWith('.mapear ')) {
+                    const partes = message.body.trim().split(' ');
+                    if (partes.length !== 3) {
+                        await message.reply(`❌ *USO INCORRETO*\n\n✅ **Formato:**\n*.mapear LID_CODE NUMERO*\n\n📝 **Exemplo:**\n*.mapear 76991768342659@lid 258870818180@c.us*\n\n💡 **Dica:** Use este comando quando souber que um LID específico corresponde a um número real.`);
+                        return;
+                    }
+
+                    const [, lidCode, numeroReal] = partes;
+
+                    // Validar formatos
+                    if (!lidCode.endsWith('@lid')) {
+                        await message.reply(`❌ *LID INVÁLIDO*\n\nO LID deve terminar com '@lid'\n\n📝 **Exemplo:** 76991768342659@lid`);
+                        return;
+                    }
+
+                    if (!numeroReal.endsWith('@c.us')) {
+                        await message.reply(`❌ *NÚMERO INVÁLIDO*\n\nO número deve terminar com '@c.us'\n\n📝 **Exemplo:** 258870818180@c.us`);
+                        return;
+                    }
+
+                    const sucesso = await adicionarMapeamento(lidCode, numeroReal);
+                    if (sucesso) {
+                        await message.reply(`✅ *MAPEAMENTO ADICIONADO*\n\n🔗 ${lidCode}\n↓\n📱 ${numeroReal}\n\n💾 Salvo no arquivo de mapeamentos.`);
+                    } else {
+                        await message.reply(`⚠️ *MAPEAMENTO JÁ EXISTE*\n\nEste LID já está mapeado para:\n📱 ${MAPEAMENTO_IDS[lidCode] || 'Desconhecido'}`);
+                    }
+                    return;
+                }
+
+                // .mapeamentos - Listar todos os mapeamentos conhecidos
+                if (comando === '.mapeamentos') {
+                    let mensagem = `📋 *MAPEAMENTOS LID CONHECIDOS*\n━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+                    const mapeamentosValidos = Object.entries(MAPEAMENTO_IDS).filter(([lid, numero]) => numero && numero !== null);
+
+                    if (mapeamentosValidos.length === 0) {
+                        mensagem += `❌ Nenhum mapeamento encontrado`;
+                    } else {
+                        mapeamentosValidos.forEach(([lid, numero], index) => {
+                            mensagem += `${index + 1}. ${lid}\n   → ${numero}\n\n`;
+                        });
+                        mensagem += `📊 *Total: ${mapeamentosValidos.length} mapeamentos*`;
+                    }
+
+                    await message.reply(mensagem);
                     return;
                 }
                 
@@ -3676,7 +3627,8 @@ async function processMessage(message) {
                             return;
                         }
 
-                        const participantId = numeroDestino + '@c.us';
+                        // COPIAR EXATAMENTE A LÓGICA DAS BOAS-VINDAS - SEM CONVERSÃO
+                        const participantId = numeroDestino; // Usar número exatamente como recebido
                         
                         // Inicializar saldo se não existir
                         if (!bonusSaldos[participantId]) {
@@ -3714,9 +3666,9 @@ async function processMessage(message) {
 
                         // Notificar o usuário que recebeu o bônus
                         try {
-                            await client.sendMessage(message.from, 
+                            await client.sendMessage(message.from,
                                 `🎁 *BÔNUS ADMINISTRATIVO!*\n\n` +
-                                `💎 @${numeroDestino}, recebeste *${quantidadeFormatada}* de bônus!\n\n` +
+                                `💎 @${participantId.replace('@c.us', '')}, recebeste *${quantidadeFormatada}* de bônus!\n\n` +
                                 `👨‍💼 *Ofertado por:* Administrador\n` +
                                 `💰 *Novo saldo:* ${novoSaldoFormatado}\n\n` +
                                 `${novoSaldo >= 1024 ? '🚀 *Já podes sacar!* Use: *.sacar*' : '💡 *Continua a acumular para sacar!*'}`, {
@@ -4387,7 +4339,6 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return false;
         }
 
-
         // === DETECÇÃO INTELIGENTE DE .MEUCODIGO (QUALQUER FORMATO) ===
         if (message.type === 'chat' && await detectarIntencaoMeuCodigo(message.body)) {
             const remetente = message.author || message.from;
@@ -4790,19 +4741,23 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
                 if (resultadoConfirmacao) {
                     console.log(`✅ COMPRAS: Confirmação processada - ${resultadoConfirmacao.numero} | ${resultadoConfirmacao.megas}MB`);
                     
-                    // Enviar mensagem de parabenização com menção clicável
+                    // Enviar mensagem de parabenização com menção clicável (igual às boas-vindas)
                     if (resultadoConfirmacao.mensagem && resultadoConfirmacao.contactId) {
                         try {
-                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${resultadoConfirmacao.contactId.replace('@c.us', '')}`);
+                            // Normalizar ID para formato @c.us igual às boas-vindas
+                            const participantId = resultadoConfirmacao.contactId; // IGUAL ÀS BOAS-VINDAS
+                            // Usar exato formato das boas-vindas
+                            const mensagemFinal = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${participantId.replace('@c.us', '')}`);
 
-                            // Enviar com menção clicável
+                            // Enviar com menção igual às boas-vindas
                             await client.sendMessage(message.from, mensagemFinal, {
-                                mentions: [resultadoConfirmacao.contactId]
+                                mentions: [participantId]
                             });
                         } catch (error) {
                             console.error('❌ Erro ao enviar parabenização com menção:', error);
                             // Fallback: enviar sem menção clicável
-                            const mensagemFallback = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${resultadoConfirmacao.numeroComprador}`);
+                            const participantId = resultadoConfirmacao.contactId; // IGUAL ÀS BOAS-VINDAS
+                            const mensagemFallback = resultadoConfirmacao.mensagem.replace('@NOME_PLACEHOLDER', `@${participantId.replace('@c.us', '')}`);
                             await message.reply(mensagemFallback);
                         }
                     }
@@ -5017,7 +4972,6 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
             return;
         }
 
-
     } catch (error) {
         console.error('❌ Erro ao processar mensagem:', error);
     }
@@ -5026,7 +4980,10 @@ Contexto: comando normal é ".meucodigo" mas aceitar variações como "meu codig
 // Novo handler principal com queue
 client.on('message', async (message) => {
     try {
-        // Primeiro: tentar processar comandos administrativos rápidos
+        // PRIMEIRO: Tentar aprender mapeamentos LID automaticamente
+        await aprenderMapeamento(message);
+
+        // Segundo: tentar processar comandos administrativos rápidos
         const adminProcessed = await handleAdminCommands(message);
         if (adminProcessed) return;
 
@@ -5098,6 +5055,7 @@ setInterval(() => {
 
     // Limpar outros caches seguindo padrão bot1
     if (gruposLogados && gruposLogados.size > 50) gruposLogados.clear();
+    if (membrosProcessadosViaEvent && membrosProcessadosViaEvent.size > 50) membrosProcessadosViaEvent.clear();
 
     console.log('🗑️ Cache geral limpo');
 }, 60 * 60 * 1000); // A cada hora
