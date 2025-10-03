@@ -1,6 +1,33 @@
 const fs = require('fs').promises;
 const path = require('path');
 
+// Mapeamento de IDs internos (@lid) para números reais (@c.us) - SISTEMA DINÂMICO COMPARTILHADO
+const ARQUIVO_MAPEAMENTOS = path.join(__dirname, 'mapeamentos_lid.json');
+
+let MAPEAMENTO_IDS = {
+    '23450974470333@lid': '258852118624@c.us',  // ID conhecido
+    '245075749638206@lid': null,  // Será identificado automaticamente
+    '76991768342659@lid': '258870818180@c.us'  // Joãozinho - corrigido manualmente
+};
+
+// Carregar mapeamentos salvos (se o arquivo existir)
+function carregarMapeamentosCompras() {
+    try {
+        if (require('fs').existsSync(ARQUIVO_MAPEAMENTOS)) {
+            const data = require('fs').readFileSync(ARQUIVO_MAPEAMENTOS, 'utf8');
+            const mapeamentosSalvos = JSON.parse(data);
+            MAPEAMENTO_IDS = { ...MAPEAMENTO_IDS, ...mapeamentosSalvos };
+            console.log(`✅ COMPRAS: Carregados ${Object.keys(mapeamentosSalvos).length} mapeamentos LID`);
+        }
+    } catch (error) {
+        console.error('❌ COMPRAS: Erro ao carregar mapeamentos LID:', error.message);
+    }
+}
+
+// Carregar na inicialização do módulo
+carregarMapeamentosCompras();
+
+
 class SistemaCompras {
     constructor() {
         console.log('🛒 Inicializando Sistema de Registro de Compras...');
@@ -459,13 +486,13 @@ class SistemaCompras {
 
             if (diasSemComprar > 1) {
                 // Cliente que não comprava há dias
-                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Há ${diasSemComprar} dias que você não comprava, bom tê-lo de volta! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                mensagem = `✅ Obrigado, @NOME_PLACEHOLDER, Há ${diasSemComprar} dias que você não comprava, bom tê-lo de volta! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
             } else if (comprasDoDia === 1) {
                 // Primeira compra do dia
-                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua 1ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                mensagem = `✅ Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua 1ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
             } else {
                 // Múltiplas compras do dia
-                mensagem = `🎉 Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${comprasDoDia}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
+                mensagem = `✅ Obrigado, @NOME_PLACEHOLDER, Você está fazendo a sua ${comprasDoDia}ª compra do dia! Foram adicionados ${megasFormatados}, totalizando ${totalFormatado} comprados.\n`;
             }
 
             // Mensagem do ranking baseada na posição (apenas ranking geral)
@@ -479,14 +506,14 @@ class SistemaCompras {
 
             return {
                 mensagem: mensagem,
-                contactId: numero + '@c.us'
+                contactId: numero // USAR EXATAMENTE COMO ESTÁ SALVO - IGUAL ÀS BOAS-VINDAS
             };
 
         } catch (error) {
             console.error('❌ COMPRAS: Erro ao gerar mensagem:', error);
             return {
                 mensagem: `🎉 Obrigado, @NOME_PLACEHOLDER, sua compra foi registrada com sucesso!`,
-                contactId: numero + '@c.us'
+                contactId: numero // USAR EXATAMENTE COMO ESTÁ SALVO - IGUAL ÀS BOAS-VINDAS
             };
         }
     }

@@ -204,7 +204,7 @@ class SistemaPacotes {
                 referencia: referencia,
                 valor: parseFloat(valor)
             }, {
-                timeout: 15000,
+                timeout: 60000, // 60s (aumentado de 15s para evitar timeout)
                 headers: { 'Content-Type': 'application/json' }
             });
             
@@ -255,7 +255,7 @@ class SistemaPacotes {
             console.log(`📋 Enviando pedido para planilha`);
             
             const response = await axios.post(this.PLANILHAS.PEDIDOS, dados, {
-                timeout: 20000,
+                timeout: 60000, // 60s (aumentado de 20s para evitar timeout)
                 headers: { 'Content-Type': 'application/json' }
             });
             
@@ -309,7 +309,7 @@ class SistemaPacotes {
             console.log(`💰 Enviando pagamento para planilha`);
             
             const response = await axios.post(this.PLANILHAS.PAGAMENTOS, dados, {
-                timeout: 20000,
+                timeout: 60000, // 60s (aumentado de 20s para evitar timeout)
                 headers: { 'Content-Type': 'application/json' }
             });
             
